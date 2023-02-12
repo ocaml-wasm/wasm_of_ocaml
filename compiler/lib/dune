@@ -7,6 +7,7 @@
   compiler-libs.bytecomp
   menhirLib
   sedlex
+  wasm
   (select
    source_map_io.ml
    from
@@ -40,6 +41,8 @@
 (menhir
  (modules annot_parser)
  (flags --explain))
+
+(include_subdirs unqualified)
 
 (rule
  (targets compiler_version.ml)
