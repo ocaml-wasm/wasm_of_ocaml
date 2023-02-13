@@ -3,6 +3,7 @@ module Operators = Wasm.Operators
 module Ast = Wasm.Ast
 module I32 = Wasm.I32
 module Source = Wasm.Source
+open! Stdlib
 open Code
 
 type ctx =
@@ -156,7 +157,50 @@ and translate_instrs ctx l =
       let* () = translate_instr ctx i in
       translate_instrs ctx rem
 
-let compile_closure ctx _name_opt _params (pc, _args) =
+let parallel_renaming ctx params args =
+  let rec visit visited prev s m x l =
+    if not (Var.Set.mem x visited)
+    then
+      let visited = Var.Set.add x visited in
+      let y = Var.Map.find x m in
+      if Code.Var.compare x y = 0
+      then visited, None, l
+      else if Var.Set.mem y prev
+      then
+        let t = Code.Var.fresh () in
+        visited, Some (y, t), (x, t) :: l
+      else if Var.Set.mem y s
+      then
+        let visited, aliases, l = visit visited (Var.Set.add x prev) s m y l in
+        match aliases with
+        | Some (a, b) when Code.Var.compare a x = 0 ->
+            visited, None, (b, a) :: (x, y) :: l
+        | _ -> visited, aliases, (x, y) :: l
+      else visited, None, (x, y) :: l
+    else visited, None, l
+  in
+  let visit_all params args =
+    let m = Subst.build_mapping params args in
+    let s = List.fold_left params ~init:Var.Set.empty ~f:(fun s x -> Var.Set.add x s) in
+    let _, l =
+      Var.Set.fold
+        (fun x (visited, l) ->
+          let visited, _, l = visit visited Var.Set.empty s m x l in
+          visited, l)
+        s
+        (Var.Set.empty, [])
+    in
+    l
+  in
+  let l = List.rev (visit_all params args) in
+  List.fold_left
+    l
+    ~f:(fun continuation (y, x) ->
+      let* () = continuation in
+      store ctx y (load x))
+    ~init:(return ())
+
+let translate_closure ctx _name_opt _params (pc, _args) =
   let g = Wa_structure.build_graph ctx.blocks pc in
   let idom = Wa_structure.dominator_tree g in
   let _dom = Wa_structure.reverse_tree idom in
@@ -168,45 +212,54 @@ let compile_closure ctx _name_opt _params (pc, _args) =
     | [] -> assert false
   in
   let open Source in
-  let rec do_tree pc context =
+  let rec translate_tree pc context =
     let code =
-      node_within
+      translate_node_within
         pc
         (List.filter
-           (fun pc' -> Wa_structure.is_merge_node g pc')
+           ~f:(fun pc' -> Wa_structure.is_merge_node g pc')
            (List.rev (Addr.Set.elements (Wa_structure.get_edges g.succs pc))))
     in
     if Wa_structure.is_loop_header g pc
     then loop (code (`Loop pc :: context))
     else code context
-  and node_within pc l context =
+  and translate_node_within pc l context =
     match l with
     | pc' :: rem ->
-        let* () = block (node_within pc rem (`Block pc' :: context)) in
-        do_tree pc' context
+        let* () = block (translate_node_within pc rem (`Block pc' :: context)) in
+        translate_tree pc' context
     | [] -> (
         let block = Addr.Map.find pc ctx.blocks in
         let* () = translate_instrs ctx block.body in
         match block.branch with
-        | Branch (pc', _) -> (*ZZZ*) do_branch pc pc' context
+        | Branch cont -> translate_branch pc cont context
         | Return x ->
             let* () = load x in
             instr Operators.return
-        | Cond (x, (pc1, _), (pc2, _)) ->
+        | Cond (x, cont1, cont2) ->
             let* () = load x in
-            if_ (do_branch pc pc1 (`If :: context)) (do_branch pc pc2 (`If :: context))
+            if_
+              (translate_branch pc cont1 (`If :: context))
+              (translate_branch pc cont2 (`If :: context))
         | Stop -> instr Operators.return
         | Switch (_, _, _) -> assert false
         | Raise _ | Pushtrap _ | Poptrap _ -> assert false (*ZZZ*))
-  and do_branch src dst context =
+  and translate_branch src (dst, args) context =
+    let* () =
+      if List.is_empty args
+      then return ()
+      else
+        let block = Addr.Map.find pc ctx.blocks in
+        parallel_renaming ctx block.params args
+    in
     if Wa_structure.is_backward g src dst || Wa_structure.is_merge_node g dst
     then instr (Operators.br (Int32.of_int (index dst 0 context) @@ no_region))
-    else do_tree dst context
+    else translate_tree dst context
   in
-  ignore (do_tree pc [] { var_count = 0; vars = Var.Map.empty; instrs = [] })
+  ignore (translate_tree pc [] { var_count = 0; vars = Var.Map.empty; instrs = [] })
 
 let compile_program ctx pc =
-  let res = compile_closure ctx (pc, []) in
+  let res = translate_closure ctx (pc, []) in
   res
 
 let f
@@ -221,5 +274,5 @@ let f
   let ctx = { live = live_vars; blocks = p.blocks; global = true } in
   Code.fold_closures
     p
-    (fun name_opt params cont () -> compile_closure ctx name_opt params cont)
+    (fun name_opt params cont () -> translate_closure ctx name_opt params cont)
     ()
