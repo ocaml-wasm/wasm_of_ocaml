@@ -32,7 +32,11 @@ let ( let* ) (type a b) (e : a t) (f : a -> b t) : b t =
 
 let return x st = x, st
 
-let var x st = Var.Map.find x st.vars, st
+let var x st =
+  try Var.Map.find x st.vars, st
+  with Not_found ->
+    Format.eprintf "%a@." Var.print x;
+    assert false
 
 let add_var ~global x ({ var_count; vars; _ } as st) =
   let i = Source.(Int32.of_int var_count @@ no_region) in
@@ -55,9 +59,17 @@ module Arith = struct
 
   let ( + ) = binary Operators.i32_add
 
+  let ( - ) = binary Operators.i32_sub
+
   let ( lsl ) = binary Operators.i32_shl
 
-  let const n = instr Operators.(i32_const Source.(Int32.of_int n @@ no_region))
+  let ( lsr ) = binary Operators.i32_shr_u
+
+  let ( asr ) = binary Operators.i32_shr_s
+
+  let ( land ) = binary Operators.i32_and
+
+  let const n = instr Operators.(i32_const Source.(n @@ no_region))
 end
 
 module Memory = struct
@@ -74,9 +86,9 @@ module Memory = struct
 
   let tag e = load ~offset:(-4) e
 
-  let array_get e e' = load ~offset:(-2) Arith.(e + (e' lsl const 2))
+  let array_get e e' = load ~offset:(-2) Arith.(e + (e' lsl const 2l))
 
-  let array_set e e' e'' = store ~offset:(-2) Arith.(e + (e' lsl const 2)) e''
+  let array_set e e' e'' = store ~offset:(-2) Arith.(e + (e' lsl const 2l)) e''
 
   let field e idx = load ~offset:(4 * idx) e
 
@@ -120,6 +132,16 @@ let store ctx x e =
   let* i = add_var ~global:ctx.global x in
   instr (if ctx.global then Operators.global_set i else Operators.local_set i)
 
+let transl_constant c =
+  match c with
+  | Int i -> Arith.const Int32.(add (add i i) 1l)
+  | _ -> return () (*ZZZ *)
+
+let transl_prim_arg x =
+  match x with
+  | Pv x -> load x
+  | Pc c -> transl_constant c
+
 let rec translate_expr e =
   match e with
   | Apply { f = _; args = _; exact } ->
@@ -135,7 +157,16 @@ let rec translate_expr e =
   | Block (tag, a, array_or_not) -> Memory.allocate ~tag a array_or_not
   | Field (x, n) -> Memory.field (load x) n
   | Closure (_args, ((_pc, _) as _cont)) -> return () (*ZZZ*)
-  | Constant _c -> return () (*ZZZ*)
+  | Constant c -> transl_constant c
+  | Prim (IsInt, [ x ]) -> Arith.(transl_prim_arg x land const 1l)
+  | Prim (Extern "%int_add", [ x; y ]) ->
+      Arith.(transl_prim_arg x + transl_prim_arg y - const 1l)
+  | Prim (Extern "%int_lsl", [ x; y ]) ->
+      Arith.(
+        ((transl_prim_arg x - const 1l) lsl transl_prim_arg y asr const 1l) + const 1l)
+  | Prim (Extern _, [ x; y ]) ->
+      let* () = transl_prim_arg x in
+      transl_prim_arg y (*ZZZ*)
   | Prim (_p, _l) -> return () (*ZZZ *)
 
 and translate_instr ctx i =
@@ -147,7 +178,10 @@ and translate_instr ctx i =
       else store ctx x (translate_expr e)
   | Set_field (x, n, y) -> Memory.set_field (load x) n (load y)
   | Offset_ref (x, n) ->
-      Memory.set_field (load x) 0 Arith.(Memory.field (load x) 0 + const (2 * n))
+      Memory.set_field
+        (load x)
+        0
+        Arith.(Memory.field (load x) 0 + const (Int32.of_int (2 * n)))
   | Array_set (x, y, z) -> Memory.array_set (load x) (load y) (load z)
 
 and translate_instrs ctx l =
@@ -200,7 +234,8 @@ let parallel_renaming ctx params args =
       store ctx y (load x))
     ~init:(return ())
 
-let translate_closure ctx _name_opt _params (pc, _args) =
+let translate_closure ctx name_opt params (pc, _args) =
+  let ctx = { ctx with global = Option.is_none name_opt } in
   let g = Wa_structure.build_graph ctx.blocks pc in
   let idom = Wa_structure.dominator_tree g in
   let _dom = Wa_structure.reverse_tree idom in
@@ -242,35 +277,53 @@ let translate_closure ctx _name_opt _params (pc, _args) =
               (translate_branch pc cont1 (`If :: context))
               (translate_branch pc cont2 (`If :: context))
         | Stop -> instr Operators.return
-        | Switch (_, _, _) -> assert false
-        | Raise _ | Pushtrap _ | Poptrap _ -> assert false (*ZZZ*))
+        | Switch (_, _, _) -> return () (*ZZZ *)
+        | Raise _ | Pushtrap _ | Poptrap _ -> return () (*ZZZ*))
   and translate_branch src (dst, args) context =
     let* () =
       if List.is_empty args
       then return ()
       else
-        let block = Addr.Map.find pc ctx.blocks in
+        let block = Addr.Map.find dst ctx.blocks in
         parallel_renaming ctx block.params args
     in
     if Wa_structure.is_backward g src dst || Wa_structure.is_merge_node g dst
     then instr (Operators.br (Int32.of_int (index dst 0 context) @@ no_region))
     else translate_tree dst context
   in
-  ignore (translate_tree pc [] { var_count = 0; vars = Var.Map.empty; instrs = [] })
-
-let compile_program ctx pc =
-  let res = translate_closure ctx (pc, []) in
-  res
+  let initial_env = { var_count = 0; vars = Var.Map.empty; instrs = [] } in
+  let _, env =
+    List.fold_left
+      ~f:(fun l x ->
+        let* _ = add_var ~global:false x in
+        let* _ = l in
+        return ())
+      ~init:(return ())
+      params
+      initial_env
+  in
+  Format.eprintf "=== %d ===@." pc;
+  let _, st = translate_tree pc [] env in
+  Wasm.Print.func
+    stdout
+    0
+    ({ Ast.ftype = 0l @@ no_region
+     ; locals =
+         (if ctx.global
+         then []
+         else List.init ~len:st.var_count ~f:(fun _ -> Types.NumType I32Type))
+     ; body = List.rev st.instrs
+     }
+    @@ no_region)
 
 let f
     (p : Code.program)
     ~live_vars
-    (*
+     (*
     ~cps_calls
     ~should_export
     ~warn_on_unhandled_effect
-*)
-      _debug =
+      _debug *) =
   let ctx = { live = live_vars; blocks = p.blocks; global = true } in
   Code.fold_closures
     p

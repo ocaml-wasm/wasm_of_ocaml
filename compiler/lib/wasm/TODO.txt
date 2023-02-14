@@ -1,0 +1,15 @@
+- Closure conversion
+
+- Spilling
+  Naive spilling for a start?
+
+- Rebuild call-graph
+
+- Partial application / over application
+  apply1 really fast
+  apply2 fast through indirect function
+  other cases slow
+
+- Better wasm syntax?
+
+- Global variables: defined at toplevel and used in functions
