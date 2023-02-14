@@ -3,6 +3,7 @@
   ==> functions
   ==> table
   ==> initial function
+  ==> external primitives
 
 - Closure conversion
   ==> allocate closures
@@ -20,5 +21,8 @@
 
 - Global variables: defined at toplevel and used in functions
   (or only use locals?)
+
+- Constants
+  ==> statically allocated
 
 - Better wasm syntax?

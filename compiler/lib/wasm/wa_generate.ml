@@ -6,10 +6,17 @@ module Source = Wasm.Source
 open! Stdlib
 open Code
 
+type primitive =
+  { index : int
+  ; arity : int
+  }
+
 type ctx =
   { live : int array
   ; blocks : block Addr.Map.t
   ; closures : Wa_closure_conversion.closure Var.Map.t
+  ; mutable primitives : primitive StringMap.t
+  ; mutable next_primitive : int
   }
 
 type var =
@@ -144,7 +151,7 @@ let transl_prim_arg x =
   | Pv x -> load x
   | Pc c -> transl_constant c
 
-let rec translate_expr e =
+let rec translate_expr ctx e =
   match e with
   | Apply { f = _; args = _; exact } ->
       if exact
@@ -166,9 +173,24 @@ let rec translate_expr e =
   | Prim (Extern "%int_lsl", [ x; y ]) ->
       Arith.(
         ((transl_prim_arg x - const 1l) lsl transl_prim_arg y asr const 1l) + const 1l)
-  | Prim (Extern _, [ x; y ]) ->
-      let* () = transl_prim_arg x in
-      transl_prim_arg y (*ZZZ*)
+  | Prim (Extern nm, l) ->
+      (*ZZZ Different calling convention when large number of parameters *)
+      let index =
+        match StringMap.find_opt nm ctx.primitives with
+        | Some info -> info.index
+        | None ->
+            let index = ctx.next_primitive in
+            ctx.next_primitive <- index + 1;
+            ctx.primitives <-
+              StringMap.add nm { index; arity = List.length l } ctx.primitives;
+            index
+      in
+      List.fold_left
+        ~f:(fun r x ->
+          let* () = transl_prim_arg x in
+          r)
+        ~init:(instr (Operators.call Source.(Int32.of_int index @@ no_region)))
+        l
   | Prim (_p, _l) -> return () (*ZZZ *)
 
 and translate_instr ctx i =
@@ -176,8 +198,8 @@ and translate_instr ctx i =
   | Assign (x, y) -> assign x (load y)
   | Let (x, e) ->
       if ctx.live.(Var.idx x) = 0
-      then drop (translate_expr e)
-      else store x (translate_expr e)
+      then drop (translate_expr ctx e)
+      else store x (translate_expr ctx e)
   | Set_field (x, n, y) -> Memory.set_field (load x) n (load y)
   | Offset_ref (x, n) ->
       Memory.set_field
@@ -392,7 +414,14 @@ let f
     ~warn_on_unhandled_effect
       _debug *) =
   let closures = Wa_closure_conversion.f p in
-  let ctx = { live = live_vars; blocks = p.blocks; closures } in
+  let ctx =
+    { live = live_vars
+    ; blocks = p.blocks
+    ; closures
+    ; primitives = StringMap.empty
+    ; next_primitive = 0
+    }
+  in
   Code.fold_closures
     p
     (fun name_opt params cont () -> translate_closure ctx name_opt params cont)
