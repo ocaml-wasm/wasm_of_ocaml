@@ -9,6 +9,7 @@ open Code
 type ctx =
   { live : int array
   ; blocks : block Addr.Map.t
+  ; closures : Wa_closure_conversion.closure Var.Map.t
   }
 
 type var =
@@ -74,16 +75,16 @@ end
 module Memory = struct
   let load ?(offset = 0) e =
     let* () = e in
-    instr (Operators.i32_load 4 (Int32.of_int offset))
+    instr (Operators.i32_load 2 (Int32.of_int offset))
 
   let store ?(offset = 0) e e' =
     let* () = e in
     let* () = e' in
-    instr (Operators.i32_store 4 (Int32.of_int offset))
+    instr (Operators.i32_store 2 (Int32.of_int offset))
 
   let allocate ~tag:_ _a _array_or_not = return () (*ZZZ Float array?*)
 
-  let tag e = load ~offset:(-4) e
+  let tag e = load ~offset:(-4) e (*ZZZ mask*)
 
   let array_get e e' = load ~offset:(-2) Arith.(e + (e' lsl const 2l))
 
@@ -98,7 +99,7 @@ let load x : unit t =
   let* x = var x in
   match x with
   | Local x -> instr (Operators.local_get x)
-  | Env (x, offset) -> Memory.load ~offset (instr (Operators.local_get x))
+  | Env (x, offset) -> Memory.field (instr (Operators.local_get x)) offset
   | Rec (x, offset) ->
       let closure = instr (Operators.local_get x) in
       if offset = 0 then closure else Arith.(closure + const (Int32.of_int (offset * 8)))
@@ -122,7 +123,8 @@ let block l =
   let* instrs = blk l in
   instr (Operators.block (ValBlockType None) instrs)
 
-let if_ l1 l2 =
+let if_ e l1 l2 =
+  let* () = e in
   let* instrs1 = blk l1 in
   let* instrs2 = blk l2 in
   instr (Operators.if_ (ValBlockType None) instrs1 instrs2)
@@ -234,11 +236,10 @@ let parallel_renaming params args =
       store y (load x))
     ~init:(return ())
 
-let translate_closure ctx _name_opt params (pc, _args) =
+let translate_closure ctx name_opt params (pc, _args) =
   let g = Wa_structure.build_graph ctx.blocks pc in
   let idom = Wa_structure.dominator_tree g in
-  let _dom = Wa_structure.reverse_tree idom in
-
+  let dom = Wa_structure.reverse_tree idom in
   let rec index pc i context =
     match context with
     | (`Loop pc' | `Block pc') :: _ when pc = pc' -> i
@@ -247,12 +248,18 @@ let translate_closure ctx _name_opt params (pc, _args) =
   in
   let open Source in
   let rec translate_tree pc context =
+    let is_switch =
+      let block = Addr.Map.find pc ctx.blocks in
+      match block.branch with
+      | Switch _ -> true
+      | _ -> false
+    in
     let code =
       translate_node_within
         pc
         (List.filter
-           ~f:(fun pc' -> Wa_structure.is_merge_node g pc')
-           (List.rev (Addr.Set.elements (Wa_structure.get_edges g.succs pc))))
+           ~f:(fun pc' -> is_switch || Wa_structure.is_merge_node g pc')
+           (List.rev (Addr.Set.elements (Wa_structure.get_edges dom pc))))
     in
     if Wa_structure.is_loop_header g pc
     then loop (code (`Loop pc :: context))
@@ -271,13 +278,47 @@ let translate_closure ctx _name_opt params (pc, _args) =
             let* () = load x in
             instr Operators.return
         | Cond (x, cont1, cont2) ->
-            let* () = load x in
             if_
+              (load x)
               (translate_branch pc cont1 (`If :: context))
               (translate_branch pc cont2 (`If :: context))
         | Stop -> instr Operators.return
-        | Switch (_, _, _) -> return () (*ZZZ *)
-        | Raise _ | Pushtrap _ | Poptrap _ -> return () (*ZZZ*))
+        | Switch (x, a1, a2) -> (
+            let br_table a context =
+              let len = Array.length a in
+              let l = Array.to_list (Array.sub a ~pos:0 ~len:(len - 1)) in
+              let dest (pc, args) =
+                (*ZZZ*)
+                assert (List.is_empty args);
+                Int32.of_int (index pc 0 context) @@ no_region
+              in
+              instr (Operators.br_table (List.map ~f:dest l) (dest a.(len - 1)))
+            in
+            match a1, a2 with
+            | [||], _ ->
+                let* () = Memory.tag (load x) in
+                br_table a2 context
+            | _, [||] ->
+                let* () = load x in
+                br_table a1 context
+            | _ ->
+                if_
+                  Arith.(load x land const 1l)
+                  (let* () = load x in
+                   br_table a1 context)
+                  (let* () = Memory.tag (load x) in
+                   br_table a2 context))
+        | Raise (x, _) ->
+            let* () = load x in
+            instr Operators.return (*ZZZ*)
+        | Pushtrap (cont, x, cont', _) ->
+            if_
+              (Arith.const 0l)
+              (let* () = store x (Arith.const 0l) in
+               translate_branch pc cont' (`If :: context))
+              (translate_branch pc cont (`If :: context))
+            (*ZZZ*)
+        | Poptrap cont -> translate_branch pc cont context (*ZZZ*))
   and translate_branch src (dst, args) context =
     let* () =
       if List.is_empty args
@@ -290,7 +331,37 @@ let translate_closure ctx _name_opt params (pc, _args) =
     then instr (Operators.br (Int32.of_int (index dst 0 context) @@ no_region))
     else translate_tree dst context
   in
-  let initial_env = { var_count = 0; vars = Var.Map.empty; instrs = [] } in
+  let initial_env =
+    match name_opt with
+    | Some f ->
+        let { Wa_closure_conversion.functions; free_variables } =
+          Var.Map.find f ctx.closures
+        in
+        let index =
+          let rec index i l =
+            match l with
+            | [] -> assert false
+            | g :: r -> if Var.equal f g then i else index (i + 1) r
+          in
+          index 0 functions
+        in
+        let env = Source.(0l @@ no_region) in
+        let _, vars =
+          List.fold_left
+            ~f:(fun (i, vars) x -> i + 1, Var.Map.add x (Rec (env, i)) vars)
+            ~init:(-index, Var.Map.empty)
+            functions
+        in
+        let _, vars =
+          let offset = (2 * (List.length functions - index)) - 1 in
+          List.fold_left
+            ~f:(fun (i, vars) x -> i + 1, Var.Map.add x (Env (env, i)) vars)
+            ~init:(offset, vars)
+            free_variables
+        in
+        { var_count = 1; vars; instrs = [] }
+    | None -> { var_count = 1; vars = Var.Map.empty; instrs = [] }
+  in
   let _, env =
     List.fold_left
       ~f:(fun l x ->
@@ -320,16 +391,9 @@ let f
     ~should_export
     ~warn_on_unhandled_effect
       _debug *) =
-  let _closures = Wa_closure_conversion.f p in
-  let ctx = { live = live_vars; blocks = p.blocks } in
+  let closures = Wa_closure_conversion.f p in
+  let ctx = { live = live_vars; blocks = p.blocks; closures } in
   Code.fold_closures
     p
     (fun name_opt params cont () -> translate_closure ctx name_opt params cont)
     ()
-
-(*
-Closures:
-- allocate block if main function
-- build initial environment from closure
-  ==> recursive functions / free variables
-*)

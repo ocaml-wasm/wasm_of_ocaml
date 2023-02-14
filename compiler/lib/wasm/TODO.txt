@@ -1,16 +1,24 @@
+- Build a module
+  ==> function types
+  ==> functions
+  ==> table
+  ==> initial function
+
 - Closure conversion
+  ==> allocate closures
+
+- Rebuild call-graph
+  ==> check for unnecessary blocks and branches
 
 - Spilling
   Naive spilling for a start?
-
-- Rebuild call-graph
 
 - Partial application / over application
   apply1 really fast
   apply2 fast through indirect function
   other cases slow
 
-- Better wasm syntax?
-
 - Global variables: defined at toplevel and used in functions
   (or only use locals?)
+
+- Better wasm syntax?
