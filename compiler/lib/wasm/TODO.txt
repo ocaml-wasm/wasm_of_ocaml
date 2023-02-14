@@ -13,3 +13,4 @@
 - Better wasm syntax?
 
 - Global variables: defined at toplevel and used in functions
+  (or only use locals?)

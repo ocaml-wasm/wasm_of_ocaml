@@ -1,41 +1,46 @@
-(*
-A lot like lambda lifting
-===> get function free variables
-===> merge closure of mutually recursive functions
-
-Free variables of a function:
-- immediate free variables
-- free variables from subfunctions which are not bound
-*)
-
 open! Stdlib
 open Code
 
-let collect_free_vars program var_depth depth pc =
-  let vars = ref Var.Set.empty in
-  let rec traverse pc =
-    Code.preorder_traverse
-      { fold = Code.fold_children }
-      (fun pc () ->
-        let block = Code.Addr.Map.find pc program.blocks in
-        Freevars.iter_block_free_vars
-          (fun x ->
-            let idx = Var.idx x in
-            if idx < Array.length var_depth
-            then (
-              let d = var_depth.(idx) in
-              assert (d >= 0);
-              if d < depth then vars := Var.Set.add x !vars))
-          block;
-        List.iter block.body ~f:(fun i ->
-            match i with
-            | Let (_, Closure (_, (pc', _))) -> traverse pc'
-            | _ -> ()))
-      pc
-      program.blocks
-      ()
+type closure =
+  { functions : Var.t list
+  ; free_variables : Var.t list
+  }
+
+module SCC = Strongly_connected_components.Make (Var)
+
+let rec collect_closures acc clos_acc instrs =
+  let push_closures clos_acc acc =
+    if List.is_empty clos_acc then acc else clos_acc :: acc
   in
-  traverse pc;
+  match instrs with
+  | [] -> push_closures clos_acc acc
+  | Let (f, Closure (_, (pc, _))) :: rem -> collect_closures acc ((f, pc) :: clos_acc) rem
+  | _ :: rem -> collect_closures (push_closures clos_acc acc) [] rem
+
+let collect_free_vars program var_depth depth pc closures =
+  let vars = ref Var.Set.empty in
+  let add_if_free_variable x =
+    let idx = Var.idx x in
+    let d = var_depth.(idx) in
+    assert (d >= 0);
+    if d < depth then vars := Var.Set.add x !vars
+  in
+  Code.preorder_traverse
+    { fold = Code.fold_children }
+    (fun pc () ->
+      let block = Code.Addr.Map.find pc program.blocks in
+      Freevars.iter_block_free_vars add_if_free_variable block;
+      List.iter block.body ~f:(fun i ->
+          match i with
+          | Let (f, Closure _) -> (
+              match Var.Map.find_opt f closures with
+              | Some { functions = g :: _; free_variables; _ } when Var.equal f g ->
+                  List.iter ~f:add_if_free_variable free_variables
+              | Some _ | None -> ())
+          | _ -> ()))
+    pc
+    program.blocks
+    ();
   !vars
 
 let mark_bound_variables var_depth block depth =
@@ -46,48 +51,71 @@ let mark_bound_variables var_depth block depth =
           List.iter params ~f:(fun x -> var_depth.(Var.idx x) <- depth + 1)
       | _ -> ())
 
-let rec traverse var_depth (program, functions) pc depth =
+let rec traverse var_depth program pc depth closures =
   Code.preorder_traverse
     { fold = Code.fold_children }
-    (fun pc (program, functions) ->
+    (fun pc closures ->
       let block = Code.Addr.Map.find pc program.blocks in
       mark_bound_variables var_depth block depth;
-      let rec rewrite_body st l =
-        match l with
-        | Let (f, (Closure (_, (pc', _)) as cl)) :: rem ->
-            let program, functions = traverse var_depth st pc' (depth + 1) in
-            let free_vars = collect_free_vars program var_depth (depth + 1) pc' in
-            let s =
-              Var.Set.fold
-                (fun x m -> Var.Map.add x (Var.fork x) m)
-                free_vars
-                Var.Map.empty
-            in
-            let program = Subst.cont (Subst.from_map s) pc' program in
-            let f' = try Var.Map.find f s with Not_found -> Var.fork f in
-            let s = Var.Map.bindings (Var.Map.remove f s) in
-            let f'' = Var.fork f in
-            let pc'' = program.free_pc in
-            let bl = { params = []; body = [ Let (f', cl) ]; branch = Return f' } in
-            let program =
-              { program with
-                free_pc = pc'' + 1
-              ; blocks = Addr.Map.add pc'' bl program.blocks
-              }
-            in
-            let functions =
-              Let (f'', Closure (List.map s ~f:snd, (pc'', []))) :: functions
-            in
-            let rem', st = rewrite_body (program, functions) rem in
-            Let (f, Apply { f = f''; args = List.map ~f:fst s; exact = true }) :: rem', st
-        | i :: rem ->
-            let rem', st = rewrite_body st rem in
-            i :: rem', st
-        | [] -> [], st
-      in
-      let body, (program, functions) = rewrite_body (program, functions) block.body in
-      ( { program with blocks = Addr.Map.add pc { block with body } program.blocks }
-      , functions ))
+      List.fold_left
+        ~f:(fun closures l ->
+          let closures =
+            List.fold_left
+              ~f:(fun closures (_, pc') ->
+                traverse var_depth program pc' (depth + 1) closures)
+              ~init:closures
+              l
+          in
+          let free_vars =
+            List.fold_left
+              ~f:(fun free_vars (f, pc') ->
+                Var.Map.add
+                  f
+                  (collect_free_vars program var_depth (depth + 1) pc' closures)
+                  free_vars)
+              ~init:Var.Map.empty
+              l
+          in
+          let domain =
+            List.fold_left ~f:(fun s (f, _) -> Var.Set.add f s) ~init:Var.Set.empty l
+          in
+          let graph = Var.Map.map (fun s -> Var.Set.inter s domain) free_vars in
+          let components = SCC.connected_components_sorted_from_roots_to_leaf graph in
+          Array.fold_left
+            ~f:(fun closures component ->
+              let functions =
+                match component with
+                | SCC.No_loop x -> [ x ]
+                | SCC.Has_loop l -> l
+              in
+              let free_variables =
+                Var.Set.elements
+                  (List.fold_left
+                     ~f:(fun fv x -> Var.Set.remove x fv)
+                     ~init:
+                       (List.fold_left
+                          ~f:(fun fv x -> Var.Set.union fv (Var.Map.find x free_vars))
+                          ~init:Var.Set.empty
+                          functions)
+                     functions)
+              in
+              List.fold_left
+                ~f:(fun closures f ->
+                  Var.Map.add f { functions; free_variables } closures)
+                ~init:closures
+                functions)
+            ~init:closures
+            components)
+        ~init:closures
+        (collect_closures [] [] block.body))
     pc
     program.blocks
-    (program, functions)
+    closures
+
+let f p =
+  let t = Timer.make () in
+  let nv = Var.count () in
+  let var_depth = Array.make nv (-1) in
+  let res = traverse var_depth p p.start 0 Var.Map.empty in
+  if Debug.find "times" () then Format.eprintf "  closure conversion: %a@." Timer.print t;
+  res

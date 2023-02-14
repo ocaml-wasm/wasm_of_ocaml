@@ -8,14 +8,13 @@ open Code
 
 type ctx =
   { live : int array
-  ; global : bool
   ; blocks : block Addr.Map.t
   }
 
 type var =
-  | Global of Ast.var
   | Local of Ast.var
   | Env of Ast.var * int
+  | Rec of Ast.var * int
 
 type state =
   { var_count : int
@@ -38,9 +37,9 @@ let var x st =
     Format.eprintf "%a@." Var.print x;
     assert false
 
-let add_var ~global x ({ var_count; vars; _ } as st) =
+let add_var x ({ var_count; vars; _ } as st) =
   let i = Source.(Int32.of_int var_count @@ no_region) in
-  let vars = Var.Map.add x (if global then Global i else Local i) vars in
+  let vars = Var.Map.add x (Local i) vars in
   i, { st with var_count = var_count + 1; vars }
 
 let instr i : unit t =
@@ -99,16 +98,17 @@ let load x : unit t =
   let* x = var x in
   match x with
   | Local x -> instr (Operators.local_get x)
-  | Global x -> instr (Operators.global_get x)
   | Env (x, offset) -> Memory.load ~offset (instr (Operators.local_get x))
+  | Rec (x, offset) ->
+      let closure = instr (Operators.local_get x) in
+      if offset = 0 then closure else Arith.(closure + const (Int32.of_int (offset * 8)))
 
 let assign x e =
   let* () = e in
   let* x = var x in
   match x with
   | Local x -> instr (Operators.local_set x)
-  | Global x -> instr (Operators.global_set x)
-  | Env _ -> assert false
+  | Env _ | Rec _ -> assert false
 
 let drop e =
   let* () = e in
@@ -127,10 +127,10 @@ let if_ l1 l2 =
   let* instrs2 = blk l2 in
   instr (Operators.if_ (ValBlockType None) instrs1 instrs2)
 
-let store ctx x e =
+let store x e =
   let* () = e in
-  let* i = add_var ~global:ctx.global x in
-  instr (if ctx.global then Operators.global_set i else Operators.local_set i)
+  let* i = add_var x in
+  instr (Operators.local_set i)
 
 let transl_constant c =
   match c with
@@ -175,7 +175,7 @@ and translate_instr ctx i =
   | Let (x, e) ->
       if ctx.live.(Var.idx x) = 0
       then drop (translate_expr e)
-      else store ctx x (translate_expr e)
+      else store x (translate_expr e)
   | Set_field (x, n, y) -> Memory.set_field (load x) n (load y)
   | Offset_ref (x, n) ->
       Memory.set_field
@@ -191,7 +191,7 @@ and translate_instrs ctx l =
       let* () = translate_instr ctx i in
       translate_instrs ctx rem
 
-let parallel_renaming ctx params args =
+let parallel_renaming params args =
   let rec visit visited prev s m x l =
     if not (Var.Set.mem x visited)
     then
@@ -231,11 +231,10 @@ let parallel_renaming ctx params args =
     l
     ~f:(fun continuation (y, x) ->
       let* () = continuation in
-      store ctx y (load x))
+      store y (load x))
     ~init:(return ())
 
-let translate_closure ctx name_opt params (pc, _args) =
-  let ctx = { ctx with global = Option.is_none name_opt } in
+let translate_closure ctx _name_opt params (pc, _args) =
   let g = Wa_structure.build_graph ctx.blocks pc in
   let idom = Wa_structure.dominator_tree g in
   let _dom = Wa_structure.reverse_tree idom in
@@ -285,7 +284,7 @@ let translate_closure ctx name_opt params (pc, _args) =
       then return ()
       else
         let block = Addr.Map.find dst ctx.blocks in
-        parallel_renaming ctx block.params args
+        parallel_renaming block.params args
     in
     if Wa_structure.is_backward g src dst || Wa_structure.is_merge_node g dst
     then instr (Operators.br (Int32.of_int (index dst 0 context) @@ no_region))
@@ -295,7 +294,7 @@ let translate_closure ctx name_opt params (pc, _args) =
   let _, env =
     List.fold_left
       ~f:(fun l x ->
-        let* _ = add_var ~global:false x in
+        let* _ = add_var x in
         let* _ = l in
         return ())
       ~init:(return ())
@@ -308,10 +307,7 @@ let translate_closure ctx name_opt params (pc, _args) =
     stdout
     0
     ({ Ast.ftype = 0l @@ no_region
-     ; locals =
-         (if ctx.global
-         then []
-         else List.init ~len:st.var_count ~f:(fun _ -> Types.NumType I32Type))
+     ; locals = List.init ~len:st.var_count ~f:(fun _ -> Types.NumType I32Type)
      ; body = List.rev st.instrs
      }
     @@ no_region)
@@ -324,8 +320,16 @@ let f
     ~should_export
     ~warn_on_unhandled_effect
       _debug *) =
-  let ctx = { live = live_vars; blocks = p.blocks; global = true } in
+  let _closures = Wa_closure_conversion.f p in
+  let ctx = { live = live_vars; blocks = p.blocks } in
   Code.fold_closures
     p
     (fun name_opt params cont () -> translate_closure ctx name_opt params cont)
     ()
+
+(*
+Closures:
+- allocate block if main function
+- build initial environment from closure
+  ==> recursive functions / free variables
+*)
