@@ -5,7 +5,7 @@ type value_type =
   | I64
   | F64
 
-type typ =
+type func_type =
   { params : value_type list
   ; result : value_type
   }
@@ -21,32 +21,29 @@ type int_un_op =
   | Popcnt
   | Eqz
 
+type signage =
+  | S
+  | U
+
 type int_bin_op =
   | Add
   | Sub
   | Mul
-  | DivS
-  | DivU
-  | RemS
-  | RemU
+  | Div of signage
+  | Rem of signage
   | And
   | Or
   | Xor
   | Shl
-  | ShrS
-  | ShrU
+  | Shr of signage
   | Rotl
   | Rotr
   | Eq
   | Ne
-  | LtS
-  | LtU
-  | GtS
-  | GtU
-  | LeS
-  | LeU
-  | GeS
-  | GeU
+  | Lt of signage
+  | Gt of signage
+  | Le of signage
+  | Ge of signage
 
 type float_un_op =
   | Neg
@@ -72,37 +69,34 @@ type float_bin_op =
   | Le
   | Ge
 
-type memarg =
-  { offset : int32
-  ; align : int
-  }
+type memarg = int32
 
 type expression =
   | Const of (int32, int64, float) op
-  | UnOp of expression
+  | UnOp of (int_un_op, int_un_op, float_un_op) op * expression
   | BinOp of (int_bin_op, int_bin_op, float_bin_op) op * expression * expression
-  | Load of (memarg, memarg, memarg) op
+  | Load of (memarg, memarg, memarg) op * expression
   | LocalGet of int
-  | Call_indirect of typ
-  | Call of var
+  | Call_indirect of func_type * expression * expression list
+  | Call of var * expression list
 
 type instruction =
   | Drop of expression
-  | Store of (memarg, memarg, memarg) op * expression
+  | Store of (memarg, memarg, memarg) op * expression * expression
   | LocalSet of int * expression
   | Loop of instruction list
   | Block of instruction list
   | If of expression * instruction list * instruction list
-  | Br_table of int list * int
+  | Br_table of expression * int list * int
   | Br of int
   | Return of expression option
 
-type import_desc = Fun of var * typ
+type import_desc = Fun of func_type
 
 type module_field =
   | Function of
       { name : var
-      ; typ : typ
+      ; typ : func_type
       ; locals : value_type list
       ; body : instruction list
       }

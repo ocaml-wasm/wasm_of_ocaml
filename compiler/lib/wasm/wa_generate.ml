@@ -1,10 +1,13 @@
+(*
 module Types = Wasm.Types
 module Operators = Wasm.Operators
 module Ast = Wasm.Ast
 module I32 = Wasm.I32
 module Source = Wasm.Source
+*)
 open! Stdlib
 open Code
+module W = Wa_ast
 
 type primitive =
   { index : int
@@ -20,14 +23,14 @@ type ctx =
   }
 
 type var =
-  | Local of Ast.var
-  | Env of Ast.var * int
-  | Rec of Ast.var * int
+  | Local of int
+  | Env of int * int
+  | Rec of int * int
 
 type state =
   { var_count : int
   ; vars : var Var.Map.t
-  ; instrs : Ast.instr list
+  ; instrs : W.instruction list
   }
 
 type 'a t = state -> 'a * state
@@ -46,12 +49,11 @@ let var x st =
     assert false
 
 let add_var x ({ var_count; vars; _ } as st) =
-  let i = Source.(Int32.of_int var_count @@ no_region) in
+  let i = var_count in
   let vars = Var.Map.add x (Local i) vars in
   i, { st with var_count = var_count + 1; vars }
 
-let instr i : unit t =
- fun st -> (), { st with instrs = Source.(i @@ no_region) :: st.instrs }
+let instr i : unit t = fun st -> (), { st with instrs = i :: st.instrs }
 
 let blk l st =
   let instrs = st.instrs in
@@ -59,37 +61,29 @@ let blk l st =
   List.rev st.instrs, { st with instrs }
 
 module Arith = struct
-  let binary op e e' =
-    let* () = e in
-    let* () = e' in
-    instr op
+  let binary op e e' = W.BinOp (I32 op, e, e')
 
-  let ( + ) = binary Operators.i32_add
+  let ( + ) = binary Add
 
-  let ( - ) = binary Operators.i32_sub
+  let ( - ) = binary Sub
 
-  let ( lsl ) = binary Operators.i32_shl
+  let ( lsl ) = binary Shl
 
-  let ( lsr ) = binary Operators.i32_shr_u
+  let ( lsr ) = binary (Shr U)
 
-  let ( asr ) = binary Operators.i32_shr_s
+  let ( asr ) = binary (Shr S)
 
-  let ( land ) = binary Operators.i32_and
+  let ( land ) = binary And
 
-  let const n = instr Operators.(i32_const Source.(n @@ no_region))
+  let const n = W.Const (I32 n)
 end
 
 module Memory = struct
-  let load ?(offset = 0) e =
-    let* () = e in
-    instr (Operators.i32_load 2 (Int32.of_int offset))
+  let load ?(offset = 0) e = W.Load (I32 (Int32.of_int offset), e)
 
-  let store ?(offset = 0) e e' =
-    let* () = e in
-    let* () = e' in
-    instr (Operators.i32_store 2 (Int32.of_int offset))
+  let store ?(offset = 0) e e' = instr (Store (I32 (Int32.of_int offset), e, e'))
 
-  let allocate ~tag:_ _a _array_or_not = return () (*ZZZ Float array?*)
+  let allocate ~tag:_ _a _array_or_not = return (W.Const (I32 0l)) (*ZZZ Float array?*)
 
   let tag e = load ~offset:(-4) e (*ZZZ mask*)
 
@@ -102,54 +96,51 @@ module Memory = struct
   let set_field e idx e' = store ~offset:(4 * idx) e e'
 end
 
-let load x : unit t =
-  let* x = var x in
+let load x =
   match x with
-  | Local x -> instr (Operators.local_get x)
-  | Env (x, offset) -> Memory.field (instr (Operators.local_get x)) offset
+  | Local x -> W.LocalGet x
+  | Env (x, offset) -> Memory.field (W.LocalGet x) offset
   | Rec (x, offset) ->
-      let closure = instr (Operators.local_get x) in
+      let closure = W.LocalGet x in
       if offset = 0 then closure else Arith.(closure + const (Int32.of_int (offset * 8)))
 
 let assign x e =
-  let* () = e in
   let* x = var x in
   match x with
-  | Local x -> instr (Operators.local_set x)
+  | Local x -> instr (W.LocalSet (x, e))
   | Env _ | Rec _ -> assert false
 
-let drop e =
-  let* () = e in
-  instr Operators.drop
+let drop e = instr (Drop e)
 
 let loop l =
   let* instrs = blk l in
-  instr (Operators.loop (ValBlockType None) instrs)
+  instr (Loop instrs)
 
 let block l =
   let* instrs = blk l in
-  instr (Operators.block (ValBlockType None) instrs)
+  instr (Block instrs)
 
 let if_ e l1 l2 =
-  let* () = e in
   let* instrs1 = blk l1 in
   let* instrs2 = blk l2 in
-  instr (Operators.if_ (ValBlockType None) instrs1 instrs2)
+  instr (If (e, instrs1, instrs2))
 
 let store x e =
-  let* () = e in
   let* i = add_var x in
-  instr (Operators.local_set i)
+  instr (LocalSet (i, e))
 
 let transl_constant c =
   match c with
   | Int i -> Arith.const Int32.(add (add i i) 1l)
-  | _ -> return () (*ZZZ *)
+  | _ -> Const (I32 0l)
+(*ZZZ *)
 
 let transl_prim_arg x =
   match x with
-  | Pv x -> load x
-  | Pc c -> transl_constant c
+  | Pv x ->
+      let* x = var x in
+      return (load x)
+  | Pc c -> return (transl_constant c)
 
 let rec translate_expr ctx e =
   match e with
@@ -161,12 +152,13 @@ let rec translate_expr ctx e =
           return ()
         in
         let* () = return () (* load function *) in
-        instr Operators.(call_indirect Source.(0l @@ no_region) Source.(0l @@ no_region))
+        return ()
+        (*ZZZ         instr (Call_indirect Source.(0l @@ no_region) Source.(0l @@ no_region))*)
       else return () (*ZZZ*)
-  | Block (tag, a, array_or_not) -> Memory.allocate ~tag a array_or_not
-  | Field (x, n) -> Memory.field (load x) n
-  | Closure (_args, ((_pc, _) as _cont)) -> return () (*ZZZ*)
-  | Constant c -> transl_constant c
+  | Block (tag, a, array_or_not) -> return (Memory.allocate ~tag a array_or_not)
+  | Field (x, n) -> return (Memory.field (load x) n)
+  | Closure (_args, ((_pc, _) as _cont)) -> return (W.Const (I32 0l)) (*ZZZ*)
+  | Constant c -> return (transl_constant c)
   | Prim (IsInt, [ x ]) -> Arith.(transl_prim_arg x land const 1l)
   | Prim (Extern "%int_add", [ x; y ]) ->
       Arith.(transl_prim_arg x + transl_prim_arg y - const 1l)
