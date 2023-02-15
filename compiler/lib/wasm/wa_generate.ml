@@ -258,7 +258,7 @@ let parallel_renaming params args =
       store y (load x))
     ~init:(return ())
 
-let translate_closure ctx name_opt params (pc, _args) =
+let translate_closure ctx name_opt params ((pc, _) as cont) =
   let g = Wa_structure.build_graph ctx.blocks pc in
   let idom = Wa_structure.dominator_tree g in
   let dom = Wa_structure.reverse_tree idom in
@@ -349,7 +349,8 @@ let translate_closure ctx name_opt params (pc, _args) =
         let block = Addr.Map.find dst ctx.blocks in
         parallel_renaming block.params args
     in
-    if Wa_structure.is_backward g src dst || Wa_structure.is_merge_node g dst
+    if (src >= 0 && Wa_structure.is_backward g src dst)
+       || Wa_structure.is_merge_node g dst
     then instr (Operators.br (Int32.of_int (index dst 0 context) @@ no_region))
     else translate_tree dst context
   in
@@ -395,7 +396,7 @@ let translate_closure ctx name_opt params (pc, _args) =
       initial_env
   in
   Format.eprintf "=== %d ===@." pc;
-  let _, st = translate_tree pc [] env in
+  let _, st = translate_branch (-1) cont [] env in
   Wasm.Print.func
     stdout
     0

@@ -1,18 +1,14 @@
-type var =
-  | V of Code.Var.t
-  | I of int32
+type var = Code.Var.t
 
 type value_type =
   | I32
   | I64
   | F64
 
-type type_use =
-  | Ref of var
-  | Type of
-      { params : (var * value_type) list
-      ; result : value_type
-      }
+type typ =
+  { params : value_type list
+  ; result : value_type
+  }
 
 type ('i32, 'i64, 'f64) op =
   | I32 of 'i32
@@ -78,46 +74,39 @@ type float_bin_op =
 
 type memarg =
   { offset : int32
-  ; align : int32
+  ; align : int
   }
 
 type expression =
-  | Constant of (int32, int64, float) op
+  | Const of (int32, int64, float) op
   | UnOp of expression
   | BinOp of (int_bin_op, int_bin_op, float_bin_op) op * expression * expression
   | Load of (memarg, memarg, memarg) op
-  | LocalGet of var
-  | Call_indirect of
-      { table : var
-      ; typ : type_use
-      }
+  | LocalGet of int
+  | Call_indirect of typ
   | Call of var
 
 type instruction =
   | Drop of expression
   | Store of (memarg, memarg, memarg) op * expression
-  | LocalSet of var * expression
-  | Loop of var * instruction list
-  | Block of var * instruction list
-  | If of var * expression * instruction list * instruction list
-  | Br_table of var list * var
-  | Br of var
+  | LocalSet of int * expression
+  | Loop of instruction list
+  | Block of instruction list
+  | If of expression * instruction list * instruction list
+  | Br_table of int list * int
+  | Br of int
   | Return of expression option
 
-type import_desc = Fun of var * type_use
-
-type table_type = Func_ref
+type import_desc = Fun of var * typ
 
 type module_field =
   | Function of
       { name : var
-      ; typ : type_use
-      ; locals : (var * value_type) list
+      ; typ : typ
+      ; locals : value_type list
       ; body : instruction list
       }
   | Import of
-      { modul : string
-      ; name : string
+      { name : string
       ; desc : import_desc
       }
-  | Table of var * table_type

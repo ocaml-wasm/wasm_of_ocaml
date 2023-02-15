@@ -59,16 +59,20 @@ let dominator_tree g =
       let l = Hashtbl.find g.succs pc in
       Addr.Set.iter
         (fun pc' ->
-          let d = try inter pc (Hashtbl.find dom pc') with Not_found -> pc in
-          Hashtbl.replace dom pc' d)
+          if Hashtbl.find g.block_order pc < Hashtbl.find g.block_order pc'
+          then
+            let d = try inter pc (Hashtbl.find dom pc') with Not_found -> pc in
+            Hashtbl.replace dom pc' d)
         l);
   (* Check we have reached a fixed point (reducible graph) *)
   List.iter g.reverse_post_order ~f:(fun pc ->
       let l = Hashtbl.find g.succs pc in
       Addr.Set.iter
         (fun pc' ->
-          let d = Hashtbl.find dom pc' in
-          assert (inter pc d = d))
+          if Hashtbl.find g.block_order pc < Hashtbl.find g.block_order pc'
+          then
+            let d = Hashtbl.find dom pc' in
+            assert (inter pc d = d))
         l);
   dom
 
