@@ -91,16 +91,19 @@ module Memory = struct
 
   let array_set e e' e'' = store ~offset:(-2) Arith.(e + (e' lsl const 2l)) e''
 
-  let field e idx = load ~offset:(4 * idx) e
+  let field e idx = return (load ~offset:(4 * idx) e)
 
   let set_field e idx e' = store ~offset:(4 * idx) e e'
 end
 
 let load x =
+  let* x = var x in
   match x with
-  | Local x -> W.LocalGet x
+  | Local x -> return (W.LocalGet x)
   | Env (x, offset) -> Memory.field (W.LocalGet x) offset
   | Rec (x, offset) ->
+      return
+      @@
       let closure = W.LocalGet x in
       if offset = 0 then closure else Arith.(closure + const (Int32.of_int (offset * 8)))
 
@@ -137,9 +140,7 @@ let transl_constant c =
 
 let transl_prim_arg x =
   match x with
-  | Pv x ->
-      let* x = var x in
-      return (load x)
+  | Pv x -> load x
   | Pc c -> return (transl_constant c)
 
 let rec translate_expr ctx e =
@@ -152,16 +153,22 @@ let rec translate_expr ctx e =
           return ()
         in
         let* () = return () (* load function *) in
-        return ()
+        return (W.Const (I32 0l))
         (*ZZZ         instr (Call_indirect Source.(0l @@ no_region) Source.(0l @@ no_region))*)
-      else return () (*ZZZ*)
-  | Block (tag, a, array_or_not) -> return (Memory.allocate ~tag a array_or_not)
-  | Field (x, n) -> return (Memory.field (load x) n)
+      else return (W.Const (I32 0l)) (*ZZZ*)
+  | Block (tag, a, array_or_not) -> Memory.allocate ~tag a array_or_not
+  | Field (x, n) ->
+      let* e = load x in
+      Memory.field e n
   | Closure (_args, ((_pc, _) as _cont)) -> return (W.Const (I32 0l)) (*ZZZ*)
   | Constant c -> return (transl_constant c)
-  | Prim (IsInt, [ x ]) -> Arith.(transl_prim_arg x land const 1l)
+  | Prim (IsInt, [ x ]) ->
+      let* e = transl_prim_arg x in
+      return Arith.(e land const 1l)
   | Prim (Extern "%int_add", [ x; y ]) ->
-      Arith.(transl_prim_arg x + transl_prim_arg y - const 1l)
+      let* e1 = transl_prim_arg x in
+      let* e2 = transl_prim_arg y in
+      return Arith.(e1 + e2 - const 1l)
   | Prim (Extern "%int_lsl", [ x; y ]) ->
       Arith.(
         ((transl_prim_arg x - const 1l) lsl transl_prim_arg y asr const 1l) + const 1l)
@@ -250,6 +257,9 @@ let parallel_renaming params args =
       store y (load x))
     ~init:(return ())
 
+let func_type n =
+  { W.params = List.init ~len:n ~f:(fun _ : W.value_type -> I32); result = I32 }
+
 let translate_closure ctx name_opt params ((pc, _) as cont) =
   let g = Wa_structure.build_graph ctx.blocks pc in
   let idom = Wa_structure.dominator_tree g in
@@ -260,7 +270,6 @@ let translate_closure ctx name_opt params ((pc, _) as cont) =
     | _ :: rem -> index pc (i + 1) rem
     | [] -> assert false
   in
-  let open Source in
   let rec translate_tree pc context =
     let is_switch =
       let block = Addr.Map.find pc ctx.blocks in
@@ -289,42 +298,43 @@ let translate_closure ctx name_opt params ((pc, _) as cont) =
         match block.branch with
         | Branch cont -> translate_branch pc cont context
         | Return x ->
-            let* () = load x in
-            instr Operators.return
+            let* x = var x in
+            instr (Return (Some (load x)))
         | Cond (x, cont1, cont2) ->
+            let* x = var x in
             if_
               (load x)
               (translate_branch pc cont1 (`If :: context))
               (translate_branch pc cont2 (`If :: context))
-        | Stop -> instr Operators.return
+        | Stop -> instr (Return None)
         | Switch (x, a1, a2) -> (
-            let br_table a context =
+            let br_table e a context =
               let len = Array.length a in
               let l = Array.to_list (Array.sub a ~pos:0 ~len:(len - 1)) in
               let dest (pc, args) =
                 (*ZZZ*)
                 assert (List.is_empty args);
-                Int32.of_int (index pc 0 context) @@ no_region
+                index pc 0 context
               in
-              instr (Operators.br_table (List.map ~f:dest l) (dest a.(len - 1)))
+              instr (Br_table (e, List.map ~f:dest l, dest a.(len - 1)))
             in
             match a1, a2 with
             | [||], _ ->
-                let* () = Memory.tag (load x) in
-                br_table a2 context
+                let* x = var x in
+                br_table (Memory.tag (load x)) a2 context
             | _, [||] ->
-                let* () = load x in
-                br_table a1 context
+                let* x = var x in
+                br_table (load x) a1 context
             | _ ->
+                let* x = var x in
                 if_
                   Arith.(load x land const 1l)
-                  (let* () = load x in
-                   br_table a1 context)
-                  (let* () = Memory.tag (load x) in
-                   br_table a2 context))
+                  (br_table (load x) a1 context)
+                  (br_table (Memory.tag (load x)) a2 context))
         | Raise (x, _) ->
-            let* () = load x in
-            instr Operators.return (*ZZZ*)
+            let* x = var x in
+            instr (Return (Some (load x)))
+            (*ZZZ*)
         | Pushtrap (cont, x, cont', _) ->
             if_
               (Arith.const 0l)
@@ -343,7 +353,7 @@ let translate_closure ctx name_opt params ((pc, _) as cont) =
     in
     if (src >= 0 && Wa_structure.is_backward g src dst)
        || Wa_structure.is_merge_node g dst
-    then instr (Operators.br (Int32.of_int (index dst 0 context) @@ no_region))
+    then instr (Br (index dst 0 context))
     else translate_tree dst context
   in
   let initial_env =
@@ -360,7 +370,7 @@ let translate_closure ctx name_opt params ((pc, _) as cont) =
           in
           index 0 functions
         in
-        let env = Source.(0l @@ no_region) in
+        let env = 0 in
         let _, vars =
           List.fold_left
             ~f:(fun (i, vars) x -> i + 1, Var.Map.add x (Rec (env, i)) vars)
@@ -389,14 +399,16 @@ let translate_closure ctx name_opt params ((pc, _) as cont) =
   in
   Format.eprintf "=== %d ===@." pc;
   let _, st = translate_branch (-1) cont [] env in
-  Wasm.Print.func
-    stdout
-    0
-    ({ Ast.ftype = 0l @@ no_region
-     ; locals = List.init ~len:st.var_count ~f:(fun _ -> Types.NumType I32Type)
-     ; body = List.rev st.instrs
-     }
-    @@ no_region)
+  ignore
+  @@ W.Function
+       { name =
+           (match name_opt with
+           | None -> Var.fresh ()
+           | Some x -> x)
+       ; typ = func_type (List.length params)
+       ; locals = List.init ~len:st.var_count ~f:(fun _ : W.value_type -> I32)
+       ; body = List.rev st.instrs
+       }
 
 let f
     (p : Code.program)

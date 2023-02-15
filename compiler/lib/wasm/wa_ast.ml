@@ -79,8 +79,9 @@ type expression =
   | LocalGet of int
   | Call_indirect of func_type * expression * expression list
   | Call of var * expression list
+  | Seq of instruction list * expression
 
-type instruction =
+and instruction =
   | Drop of expression
   | Store of (memarg, memarg, memarg) op * expression * expression
   | LocalSet of int * expression
