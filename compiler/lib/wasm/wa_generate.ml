@@ -18,8 +18,7 @@ type ctx =
   { live : int array
   ; blocks : block Addr.Map.t
   ; closures : Wa_closure_conversion.closure Var.Map.t
-  ; mutable primitives : primitive StringMap.t
-  ; mutable next_primitive : int
+  ; mutable primitives : W.func_type StringMap.t
   }
 
 type var =
@@ -34,6 +33,9 @@ type state =
   }
 
 type 'a t = state -> 'a * state
+
+let func_type n =
+  { W.params = List.init ~len:n ~f:(fun _ : W.value_type -> I32); result = I32 }
 
 let ( let* ) (type a b) (e : a t) (f : a -> b t) : b t =
  fun st ->
@@ -61,7 +63,10 @@ let blk l st =
   List.rev st.instrs, { st with instrs }
 
 module Arith = struct
-  let binary op e e' = W.BinOp (I32 op, e, e')
+  let binary op e e' =
+    let* e = e in
+    let* e' = e' in
+    return (W.BinOp (I32 op, e, e'))
 
   let ( + ) = binary Add
 
@@ -75,13 +80,28 @@ module Arith = struct
 
   let ( land ) = binary And
 
-  let const n = W.Const (I32 n)
+  let ( < ) = binary (Lt S)
+
+  let ( <= ) = binary (Le S)
+
+  let ( = ) = binary Eq
+
+  let ( <> ) = binary Ne
+
+  let const n = return (W.Const (I32 n))
+
+  let val_int i = (i lsl const 1l) + const 1l
 end
 
 module Memory = struct
-  let load ?(offset = 0) e = W.Load (I32 (Int32.of_int offset), e)
+  let load ?(offset = 0) e =
+    let* e = e in
+    return (W.Load (I32 (Int32.of_int offset), e))
 
-  let store ?(offset = 0) e e' = instr (Store (I32 (Int32.of_int offset), e, e'))
+  let store ?(offset = 0) e e' =
+    let* e = e in
+    let* e' = e' in
+    instr (Store (I32 (Int32.of_int offset), e, e'))
 
   let allocate ~tag:_ _a _array_or_not = return (W.Const (I32 0l)) (*ZZZ Float array?*)
 
@@ -91,7 +111,7 @@ module Memory = struct
 
   let array_set e e' e'' = store ~offset:(-2) Arith.(e + (e' lsl const 2l)) e''
 
-  let field e idx = return (load ~offset:(4 * idx) e)
+  let field e idx = load ~offset:(4 * idx) e
 
   let set_field e idx e' = store ~offset:(4 * idx) e e'
 end
@@ -100,20 +120,21 @@ let load x =
   let* x = var x in
   match x with
   | Local x -> return (W.LocalGet x)
-  | Env (x, offset) -> Memory.field (W.LocalGet x) offset
+  | Env (x, offset) -> Memory.field (return (W.LocalGet x)) offset
   | Rec (x, offset) ->
-      return
-      @@
-      let closure = W.LocalGet x in
+      let closure = return (W.LocalGet x) in
       if offset = 0 then closure else Arith.(closure + const (Int32.of_int (offset * 8)))
 
 let assign x e =
   let* x = var x in
+  let* e = e in
   match x with
   | Local x -> instr (W.LocalSet (x, e))
   | Env _ | Rec _ -> assert false
 
-let drop e = instr (Drop e)
+let drop e =
+  let* e = e in
+  instr (Drop e)
 
 let loop l =
   let* instrs = blk l in
@@ -124,73 +145,76 @@ let block l =
   instr (Block instrs)
 
 let if_ e l1 l2 =
+  let* e = e in
   let* instrs1 = blk l1 in
   let* instrs2 = blk l2 in
   instr (If (e, instrs1, instrs2))
 
 let store x e =
   let* i = add_var x in
+  let* e = e in
   instr (LocalSet (i, e))
 
 let transl_constant c =
   match c with
   | Int i -> Arith.const Int32.(add (add i i) 1l)
-  | _ -> Const (I32 0l)
+  | _ -> Arith.const 5555l
 (*ZZZ *)
 
 let transl_prim_arg x =
   match x with
   | Pv x -> load x
-  | Pc c -> return (transl_constant c)
+  | Pc c -> transl_constant c
 
 let rec translate_expr ctx e =
   match e with
-  | Apply { f = _; args = _; exact } ->
-      if exact
-      then
-        let* () =
-          (* push arguments *)
-          return ()
-        in
-        let* () = return () (* load function *) in
-        return (W.Const (I32 0l))
-        (*ZZZ         instr (Call_indirect Source.(0l @@ no_region) Source.(0l @@ no_region))*)
-      else return (W.Const (I32 0l)) (*ZZZ*)
+  | Apply { f; args; exact = _ } ->
+      (*ZZZ*)
+      let rec loop acc l =
+        match l with
+        | [] ->
+            let* closure = load f in
+            let* funct = Memory.field (load f) 0 in
+            return
+              (W.Call_indirect
+                 (func_type (List.length args + 1), funct, List.rev (closure :: acc)))
+        | x :: r ->
+            let* x = load x in
+            loop (x :: acc) r
+      in
+      loop [] args
   | Block (tag, a, array_or_not) -> Memory.allocate ~tag a array_or_not
-  | Field (x, n) ->
-      let* e = load x in
-      Memory.field e n
+  | Field (x, n) -> Memory.field (load x) n
   | Closure (_args, ((_pc, _) as _cont)) -> return (W.Const (I32 0l)) (*ZZZ*)
-  | Constant c -> return (transl_constant c)
-  | Prim (IsInt, [ x ]) ->
-      let* e = transl_prim_arg x in
-      return Arith.(e land const 1l)
+  | Constant c -> transl_constant c
+  | Prim (IsInt, [ x ]) -> Arith.(transl_prim_arg x land const 1l)
   | Prim (Extern "%int_add", [ x; y ]) ->
-      let* e1 = transl_prim_arg x in
-      let* e2 = transl_prim_arg y in
-      return Arith.(e1 + e2 - const 1l)
+      Arith.(transl_prim_arg x + transl_prim_arg y - const 1l)
   | Prim (Extern "%int_lsl", [ x; y ]) ->
       Arith.(
         ((transl_prim_arg x - const 1l) lsl transl_prim_arg y asr const 1l) + const 1l)
   | Prim (Extern nm, l) ->
       (*ZZZ Different calling convention when large number of parameters *)
-      let index =
-        match StringMap.find_opt nm ctx.primitives with
-        | Some info -> info.index
-        | None ->
-            let index = ctx.next_primitive in
-            ctx.next_primitive <- index + 1;
-            ctx.primitives <-
-              StringMap.add nm { index; arity = List.length l } ctx.primitives;
-            index
+      if not (StringMap.mem nm ctx.primitives)
+      then ctx.primitives <- StringMap.add nm (func_type (List.length l)) ctx.primitives;
+      let rec loop acc l =
+        match l with
+        | [] -> return (W.Call (nm, List.rev acc))
+        | x :: r ->
+            let* x = transl_prim_arg x in
+            loop (x :: acc) r
       in
-      List.fold_left
-        ~f:(fun r x ->
-          let* () = transl_prim_arg x in
-          r)
-        ~init:(instr (Operators.call Source.(Int32.of_int index @@ no_region)))
-        l
-  | Prim (_p, _l) -> return () (*ZZZ *)
+      loop [] l
+  | Prim (p, l) -> (
+      match p, l with
+      | Not, [ x ] -> Arith.(const 4l - transl_prim_arg x)
+      | Lt, [ x; y ] -> Arith.(val_int (transl_prim_arg x < transl_prim_arg y))
+      | Le, [ x; y ] -> Arith.(val_int (transl_prim_arg x <= transl_prim_arg y))
+      | Eq, [ x; y ] -> Arith.(val_int (transl_prim_arg x = transl_prim_arg y))
+      | Neq, [ x; y ] -> Arith.(val_int (transl_prim_arg x <> transl_prim_arg y))
+      | Ult, [ x; y ] ->
+          Arith.(val_int (binary (Lt U) (transl_prim_arg x) (transl_prim_arg y)))
+      | _ -> Arith.const 7777l (*ZZZ *))
 
 and translate_instr ctx i =
   match i with
@@ -257,10 +281,7 @@ let parallel_renaming params args =
       store y (load x))
     ~init:(return ())
 
-let func_type n =
-  { W.params = List.init ~len:n ~f:(fun _ : W.value_type -> I32); result = I32 }
-
-let translate_closure ctx name_opt params ((pc, _) as cont) =
+let translate_closure ctx name_opt params ((pc, _) as cont) acc =
   let g = Wa_structure.build_graph ctx.blocks pc in
   let idom = Wa_structure.dominator_tree g in
   let dom = Wa_structure.reverse_tree idom in
@@ -298,10 +319,9 @@ let translate_closure ctx name_opt params ((pc, _) as cont) =
         match block.branch with
         | Branch cont -> translate_branch pc cont context
         | Return x ->
-            let* x = var x in
-            instr (Return (Some (load x)))
+            let* e = load x in
+            instr (Return (Some e))
         | Cond (x, cont1, cont2) ->
-            let* x = var x in
             if_
               (load x)
               (translate_branch pc cont1 (`If :: context))
@@ -312,28 +332,23 @@ let translate_closure ctx name_opt params ((pc, _) as cont) =
               let len = Array.length a in
               let l = Array.to_list (Array.sub a ~pos:0 ~len:(len - 1)) in
               let dest (pc, args) =
-                (*ZZZ*)
                 assert (List.is_empty args);
                 index pc 0 context
               in
+              let* e = e in
               instr (Br_table (e, List.map ~f:dest l, dest a.(len - 1)))
             in
             match a1, a2 with
-            | [||], _ ->
-                let* x = var x in
-                br_table (Memory.tag (load x)) a2 context
-            | _, [||] ->
-                let* x = var x in
-                br_table (load x) a1 context
+            | [||], _ -> br_table (Memory.tag (load x)) a2 context
+            | _, [||] -> br_table (load x) a1 context
             | _ ->
-                let* x = var x in
                 if_
                   Arith.(load x land const 1l)
                   (br_table (load x) a1 context)
                   (br_table (Memory.tag (load x)) a2 context))
         | Raise (x, _) ->
-            let* x = var x in
-            instr (Return (Some (load x)))
+            let* e = load x in
+            instr (Return (Some e))
             (*ZZZ*)
         | Pushtrap (cont, x, cont', _) ->
             if_
@@ -397,18 +412,20 @@ let translate_closure ctx name_opt params ((pc, _) as cont) =
       params
       initial_env
   in
+  (*
   Format.eprintf "=== %d ===@." pc;
+*)
   let _, st = translate_branch (-1) cont [] env in
-  ignore
-  @@ W.Function
-       { name =
-           (match name_opt with
-           | None -> Var.fresh ()
-           | Some x -> x)
-       ; typ = func_type (List.length params)
-       ; locals = List.init ~len:st.var_count ~f:(fun _ : W.value_type -> I32)
-       ; body = List.rev st.instrs
-       }
+  W.Function
+    { name =
+        (match name_opt with
+        | None -> Var.fresh ()
+        | Some x -> x)
+    ; typ = func_type (List.length params + 1)
+    ; locals = List.init ~len:st.var_count ~f:(fun _ : W.value_type -> I32)
+    ; body = List.rev st.instrs
+    }
+  :: acc
 
 let f
     (p : Code.program)
@@ -420,14 +437,17 @@ let f
       _debug *) =
   let closures = Wa_closure_conversion.f p in
   let ctx =
-    { live = live_vars
-    ; blocks = p.blocks
-    ; closures
-    ; primitives = StringMap.empty
-    ; next_primitive = 0
-    }
+    { live = live_vars; blocks = p.blocks; closures; primitives = StringMap.empty }
   in
-  Code.fold_closures
-    p
-    (fun name_opt params cont () -> translate_closure ctx name_opt params cont)
-    ()
+  let functions =
+    Code.fold_closures
+      p
+      (fun name_opt params cont -> translate_closure ctx name_opt params cont)
+      []
+  in
+  let primitives =
+    List.map
+      ~f:(fun (name, ty) -> W.Import { name; desc = Fun ty })
+      (StringMap.bindings ctx.primitives)
+  in
+  Wa_output.f (functions @ primitives)

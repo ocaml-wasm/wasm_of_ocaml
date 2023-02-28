@@ -1,3 +1,5 @@
+- Single (implicit) return at end of function?
+
 - Build a module
   ==> function types
   ==> functions
@@ -24,8 +26,6 @@
 
 - Constants
   ==> statically allocated
-
-- Better wasm syntax?
 
 GHC: https://gitlab.haskell.org/ghc/ghc/-/merge_requests/9204/diffs
 

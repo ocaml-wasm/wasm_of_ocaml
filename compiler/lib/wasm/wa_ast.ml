@@ -78,7 +78,7 @@ type expression =
   | Load of (memarg, memarg, memarg) op * expression
   | LocalGet of int
   | Call_indirect of func_type * expression * expression list
-  | Call of var * expression list
+  | Call of string * expression list
   | Seq of instruction list * expression
 
 and instruction =
