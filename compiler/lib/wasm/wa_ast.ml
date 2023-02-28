@@ -71,12 +71,15 @@ type float_bin_op =
 
 type memarg = int32
 
+type block_type = value_type option
+
 type expression =
   | Const of (int32, int64, float) op
   | UnOp of (int_un_op, int_un_op, float_un_op) op * expression
   | BinOp of (int_bin_op, int_bin_op, float_bin_op) op * expression * expression
   | Load of (memarg, memarg, memarg) op * expression
   | LocalGet of int
+  | GlobalGet of string
   | Call_indirect of func_type * expression * expression list
   | Call of string * expression list
   | Seq of instruction list * expression
@@ -85,14 +88,17 @@ and instruction =
   | Drop of expression
   | Store of (memarg, memarg, memarg) op * expression * expression
   | LocalSet of int * expression
-  | Loop of instruction list
-  | Block of instruction list
-  | If of expression * instruction list * instruction list
+  | GlobalSet of string * expression
+  | Loop of block_type * instruction list
+  | Block of block_type * instruction list
+  | If of block_type * expression * instruction list * instruction list
   | Br_table of expression * int list * int
-  | Br of int
+  | Br of int * expression option
   | Return of expression option
 
-type import_desc = Fun of func_type
+type import_desc =
+  | Fun of func_type
+  | Global of value_type
 
 type module_field =
   | Function of
