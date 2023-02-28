@@ -142,9 +142,7 @@ return p + 4
                 cont ))
             a))
       Arith.(return (W.LocalGet p) + const 4l)
-  (*
-     return (W.Const (I32 4444l)) (*ZZZ Float array?*)
-*)
+  (*ZZZ Float array?*)
 
   let tag e = Arith.(mem_load ~offset:(-4) e land const 0xffl)
 
@@ -190,7 +188,7 @@ let store x e =
 let transl_constant c =
   match c with
   | Int i -> Arith.const Int32.(add (add i i) 1l)
-  | _ -> Arith.const 5555l
+  | _ -> Arith.const 11115555l
 (*ZZZ *)
 
 let transl_prim_arg x =
@@ -217,7 +215,7 @@ let rec translate_expr ctx e =
       loop [] args
   | Block (tag, a, array_or_not) -> Memory.allocate ~tag a array_or_not
   | Field (x, n) -> Memory.field (load x) n
-  | Closure (_args, ((_pc, _) as _cont)) -> return (W.Const (I32 7777l)) (*ZZZ*)
+  | Closure (_args, ((_pc, _) as _cont)) -> return (W.Const (I32 11117777l)) (*ZZZ*)
   | Constant c -> transl_constant c
   | Prim (IsInt, [ x ]) -> Arith.(transl_prim_arg x land const 1l)
   | Prim (Extern "%int_add", [ x; y ]) ->
@@ -246,7 +244,7 @@ let rec translate_expr ctx e =
       | Neq, [ x; y ] -> Arith.(val_int (transl_prim_arg x <> transl_prim_arg y))
       | Ult, [ x; y ] ->
           Arith.(val_int (binary (Lt U) (transl_prim_arg x) (transl_prim_arg y)))
-      | _ -> Arith.const 7777l (*ZZZ *))
+      | _ -> Arith.const 11119999l (*ZZZ *))
 
 and translate_instr ctx i =
   match i with
@@ -353,15 +351,19 @@ let translate_closure ctx name_opt params ((pc, _) as cont) acc =
         let* () = translate_instrs ctx block.body in
         match block.branch with
         | Branch cont -> translate_branch typ pc cont context
-        | Return x ->
+        | Return x -> (
             let* e = load x in
-            instr (Br (List.length context, Some e))
+            match context with
+            | `Then :: _ ->
+                (* Return seems to be miscompiled here... *)
+                instr (Br (List.length context, Some e))
+            | _ -> instr (Return (Some e)))
         | Cond (x, cont1, cont2) ->
             if_
               typ
-              (load x)
-              (translate_branch typ pc cont1 (`If :: context))
-              (translate_branch typ pc cont2 (`If :: context))
+              Arith.(load x <> const 1l)
+              (translate_branch typ pc cont1 (`Then :: context))
+              (translate_branch typ pc cont2 (`Else :: context))
         | Stop ->
             let* e = Arith.const 0l in
             instr (Return (Some e))
@@ -394,8 +396,8 @@ let translate_closure ctx name_opt params ((pc, _) as cont) acc =
               typ
               (Arith.const 0l)
               (let* () = store x (Arith.const 0l) in
-               translate_branch typ pc cont' (`If :: context))
-              (translate_branch typ pc cont (`If :: context))
+               translate_branch typ pc cont' (`Then :: context))
+              (translate_branch typ pc cont (`Else :: context))
             (*ZZZ*)
         | Poptrap cont -> translate_branch typ pc cont context (*ZZZ*))
   and translate_branch typ src (dst, args) context =
@@ -445,8 +447,8 @@ let translate_closure ctx name_opt params ((pc, _) as cont) acc =
   let _, env =
     List.fold_left
       ~f:(fun l x ->
-        let* _ = add_var x in
         let* _ = l in
+        let* _ = add_var x in
         return ())
       ~init:(return ())
       params

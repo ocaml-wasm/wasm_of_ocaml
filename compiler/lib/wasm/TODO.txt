@@ -26,6 +26,25 @@
 
 - Constants
   ==> statically allocated
+  ==> closures with no free variable as well
+
+            .section .data.const,"",@
+            .p2align 2
+    const1:
+            .size const1, 12
+            .int32 2816
+            .int32 7
+            .int32 const0+4
+    const0:
+            .size const0, 12
+            .int32 2816
+            .int32 9
+            .int32 1
+            .set foo,const0+4
+    str:
+            .size str, 4
+            .ascii "0\x42\x43\x44"
+
 
 GHC: https://gitlab.haskell.org/ghc/ghc/-/merge_requests/9204/diffs
 
