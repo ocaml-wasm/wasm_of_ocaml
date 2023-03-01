@@ -125,10 +125,12 @@ let load x =
 
 module Memory = struct
   let mem_load ?(offset = 0) e =
+    assert (offset >= 0);
     let* e = e in
     return (W.Load (I32 (Int32.of_int offset), e))
 
   let mem_store ?(offset = 0) e e' =
+    assert (offset >= 0);
     let* e = e in
     let* e' = e' in
     instr (Store (I32 (Int32.of_int offset), e, e'))
@@ -160,11 +162,11 @@ return p + 4
       Arith.(return (W.LocalGet p) + const 4l)
   (*ZZZ Float array?*)
 
-  let tag e = Arith.(mem_load ~offset:(-4) e land const 0xffl)
+  let tag e = Arith.(mem_load (e - const 4l) land const 0xffl)
 
-  let array_get e e' = mem_load ~offset:(-2) Arith.(e + (e' lsl const 1l))
+  let array_get e e' = mem_load Arith.(e + ((e' - const 1l) lsl const 1l))
 
-  let array_set e e' e'' = mem_store ~offset:(-2) Arith.(e + (e' lsl const 1l)) e''
+  let array_set e e' e'' = mem_store Arith.(e + ((e' - const 1l) lsl const 1l)) e''
 
   let field e idx = mem_load ~offset:(4 * idx) e
 
@@ -371,7 +373,8 @@ let translate_closure ctx name_opt params ((pc, _) as cont) acc =
             let* e = load x in
             match context with
             | `Then :: _ ->
-                (* Return seems to be miscompiled here... *)
+                (* Return is miscompiled here...
+                   See: https://github.com/llvm/llvm-project/issues/56935 *)
                 instr (Br (List.length context, Some e))
             | _ -> instr (Return (Some e)))
         | Cond (x, cont1, cont2) ->

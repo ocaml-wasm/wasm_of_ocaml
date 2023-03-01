@@ -1,14 +1,14 @@
-- Single (implicit) return at end of function?
 
-- Build a module
-  ==> function types
-  ==> functions
-  ==> table
-  ==> initial function
-  ==> external primitives
+- C stubs to access the host functions
+  https://reviews.llvm.org/D42520
+  https://tezos.gitlab.io/alpha/smart_rollups.html#developing-wasm-kernels
 
 - Closure conversion
   ==> allocate closures
+
+- Constants
+  ==> statically allocated
+  ==> closures with no free variable as well
 
 - Rebuild call-graph
   ==> check for unnecessary blocks and branches
@@ -24,9 +24,13 @@
 - Global variables: defined at toplevel and used in functions
   (or only use locals?)
 
-- Constants
-  ==> statically allocated
-  ==> closures with no free variable as well
+- Linear allocator:
+  => Scan code; live from first local.set (not included) to last local.get.
+  => Sort variables by first occurence
+  => iter over code
+     leaving an interval ==> release variable
+     entering an interval ==> acquire a variable
+     hint: same variable in case of assignment?
 
             .section .data.const,"",@
             .p2align 2
