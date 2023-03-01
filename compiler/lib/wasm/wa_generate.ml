@@ -68,9 +68,25 @@ module Arith = struct
     let* e' = e' in
     return (W.BinOp (I32 op, e, e'))
 
-  let ( + ) = binary Add
+  let ( + ) e e' =
+    let* e = e in
+    let* e' = e' in
+    match e, e' with
+    | W.BinOp (I32 Add, e1, W.Const (I32 n)), W.Const (I32 n') ->
+        return (W.BinOp (I32 Add, e1, W.Const (I32 (Int32.add n n'))))
+    | W.Const (I32 n), W.Const (I32 n') -> return (W.Const (I32 (Int32.add n n')))
+    | W.Const _, e' -> return (W.BinOp (I32 Add, e', e))
+    | _ -> return (W.BinOp (I32 Add, e, e'))
 
-  let ( - ) = binary Sub
+  let ( - ) e e' =
+    let* e = e in
+    let* e' = e' in
+    match e, e' with
+    | W.BinOp (I32 Add, e1, W.Const (I32 n)), W.Const (I32 n') ->
+        return (W.BinOp (I32 Add, e1, W.Const (I32 (Int32.sub n n'))))
+    | W.Const (I32 n), W.Const (I32 n') -> return (W.Const (I32 (Int32.sub n n')))
+    | _, W.Const (I32 n) -> return (W.BinOp (I32 Add, e, W.Const (I32 (Int32.neg n))))
+    | _ -> return (W.BinOp (I32 Sub, e, e'))
 
   let ( lsl ) = binary Shl
 
@@ -464,7 +480,10 @@ let translate_closure ctx name_opt params ((pc, _) as cont) acc =
         | None -> Var.fresh ()
         | Some x -> x)
     ; typ = func_type (List.length params + 1)
-    ; locals = List.init ~len:st.var_count ~f:(fun _ : W.value_type -> I32)
+    ; locals =
+        List.init
+          ~len:(st.var_count - List.length params - 1)
+          ~f:(fun _ : W.value_type -> I32)
     ; body = List.rev st.instrs
     }
   :: acc
