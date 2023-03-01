@@ -25,29 +25,46 @@
   (or only use locals?)
 
 - Linear allocator:
-  => Scan code; live from first local.set (not included) to last local.get.
-  => Sort variables by first occurence
+  => Scan code; live from first local.set (not included) to last local.get
+     (we just need the last get)
+  => Sort variables by first occurence (just scan again)
   => iter over code
      leaving an interval ==> release variable
      entering an interval ==> acquire a variable
      hint: same variable in case of assignment?
+     so: if we have a local.get which is last, we can release the variable
+         if we have a local.set for an unbound variable, we assign it a value
+  type ctx = { mutable position : int; last_use : int array;
+               mapping : int array;
+               mutable largest_used : int;
+               mutable free_variables: IntSet.t }
+    (position incremented after each store)
 
-            .section .data.const,"",@
-            .p2align 2
-    const1:
-            .size const1, 12
-            .int32 2816
-            .int32 7
-            .int32 const0+4
-    const0:
-            .size const0, 12
-            .int32 2816
-            .int32 9
-            .int32 1
-            .set foo,const0+4
-    str:
-            .size str, 4
-            .ascii "0\x42\x43\x44"
+      (* unused parameters *)
+      ctx.largest_used <- n_params - 1;
+      for i = 0 to n_params - 1 do
+        if last_use.(i) < 0 then
+          ctx.free_variables <- IntSet.add i ctx.free_variables
+      done
+
+      (* release variable *)
+      if ctx.position = ctx.last_use.(i) then
+        ctx.free_variables <- IntSet.add i ctx.free_variables
+
+      (* acquire variable *)
+      let i' = ctx.mapping.(i) in
+      if i' <> -1 then i' else
+        match IntSet.min_elt_opt ctx.free_variables with
+          Some i' ->
+            ctx.free_variables <- IntSet.remove i' ctx.free_variables;
+            ctx.mapping.(i) <- i';
+            i'
+        | None ->
+            let i' = ctx.largest_used + 1 in
+            ctx.largest_used <- i';
+            ctx.mapping.(i) <- i';
+            i'
+
 
 
 GHC: https://gitlab.haskell.org/ghc/ghc/-/merge_requests/9204/diffs

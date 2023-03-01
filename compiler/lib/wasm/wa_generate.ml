@@ -51,9 +51,13 @@ let var x st =
     Local 0, st
 
 let add_var x ({ var_count; vars; _ } as st) =
-  let i = var_count in
-  let vars = Var.Map.add x (Local i) vars in
-  i, { st with var_count = var_count + 1; vars }
+  match Var.Map.find_opt x vars with
+  | Some (Local i) -> i, st
+  | Some (Rec _ | Env _) -> assert false
+  | None ->
+      let i = var_count in
+      let vars = Var.Map.add x (Local i) vars in
+      i, { st with var_count = var_count + 1; vars }
 
 let instr i : unit t = fun st -> (), { st with instrs = i :: st.instrs }
 
@@ -71,22 +75,31 @@ module Arith = struct
   let ( + ) e e' =
     let* e = e in
     let* e' = e' in
-    match e, e' with
-    | W.BinOp (I32 Add, e1, W.Const (I32 n)), W.Const (I32 n') ->
-        return (W.BinOp (I32 Add, e1, W.Const (I32 (Int32.add n n'))))
-    | W.Const (I32 n), W.Const (I32 n') -> return (W.Const (I32 (Int32.add n n')))
-    | W.Const _, e' -> return (W.BinOp (I32 Add, e', e))
-    | _ -> return (W.BinOp (I32 Add, e, e'))
+    return
+      (match e, e' with
+      | W.BinOp (I32 Add, e1, W.Const (I32 n)), W.Const (I32 n') ->
+          let n'' = Int32.add n n' in
+          if Int32.equal n'' 0l
+          then e1
+          else W.BinOp (I32 Add, e1, W.Const (I32 (Int32.add n n')))
+      | W.Const (I32 n), W.Const (I32 n') -> W.Const (I32 (Int32.add n n'))
+      | W.Const (I32 0l), _ -> e'
+      | _, W.Const (I32 0l) -> e
+      | W.Const _, _ -> W.BinOp (I32 Add, e', e)
+      | _ -> W.BinOp (I32 Add, e, e'))
 
   let ( - ) e e' =
     let* e = e in
     let* e' = e' in
-    match e, e' with
-    | W.BinOp (I32 Add, e1, W.Const (I32 n)), W.Const (I32 n') ->
-        return (W.BinOp (I32 Add, e1, W.Const (I32 (Int32.sub n n'))))
-    | W.Const (I32 n), W.Const (I32 n') -> return (W.Const (I32 (Int32.sub n n')))
-    | _, W.Const (I32 n) -> return (W.BinOp (I32 Add, e, W.Const (I32 (Int32.neg n))))
-    | _ -> return (W.BinOp (I32 Sub, e, e'))
+    return
+      (match e, e' with
+      | W.BinOp (I32 Add, e1, W.Const (I32 n)), W.Const (I32 n') ->
+          let n'' = Int32.sub n n' in
+          if Int32.equal n'' 0l then e1 else W.BinOp (I32 Add, e1, W.Const (I32 n''))
+      | W.Const (I32 n), W.Const (I32 n') -> W.Const (I32 (Int32.sub n n'))
+      | _, W.Const (I32 n) ->
+          if Int32.equal n 0l then e else W.BinOp (I32 Add, e, W.Const (I32 (Int32.neg n)))
+      | _ -> W.BinOp (I32 Sub, e, e'))
 
   let ( lsl ) = binary Shl
 
@@ -121,7 +134,7 @@ let load x =
   | Env (x, offset) -> return (W.Load (I32 (Int32.of_int (4 * offset)), W.LocalGet x))
   | Rec (x, offset) ->
       let closure = return (W.LocalGet x) in
-      if offset = 0 then closure else Arith.(closure + const (Int32.of_int (offset * 8)))
+      Arith.(closure + const (Int32.of_int (4 * offset)))
 
 module Memory = struct
   let mem_load ?(offset = 0) e =
@@ -438,23 +451,31 @@ let translate_closure ctx name_opt params ((pc, _) as cont) acc =
         let { Wa_closure_conversion.functions; free_variables } =
           Var.Map.find f ctx.closures
         in
-        let index =
+        let funct_index =
           let rec index i l =
             match l with
             | [] -> assert false
-            | g :: r -> if Var.equal f g then i else index (i + 1) r
+            | (g, long) :: r ->
+                if Var.equal f g then i else index (i + if long then 4 else 3) r
           in
           index 0 functions
         in
         let env = 0 in
         let _, vars =
           List.fold_left
-            ~f:(fun (i, vars) x -> i + 1, Var.Map.add x (Rec (env, i)) vars)
-            ~init:(-index, Var.Map.empty)
+            ~f:(fun (i, vars) (x, long) ->
+              (i + if long then 4 else 3), Var.Map.add x (Rec (env, i)) vars)
+            ~init:(-funct_index, Var.Map.empty)
+            functions
+        in
+        let funct_pointers =
+          List.fold_left
+            ~f:(fun i (_, long) -> i + if long then 4 else 3)
+            ~init:(-1)
             functions
         in
         let _, vars =
-          let offset = (2 * (List.length functions - index)) - 1 in
+          let offset = funct_pointers - funct_index in
           List.fold_left
             ~f:(fun (i, vars) x -> i + 1, Var.Map.add x (Env (env, i)) vars)
             ~init:(offset, vars)
@@ -477,17 +498,19 @@ let translate_closure ctx name_opt params ((pc, _) as cont) acc =
   Format.eprintf "=== %d ===@." pc;
 *)
   let _, st = translate_branch (Some (I32 : W.value_type)) (-1) cont [] env in
+
+  let param_count = List.length params + 1 in
+  let local_count, body =
+    Wa_minimize_locals.f ~param_count ~local_count:st.var_count (List.rev st.instrs)
+  in
   W.Function
     { name =
         (match name_opt with
         | None -> Var.fresh ()
         | Some x -> x)
-    ; typ = func_type (List.length params + 1)
-    ; locals =
-        List.init
-          ~len:(st.var_count - List.length params - 1)
-          ~f:(fun _ : W.value_type -> I32)
-    ; body = List.rev st.instrs
+    ; typ = func_type param_count
+    ; locals = List.init ~len:(local_count - param_count) ~f:(fun _ : W.value_type -> I32)
+    ; body
     }
   :: acc
 

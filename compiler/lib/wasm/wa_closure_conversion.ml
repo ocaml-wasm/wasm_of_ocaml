@@ -2,7 +2,7 @@ open! Stdlib
 open Code
 
 type closure =
-  { functions : Var.t list
+  { functions : (Var.t * bool) list
   ; free_variables : Var.t list
   }
 
@@ -14,7 +14,8 @@ let rec collect_closures acc clos_acc instrs =
   in
   match instrs with
   | [] -> push_closures clos_acc acc
-  | Let (f, Closure (_, (pc, _))) :: rem -> collect_closures acc ((f, pc) :: clos_acc) rem
+  | Let (f, Closure (params, (pc, _))) :: rem ->
+      collect_closures acc ((f, List.length params, pc) :: clos_acc) rem
   | _ :: rem -> collect_closures (push_closures clos_acc acc) [] rem
 
 let collect_free_vars program var_depth depth pc closures =
@@ -34,7 +35,7 @@ let collect_free_vars program var_depth depth pc closures =
           match i with
           | Let (f, Closure _) -> (
               match Var.Map.find_opt f closures with
-              | Some { functions = g :: _; free_variables; _ } when Var.equal f g ->
+              | Some { functions = (g, _) :: _; free_variables; _ } when Var.equal f g ->
                   List.iter ~f:add_if_free_variable free_variables
               | Some _ | None -> ())
           | _ -> ()))
@@ -61,14 +62,14 @@ let rec traverse var_depth program pc depth closures =
         ~f:(fun closures l ->
           let closures =
             List.fold_left
-              ~f:(fun closures (_, pc') ->
+              ~f:(fun closures (_, _, pc') ->
                 traverse var_depth program pc' (depth + 1) closures)
               ~init:closures
               l
           in
           let free_vars =
             List.fold_left
-              ~f:(fun free_vars (f, pc') ->
+              ~f:(fun free_vars (f, _, pc') ->
                 Var.Map.add
                   f
                   (collect_free_vars program var_depth (depth + 1) pc' closures)
@@ -77,7 +78,7 @@ let rec traverse var_depth program pc depth closures =
               l
           in
           let domain =
-            List.fold_left ~f:(fun s (f, _) -> Var.Set.add f s) ~init:Var.Set.empty l
+            List.fold_left ~f:(fun s (f, _, _) -> Var.Set.add f s) ~init:Var.Set.empty l
           in
           let graph = Var.Map.map (fun s -> Var.Set.inter s domain) free_vars in
           let components = SCC.connected_components_sorted_from_roots_to_leaf graph in
@@ -99,8 +100,17 @@ let rec traverse var_depth program pc depth closures =
                           functions)
                      functions)
               in
+              let functions =
+                let arities =
+                  List.fold_left
+                    ~f:(fun m (f, a, _) -> Var.Map.add f a m)
+                    ~init:Var.Map.empty
+                    l
+                in
+                List.map ~f:(fun f -> f, Var.Map.find f arities > 1) functions
+              in
               List.fold_left
-                ~f:(fun closures f ->
+                ~f:(fun closures (f, _) ->
                   Var.Map.add f { functions; free_variables } closures)
                 ~init:closures
                 functions)
