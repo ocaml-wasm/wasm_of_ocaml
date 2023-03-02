@@ -2,6 +2,14 @@ open! Stdlib
 open Code
 module W = Wa_ast
 
+(*
+LLVM type checker does not work well. It does not handle 'br', and
+there is a bug with `return` in clang 15.
+Use 'clang-16 --target=wasm32 -Wa,--no-type-check' to disable it.
+https://github.com/llvm/llvm-project/issues/56935
+https://github.com/llvm/llvm-project/issues/58438
+*)
+
 type primitive =
   { index : int
   ; arity : int
@@ -254,7 +262,7 @@ let rec transl_constant_rec ctx c =
   | NativeString (Byte s | Utf (Utf8 s)) | String s ->
       let l = String.length s in
       let len = (l + 4) / 4 in
-      let h = Memory.header ~const:true ~tag:252 ~len () in
+      let h = Memory.header ~const:true ~tag:Obj.string_tag ~len () in
       let name = Var.fresh_n "str" in
       let extra = (4 * len) - l - 1 in
       ctx.other_fields <-
@@ -338,7 +346,7 @@ let rec translate_expr ctx x e =
               let start =
                 if i = 0
                 then start
-                else W.Const (I32 (Memory.header ~tag:249 ~len:i ())) :: start
+                else W.Const (I32 (Memory.header ~tag:Obj.infix_tag ~len:i ())) :: start
               in
               let clos_info =
                 (*ZZZ arity might overflow *)
@@ -360,14 +368,16 @@ let rec translate_expr ctx x e =
                 | _ -> assert false)
               start
           in
-          let h = Memory.header ~const:true ~tag:247 ~len:(List.length l) () in
+          let h =
+            Memory.header ~const:true ~tag:Obj.closure_tag ~len:(List.length l) ()
+          in
           let name = Var.fork x in
           let closure = W.Data { name; read_only = true; contents = DataI32 h :: l } in
           ctx.other_fields <- closure :: ctx.other_fields;
           return (W.ConstSym (name, 4)))
         else
           Memory.allocate
-            ~tag:247
+            ~tag:Obj.closure_tag
             (List.rev_map ~f:(fun e -> `Expr e) start
             @ List.map ~f:(fun x -> `Var x) info.free_variables)
       else
@@ -527,20 +537,15 @@ let translate_closure ctx name_opt params ((pc, _) as cont) acc =
         let* () = translate_instrs ctx block.body in
         match block.branch with
         | Branch cont -> translate_branch typ pc cont context
-        | Return x -> (
+        | Return x ->
             let* e = load x in
-            match context with
-            | `Then :: _ ->
-                (* Return is miscompiled here...
-                   See: https://github.com/llvm/llvm-project/issues/56935 *)
-                instr (Br (List.length context, Some e))
-            | _ -> instr (Return (Some e)))
+            instr (Return (Some e))
         | Cond (x, cont1, cont2) ->
             if_
               typ
               Arith.(load x <> const 1l)
-              (translate_branch typ pc cont1 (`Then :: context))
-              (translate_branch typ pc cont2 (`Else :: context))
+              (translate_branch typ pc cont1 (`If :: context))
+              (translate_branch typ pc cont2 (`If :: context))
         | Stop ->
             let* e = Arith.const 0l in
             instr (Return (Some e))
@@ -590,32 +595,7 @@ let translate_closure ctx name_opt params ((pc, _) as cont) acc =
     then instr (Br (index dst 0 context, None))
     else translate_tree typ dst context
   in
-  let initial_env =
-    match name_opt with
-    | Some f ->
-        let ({ Wa_closure_conversion.functions; free_variables } as info) =
-          Var.Map.find f ctx.closures
-        in
-        let funct_index = function_offset_in_closure info f in
-        let env = 0 in
-        let _, vars =
-          List.fold_left
-            ~f:(fun (i, vars) (x, arity) ->
-              (i + if arity > 1 then 4 else 3), Var.Map.add x (Rec (env, i)) vars)
-            ~init:(-funct_index, Var.Map.empty)
-            functions
-        in
-        let start_env = closure_start_env info in
-        let _, vars =
-          let offset = start_env - funct_index in
-          List.fold_left
-            ~f:(fun (i, vars) x -> i + 1, Var.Map.add x (Env (env, i)) vars)
-            ~init:(offset, vars)
-            free_variables
-        in
-        { var_count = 1; vars; instrs = [] }
-    | None -> { var_count = 1; vars = Var.Map.empty; instrs = [] }
-  in
+  let initial_env = { var_count = 0; vars = Var.Map.empty; instrs = [] } in
   let _, env =
     List.fold_left
       ~f:(fun l x ->
@@ -626,6 +606,32 @@ let translate_closure ctx name_opt params ((pc, _) as cont) acc =
       params
       initial_env
   in
+  let env =
+    match name_opt with
+    | Some f ->
+        let ({ Wa_closure_conversion.functions; free_variables } as info) =
+          Var.Map.find f ctx.closures
+        in
+        let funct_index = function_offset_in_closure info f in
+        let env_var = env.var_count in
+        let _, vars =
+          List.fold_left
+            ~f:(fun (i, vars) (x, arity) ->
+              (i + if arity > 1 then 4 else 3), Var.Map.add x (Rec (env_var, i)) vars)
+            ~init:(-funct_index, env.vars)
+            functions
+        in
+        let start_env = closure_start_env info in
+        let _, vars =
+          let offset = start_env - funct_index in
+          List.fold_left
+            ~f:(fun (i, vars) x -> i + 1, Var.Map.add x (Env (env_var, i)) vars)
+            ~init:(offset, vars)
+            free_variables
+        in
+        { env with var_count = env_var + 1; vars }
+    | None -> env
+  in
   (*
   Format.eprintf "=== %d ===@." pc;
 *)
@@ -633,7 +639,7 @@ let translate_closure ctx name_opt params ((pc, _) as cont) acc =
 
   let param_count = List.length params + 1 in
   let local_count, body =
-    if true
+    if false
     then st.var_count, List.rev st.instrs
     else Wa_minimize_locals.f ~param_count ~local_count:st.var_count (List.rev st.instrs)
   in
@@ -656,7 +662,10 @@ let f
     ~should_export
     ~warn_on_unhandled_effect
       _debug *) =
-  let closures = Wa_closure_conversion.f p in
+  let p, closures = Wa_closure_conversion.f p in
+  (*
+  Code.Print.program (fun _ _ -> "") p;
+*)
   let ctx =
     { live = live_vars
     ; blocks = p.blocks

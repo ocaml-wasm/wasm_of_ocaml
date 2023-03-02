@@ -2,13 +2,6 @@ ZZZ OKRA ZZZ
 
 =====
 
-- need to reorder functions in the code so that closures are defined
-  before being used...
-
-- use Obj.infix_tag, ...
-
-- env is last parameter
-
 - C stubs to access the host functions
   https://reviews.llvm.org/D42520
   https://tezos.gitlab.io/alpha/smart_rollups.html#developing-wasm-kernels

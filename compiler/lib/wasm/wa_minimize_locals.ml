@@ -91,6 +91,7 @@ let rec rewrite_expression ctx e =
   | Load (op, e') -> Load (op, rewrite_expression ctx e')
   | LocalGet v ->
       let v' = ctx.mapping.(v) in
+      assert (v' <> -1);
       if ctx.position = ctx.last_use.(v)
       then ctx.free_variables <- IntSet.add v' ctx.free_variables;
       LocalGet v'
