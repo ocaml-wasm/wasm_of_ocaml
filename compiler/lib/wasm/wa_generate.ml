@@ -63,6 +63,8 @@ let add_var x ({ var_count; vars; _ } as st) =
 
 let instr i : unit t = fun st -> (), { st with instrs = i :: st.instrs }
 
+let instrs l : unit t = fun st -> (), { st with instrs = List.rev_append l st.instrs }
+
 let blk l st =
   let instrs = st.instrs in
   let (), st = l { st with instrs = [] } in
@@ -105,7 +107,14 @@ module Arith = struct
 
   let ( * ) = binary Mul
 
-  let ( lsl ) = binary Shl
+  let ( lsl ) e e' =
+    let* e = e in
+    let* e' = e' in
+    return
+      (match e, e' with
+      | W.Const (I32 n), W.Const (I32 n') when Poly.(n' < 31l) ->
+          W.Const (I32 (Int32.shift_left n (Int32.to_int n')))
+      | _ -> W.BinOp (I32 Shl, e, e'))
 
   let ( lsr ) = binary (Shr U)
 
@@ -221,7 +230,9 @@ let assign x e =
 
 let drop e =
   let* e = e in
-  instr (Drop e)
+  match e with
+  | W.Seq (l, Const (I32 1l)) -> instrs l
+  | _ -> instr (Drop e)
 
 let loop ty l =
   let* instrs = blk l in
@@ -386,6 +397,13 @@ let rec translate_expr ctx x e =
   | Constant c -> transl_constant ctx c
   | Prim (Extern "caml_array_unsafe_get", [ x; y ]) ->
       Memory.array_get (transl_prim_arg ctx x) (transl_prim_arg ctx y)
+  | Prim (Extern "caml_array_unsafe_set", [ x; y; z ]) ->
+      seq
+        (Memory.array_set
+           (transl_prim_arg ctx x)
+           (transl_prim_arg ctx y)
+           (transl_prim_arg ctx z))
+        (Arith.const 1l)
   | Prim (IsInt, [ x ]) -> Arith.(transl_prim_arg ctx x land const 1l)
   | Prim (Extern "%int_add", [ x; y ]) ->
       Arith.(transl_prim_arg ctx x + transl_prim_arg ctx y - const 1l)
@@ -408,20 +426,21 @@ let rec translate_expr ctx x e =
       Arith.((transl_prim_arg ctx x lsr int_val (transl_prim_arg ctx y)) lor const 1l)
   | Prim (Extern "%int_asr", [ x; y ]) ->
       Arith.((transl_prim_arg ctx x asr int_val (transl_prim_arg ctx y)) lor const 1l)
-  | Prim (Extern nm, l) ->
-      (*ZZZ Different calling convention when large number of parameters *)
-      if not (StringMap.mem nm ctx.primitives)
-      then ctx.primitives <- StringMap.add nm (func_type (List.length l)) ctx.primitives;
-      let rec loop acc l =
-        match l with
-        | [] -> return (W.Call (nm, List.rev acc))
-        | x :: r ->
-            let* x = transl_prim_arg ctx x in
-            loop (x :: acc) r
-      in
-      loop [] l
   | Prim (p, l) -> (
       match p, l with
+      | Extern nm, l ->
+          (*ZZZ Different calling convention when large number of parameters *)
+          if not (StringMap.mem nm ctx.primitives)
+          then
+            ctx.primitives <- StringMap.add nm (func_type (List.length l)) ctx.primitives;
+          let rec loop acc l =
+            match l with
+            | [] -> return (W.Call (nm, List.rev acc))
+            | x :: r ->
+                let* x = transl_prim_arg ctx x in
+                loop (x :: acc) r
+          in
+          loop [] l
       | Not, [ x ] -> Arith.(const 4l - transl_prim_arg ctx x)
       | Lt, [ x; y ] -> Arith.(val_int (transl_prim_arg ctx x < transl_prim_arg ctx y))
       | Le, [ x; y ] -> Arith.(val_int (transl_prim_arg ctx x <= transl_prim_arg ctx y))
@@ -429,6 +448,10 @@ let rec translate_expr ctx x e =
       | Neq, [ x; y ] -> Arith.(val_int (transl_prim_arg ctx x <> transl_prim_arg ctx y))
       | Ult, [ x; y ] ->
           Arith.(val_int (binary (Lt U) (transl_prim_arg ctx x) (transl_prim_arg ctx y)))
+      | Array_get, [ x; y ] ->
+          Memory.array_get (transl_prim_arg ctx x) (transl_prim_arg ctx y)
+      | IsInt, [ x ] -> Arith.(val_int (transl_prim_arg ctx x land const 1l))
+      | (Not | Lt | Le | Eq | Neq | Ult | Array_get | IsInt), _ -> assert false
       | _ -> Arith.const 11119999l (*ZZZ *))
 
 and translate_instr ctx i =

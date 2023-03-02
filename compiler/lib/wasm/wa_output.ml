@@ -248,6 +248,33 @@ let escape_string s =
   done;
   Buffer.contents b
 
+let section_header kind name =
+  line
+    (string ".section ." ^^ string kind ^^ string "." ^^ string name ^^ string ",\"\",@")
+
+let vector l =
+  line (string ".int8 " ^^ string (string_of_int (List.length l)))
+  ^^ concat_map (fun x -> x) l
+
+let len_string s =
+  line (string ".int8 " ^^ string (string_of_int (String.length s)))
+  ^^ line (string ".ascii \"" ^^ string (escape_string s) ^^ string "\"")
+
+let producer_section () =
+  (*ZZZ Versions*)
+  indent
+    (section_header "custom_section" "producers"
+    ^^ vector
+         [ len_string "language" ^^ vector [ len_string "OCaml" ^^ len_string "4.14" ]
+         ; len_string "processed-by"
+           ^^ vector [ len_string "Wasm_of_ocaml" ^^ len_string "0.1" ]
+         ])
+
+let target_features () =
+  indent
+    (section_header "custom_section" "target_features"
+    ^^ vector [ line (string ".ascii \"+\"") ^^ len_string "mutable-globals" ])
+
 let f fields =
   to_channel stdout
   @@
@@ -271,10 +298,6 @@ let f fields =
   in
   let define_symbol name =
     line (string ".hidden " ^^ string name) ^^ line (string ".globl " ^^ string name)
-  in
-  let section_header kind name =
-    line
-      (string ".section ." ^^ string kind ^^ string "." ^^ string name ^^ string ",\"\",@")
   in
   let declare_global name typ =
     line (string ".globaltype " ^^ string name ^^ string ", " ^^ value_type typ)
@@ -350,3 +373,5 @@ let f fields =
          | Import _ | Data _ -> empty)
        fields
   ^^ data_sections
+  ^^ producer_section ()
+  ^^ target_features ()
