@@ -1,19 +1,30 @@
+ZZZ OKRA ZZZ
+
+=====
+
 - need to reorder functions in the code so that closures are defined
   before being used...
 
-- env is last parameter
+- use Obj.infix_tag, ...
 
-- we need to keep track of int32 constants
+- env is last parameter
 
 - C stubs to access the host functions
   https://reviews.llvm.org/D42520
   https://tezos.gitlab.io/alpha/smart_rollups.html#developing-wasm-kernels
 
+=======
+
+- target GC proposal as well
+
+- sections: creator + feature used
+
+- check integer overflows (integers are 31 bits only...)
+
 - Constants
   ==> statically allocated ==> int32/int64/floats
 
-- Rebuild call-graph
-  ==> check for unnecessary blocks, branches, returns
+- we need to keep track of int32 constants
 
 - Partial application / over application
   apply1 really fast
@@ -25,57 +36,16 @@
 
 - specialize: divide by zero / modulus / check array bound
 
-GHC: https://gitlab.haskell.org/ghc/ghc/-/merge_requests/9204/diffs
+- Rebuild call-graph
+  ==> check for unnecessary blocks, branches, returns
+
+- local optimizations: constants used only once can be moved;
+  avoid store followed by unique load
+  ...
 
 ==============================================
 
+GHC: https://gitlab.haskell.org/ghc/ghc/-/merge_requests/9204/diffs
+
 https://depth-first.com/articles/2019/10/16/compiling-c-to-webassembly-and-running-it-without-emscripten/
 clang -O3 --target=wasm32 --no-standard-libraries -Wl,--export-all -Wl,--no-entry -S foo.c
-
-
-        .text
-        .file   "foo.c"
-        .tabletype      __indirect_function_table, funcref
-        .functype       f (i32) -> (i32)
-        .functype       h (i32) -> (i32)
-        .functype       k () -> (i32)
-        .section        .text.f,"",@
-        .hidden f                               # -- Begin function f
-        .globl  f
-        .type   f,@function
-f:                                      # @f
-        .functype       f (i32) -> (i32)
-# %bb.0:
-        local.get       0
-        i32.const       1
-        i32.shl 
-                                        # fallthrough-return
-        end_function
-.Lfunc_end0:
-        .size   f, .Lfunc_end0-f
-                                        # -- End function
-        .section        .text.h,"",@
-        .hidden h                               # -- Begin function h
-        .globl  h
-        .type   h,@function
-h:                                      # @h
-        .functype       h (i32) -> (i32)
-# %bb.0:
-        local.get       0
-        call_indirect    () -> (i32)
-                                        # fallthrough-return
-        end_function
-.Lfunc_end1:
-        .size   h, .Lfunc_end1-h
-                                        # -- End function
-        .section        .text.k,"",@
-        .hidden k                               # -- Begin function k
-        .globl  k
-        .type   k,@function
-k:                                      # @k
-        .functype       k () -> (i32)
-# %bb.0:
-        i32.const       0
-                                        # fallthrough-return
-        end_function
-.Lfunc_end2:

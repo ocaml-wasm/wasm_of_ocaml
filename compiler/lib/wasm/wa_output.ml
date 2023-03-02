@@ -236,6 +236,7 @@ and instruction i =
   | Br (i, None) -> line (string "br " ^^ string (string_of_int i))
   | Return (Some e) -> expression e ^^ instruction (Return None)
   | Return None -> line (string "return")
+  | Nop -> empty
 
 let escape_string s =
   let b = Buffer.create (String.length s + 2) in
@@ -248,7 +249,7 @@ let escape_string s =
   Buffer.contents b
 
 let f fields =
-  to_channel stderr
+  to_channel stdout
   @@
   (*ZZZ Mark imports as reserved keywords / or use better local names *)
   let types =
@@ -339,8 +340,11 @@ let f fields =
              ^^ line (string name ^^ string ":")
              ^^ indent
                   (declare_func_type name typ
-                  ^^ line
-                       (string ".local " ^^ separate_map (string ", ") value_type locals)
+                  ^^ (if List.is_empty locals
+                     then empty
+                     else
+                       line
+                         (string ".local " ^^ separate_map (string ", ") value_type locals))
                   ^^ concat_map instruction body
                   ^^ line (string "end_function"))
          | Import _ | Data _ -> empty)

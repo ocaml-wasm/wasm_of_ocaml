@@ -97,6 +97,7 @@ and instruction =
   | Br_table of expression * int list * int
   | Br of int * expression option
   | Return of expression option
+  | Nop
 
 type import_desc =
   | Fun of func_type

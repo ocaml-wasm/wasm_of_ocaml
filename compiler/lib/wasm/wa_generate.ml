@@ -139,6 +139,11 @@ let load x =
       let offset = 4 * offset in
       Arith.(closure + const (Int32.of_int offset))
 
+let tee x e =
+  let* i = add_var x in
+  let* e = e in
+  return (W.LocalTee (i, e))
+
 module Memory = struct
   let mem_load ?(offset = 0) e =
     assert (offset >= 0);
@@ -162,13 +167,14 @@ return p + 4
 
   let allocate ~tag l =
     let len = List.length l in
-    let* p = add_var (Var.fresh_n "p") in
-    let size = len + 1 + 4 in
+    let p = Var.fresh_n "p" in
+    let size = (len + 1) * 4 in
     seq
-      (let* v = Arith.(return (W.GlobalGet "young_ptr") - const (Int32.of_int size)) in
-       let* () = instr (W.LocalSet (p, v)) in
-       let* () = instr (W.GlobalSet ("young_ptr", W.LocalGet p)) in
-       let* () = mem_store (return (W.LocalGet p)) (Arith.const (header ~tag ~len ())) in
+      (let* v =
+         tee p Arith.(return (W.GlobalGet "young_ptr") - const (Int32.of_int size))
+       in
+       let* () = instr (W.GlobalSet ("young_ptr", v)) in
+       let* () = mem_store (load p) (Arith.const (header ~tag ~len ())) in
        snd
          (List.fold_right
             ~init:(len, return ())
@@ -177,14 +183,14 @@ return p + 4
               , let* () =
                   mem_store
                     ~offset:(4 * i)
-                    (return (W.LocalGet p))
+                    (load p)
                     (match v with
                     | `Var y -> load y
                     | `Expr e -> return e)
                 in
                 cont ))
             l))
-      Arith.(return (W.LocalGet p) + const 4l)
+      Arith.(load p + const 4l)
   (*ZZZ Float array?*)
 
   let tag e = Arith.(mem_load (e - const 4l) land const 0xffl)
@@ -227,11 +233,6 @@ let store x e =
   let* i = add_var x in
   let* e = e in
   instr (LocalSet (i, e))
-
-let tee x e =
-  let* i = add_var x in
-  let* e = e in
-  return (W.LocalTee (i, e))
 
 let rec transl_constant_rec ctx c =
   match c with
@@ -632,7 +633,7 @@ let translate_closure ctx name_opt params ((pc, _) as cont) acc =
 
   let param_count = List.length params + 1 in
   let local_count, body =
-    if false
+    if true
     then st.var_count, List.rev st.instrs
     else Wa_minimize_locals.f ~param_count ~local_count:st.var_count (List.rev st.instrs)
   in

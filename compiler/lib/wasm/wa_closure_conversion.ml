@@ -111,6 +111,7 @@ let rec traverse var_depth program pc depth closures =
                   ~f:(fun f -> f, Var.Map.find f arities)
                   (List.sort ~cmp:Var.compare functions)
               in
+              (*
               if List.length functions > 1
               then (
                 Format.eprintf "AAA";
@@ -119,6 +120,7 @@ let rec traverse var_depth program pc depth closures =
                     Format.eprintf " %a" Code.Var.print f;
                     Format.eprintf "@.")
                   functions);
+*)
               List.fold_left
                 ~f:(fun closures (f, _) ->
                   Var.Map.add f { functions; free_variables } closures)
