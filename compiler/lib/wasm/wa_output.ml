@@ -158,6 +158,13 @@ let select i32 i64 f64 op =
   | I64 x -> i64 x
   | F64 x -> f64 x
 
+let symbol name offset =
+  string (Code.Var.to_string name)
+  ^^
+  if offset = 0
+  then empty
+  else (if offset < 0 then empty else string "+") ^^ string (string_of_int offset)
+
 let rec expression e =
   match e with
   | Const op ->
@@ -165,6 +172,8 @@ let rec expression e =
         (type_prefix op
         ^^ string "const "
         ^^ string (select Int32.to_string Int64.to_string string_of_float (*ZZZ*) op))
+  | ConstSym (name, offset) ->
+      line (type_prefix (I32 ()) ^^ string "const " ^^ symbol name offset)
   | UnOp (op, e') ->
       expression e'
       ^^ line (type_prefix op ^^ string (select int_un_op int_un_op float_un_op op))
@@ -179,6 +188,8 @@ let rec expression e =
            ^^ string "load "
            ^^ string (select Int32.to_string Int32.to_string Int32.to_string offset))
   | LocalGet i -> line (string "local.get " ^^ string (string_of_int i))
+  | LocalTee (i, e') ->
+      expression e' ^^ line (string "local.tee " ^^ string (string_of_int i))
   | GlobalGet nm -> line (string "global.get " ^^ string nm)
   | Call_indirect (typ, f, l) ->
       concat_map expression l
@@ -226,32 +237,95 @@ and instruction i =
   | Return (Some e) -> expression e ^^ instruction (Return None)
   | Return None -> line (string "return")
 
+let escape_string s =
+  let b = Buffer.create (String.length s + 2) in
+  for i = 0 to String.length s - 1 do
+    let c = s.[i] in
+    if Poly.(c >= ' ' && c <= '~' && c <> '"')
+    then Buffer.add_char b c
+    else Printf.bprintf b "\\x%02x" (Char.code c)
+  done;
+  Buffer.contents b
+
 let f fields =
   to_channel stderr
   @@
-  (*ZZZ Mark imports as reserved keywords *)
+  (*ZZZ Mark imports as reserved keywords / or use better local names *)
   let types =
     List.filter_map
       ~f:(fun f ->
         match f with
         | Function { name; typ; _ } -> Some (Code.Var.to_string name, typ)
         | Import { name; desc = Fun typ } -> Some (name, typ)
-        | Import { desc = Global _; _ } -> None)
+        | Import { desc = Global _; _ } | Data _ -> None)
       fields
   in
   let globals =
     List.filter_map
       ~f:(fun f ->
         match f with
-        | Function _ | Import { desc = Fun _; _ } -> None
+        | Function _ | Import { desc = Fun _; _ } | Data _ -> None
         | Import { name; desc = Global ty; _ } -> Some (name, ty))
       fields
+  in
+  let define_symbol name =
+    line (string ".hidden " ^^ string name) ^^ line (string ".globl " ^^ string name)
+  in
+  let section_header kind name =
+    line
+      (string ".section ." ^^ string kind ^^ string "." ^^ string name ^^ string ",\"\",@")
   in
   let declare_global name typ =
     line (string ".globaltype " ^^ string name ^^ string ", " ^^ value_type typ)
   in
   let declare_func_type name typ =
     line (string ".functype " ^^ string name ^^ string " " ^^ func_type typ)
+  in
+  let data_sections =
+    concat_map
+      (fun f ->
+        match f with
+        | Function _ | Import _ -> empty
+        | Data { name; read_only; contents } ->
+            let name = Code.Var.to_string name in
+            let size =
+              List.fold_left
+                ~init:0
+                ~f:(fun s d ->
+                  s
+                  +
+                  match d with
+                  | DataI8 _ -> 1
+                  | DataI32 _ | DataSym _ -> 4
+                  | DataBytes b -> String.length b
+                  | DataSpace n -> n)
+                contents
+            in
+            indent
+              (section_header (if read_only then "rodata" else "data") name
+              ^^ define_symbol name
+              ^^ line (string ".p2align 2")
+              ^^ line
+                   (string ".size "
+                   ^^ string name
+                   ^^ string ", "
+                   ^^ string (string_of_int size)))
+            ^^ line (string name ^^ string ":")
+            ^^ indent
+                 (concat_map
+                    (fun d ->
+                      line
+                        (match d with
+                        | DataI8 i ->
+                            string ".int8 0x" ^^ string (Printf.sprintf "%02x" i)
+                        | DataI32 i ->
+                            string ".int32 0x" ^^ string (Printf.sprintf "%02lx" i)
+                        | DataBytes b ->
+                            string ".ascii \"" ^^ string (escape_string b) ^^ string "\""
+                        | DataSym (name, offset) -> string ".int32 " ^^ symbol name offset
+                        | DataSpace n -> string ".space " ^^ string (string_of_int n)))
+                    contents))
+      fields
   in
   indent
     (concat_map (fun (name, typ) -> declare_global name typ) globals
@@ -261,10 +335,7 @@ let f fields =
          match f with
          | Function { name; typ; locals; body } ->
              let name = Code.Var.to_string name in
-             indent
-               (line (string ".section .text." ^^ string name ^^ string ",\"\",@")
-               ^^ line (string ".hidden " ^^ string name)
-               ^^ line (string ".globl " ^^ string name))
+             indent (section_header "text" name ^^ define_symbol name)
              ^^ line (string name ^^ string ":")
              ^^ indent
                   (declare_func_type name typ
@@ -272,5 +343,6 @@ let f fields =
                        (string ".local " ^^ separate_map (string ", ") value_type locals)
                   ^^ concat_map instruction body
                   ^^ line (string "end_function"))
-         | Import _ -> empty)
+         | Import _ | Data _ -> empty)
        fields
+  ^^ data_sections

@@ -1,71 +1,29 @@
+- need to reorder functions in the code so that closures are defined
+  before being used...
+
+- env is last parameter
+
+- we need to keep track of int32 constants
 
 - C stubs to access the host functions
   https://reviews.llvm.org/D42520
   https://tezos.gitlab.io/alpha/smart_rollups.html#developing-wasm-kernels
 
-- Closure conversion
-  ==> allocate closures
-
 - Constants
-  ==> statically allocated
-  ==> closures with no free variable as well
+  ==> statically allocated ==> int32/int64/floats
 
 - Rebuild call-graph
-  ==> check for unnecessary blocks and branches
-
-- Spilling
-  Naive spilling for a start?
+  ==> check for unnecessary blocks, branches, returns
 
 - Partial application / over application
   apply1 really fast
   apply2 fast through indirect function
   other cases slow
 
-- Global variables: defined at toplevel and used in functions
-  (or only use locals?)
+- Spilling
+  Naive spilling for a start?
 
-- Linear allocator:
-  => Scan code; live from first local.set (not included) to last local.get
-     (we just need the last get)
-  => Sort variables by first occurence (just scan again)
-  => iter over code
-     leaving an interval ==> release variable
-     entering an interval ==> acquire a variable
-     hint: same variable in case of assignment?
-     so: if we have a local.get which is last, we can release the variable
-         if we have a local.set for an unbound variable, we assign it a value
-  type ctx = { mutable position : int; last_use : int array;
-               mapping : int array;
-               mutable largest_used : int;
-               mutable free_variables: IntSet.t }
-    (position incremented after each store)
-
-      (* unused parameters *)
-      ctx.largest_used <- n_params - 1;
-      for i = 0 to n_params - 1 do
-        if last_use.(i) < 0 then
-          ctx.free_variables <- IntSet.add i ctx.free_variables
-      done
-
-      (* release variable *)
-      if ctx.position = ctx.last_use.(i) then
-        ctx.free_variables <- IntSet.add i ctx.free_variables
-
-      (* acquire variable *)
-      let i' = ctx.mapping.(i) in
-      if i' <> -1 then i' else
-        match IntSet.min_elt_opt ctx.free_variables with
-          Some i' ->
-            ctx.free_variables <- IntSet.remove i' ctx.free_variables;
-            ctx.mapping.(i) <- i';
-            i'
-        | None ->
-            let i' = ctx.largest_used + 1 in
-            ctx.largest_used <- i';
-            ctx.mapping.(i) <- i';
-            i'
-
-
+- specialize: divide by zero / modulus / check array bound
 
 GHC: https://gitlab.haskell.org/ghc/ghc/-/merge_requests/9204/diffs
 

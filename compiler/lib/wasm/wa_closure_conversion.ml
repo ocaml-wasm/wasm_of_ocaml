@@ -2,7 +2,7 @@ open! Stdlib
 open Code
 
 type closure =
-  { functions : (Var.t * bool) list
+  { functions : (Var.t * int) list
   ; free_variables : Var.t list
   }
 
@@ -107,8 +107,18 @@ let rec traverse var_depth program pc depth closures =
                     ~init:Var.Map.empty
                     l
                 in
-                List.map ~f:(fun f -> f, Var.Map.find f arities > 1) functions
+                List.map
+                  ~f:(fun f -> f, Var.Map.find f arities)
+                  (List.sort ~cmp:Var.compare functions)
               in
+              if List.length functions > 1
+              then (
+                Format.eprintf "AAA";
+                List.iter
+                  ~f:(fun (f, _) ->
+                    Format.eprintf " %a" Code.Var.print f;
+                    Format.eprintf "@.")
+                  functions);
               List.fold_left
                 ~f:(fun closures (f, _) ->
                   Var.Map.add f { functions; free_variables } closures)

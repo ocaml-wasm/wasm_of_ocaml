@@ -75,10 +75,12 @@ type block_type = value_type option
 
 type expression =
   | Const of (int32, int64, float) op
+  | ConstSym of var * int
   | UnOp of (int_un_op, int_un_op, float_un_op) op * expression
   | BinOp of (int_bin_op, int_bin_op, float_bin_op) op * expression * expression
   | Load of (memarg, memarg, memarg) op * expression
   | LocalGet of int
+  | LocalTee of int * expression
   | GlobalGet of string
   | Call_indirect of func_type * expression * expression list
   | Call of string * expression list
@@ -100,12 +102,24 @@ type import_desc =
   | Fun of func_type
   | Global of value_type
 
+type data =
+  | DataI8 of int
+  | DataI32 of int32
+  | DataBytes of string
+  | DataSym of var * int
+  | DataSpace of int
+
 type module_field =
   | Function of
       { name : var
       ; typ : func_type
       ; locals : value_type list
       ; body : instruction list
+      }
+  | Data of
+      { name : var
+      ; read_only : bool
+      ; contents : data list
       }
   | Import of
       { name : string

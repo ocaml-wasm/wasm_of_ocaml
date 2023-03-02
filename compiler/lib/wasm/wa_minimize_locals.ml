@@ -12,12 +12,16 @@ type ctx =
 
 let rec scan_expression ctx e =
   match e with
-  | Wa_ast.Const _ | GlobalGet _ -> ()
+  | Wa_ast.Const _ | ConstSym _ | GlobalGet _ -> ()
   | UnOp (_, e') | Load (_, e') -> scan_expression ctx e'
   | BinOp (_, e', e'') ->
       scan_expression ctx e';
       scan_expression ctx e''
   | LocalGet i -> ctx.last_use.(i) <- ctx.position
+  | LocalTee (i, e') ->
+      scan_expression ctx e';
+      ctx.position <- ctx.position + 1;
+      ctx.last_use.(i) <- ctx.position
   | Call_indirect (_, e', l) ->
       List.iter ~f:(fun e' -> scan_expression ctx e') l;
       scan_expression ctx e'
@@ -46,9 +50,31 @@ and scan_instruction ctx i =
 
 and scan_instructions ctx l = List.iter ~f:(fun i' -> scan_instruction ctx i') l
 
+let assignment ctx v =
+  ctx.position <- ctx.position + 1;
+  let v' =
+    let v' = ctx.mapping.(v) in
+    if v' <> -1
+    then v'
+    else
+      match IntSet.min_elt_opt ctx.free_variables with
+      | Some v' ->
+          ctx.free_variables <- IntSet.remove v' ctx.free_variables;
+          ctx.mapping.(v) <- v';
+          v'
+      | None ->
+          let v' = ctx.largest_used + 1 in
+          ctx.largest_used <- v';
+          ctx.mapping.(v) <- v';
+          v'
+  in
+  if ctx.last_use.(v) = ctx.position
+  then ctx.free_variables <- IntSet.add v' ctx.free_variables;
+  v'
+
 let rec rewrite_expression ctx e =
   match e with
-  | Wa_ast.Const _ | GlobalGet _ -> e
+  | Wa_ast.Const _ | ConstSym _ | GlobalGet _ -> e
   | UnOp (op, e') -> UnOp (op, rewrite_expression ctx e')
   | BinOp (op, e', e'') ->
       let e' = rewrite_expression ctx e' in
@@ -60,6 +86,10 @@ let rec rewrite_expression ctx e =
       if ctx.position = ctx.last_use.(v)
       then ctx.free_variables <- IntSet.add v' ctx.free_variables;
       LocalGet v'
+  | LocalTee (v, e') ->
+      let e' = rewrite_expression ctx e' in
+      let v' = assignment ctx v in
+      LocalTee (v', e')
   | Call_indirect (typ, e', l) ->
       let l = List.map ~f:(fun e' -> rewrite_expression ctx e') l in
       let e' = rewrite_expression ctx e' in
@@ -79,25 +109,7 @@ and rewrite_instruction ctx i =
       Store (op, e, e')
   | LocalSet (v, e) ->
       let e = rewrite_expression ctx e in
-      ctx.position <- ctx.position + 1;
-      let v' =
-        let v' = ctx.mapping.(v) in
-        if v' <> -1
-        then v'
-        else
-          match IntSet.min_elt_opt ctx.free_variables with
-          | Some v' ->
-              ctx.free_variables <- IntSet.remove v' ctx.free_variables;
-              ctx.mapping.(v) <- v';
-              v'
-          | None ->
-              let v' = ctx.largest_used + 1 in
-              ctx.largest_used <- v';
-              ctx.mapping.(v) <- v';
-              v'
-      in
-      if ctx.last_use.(v) = ctx.position
-      then ctx.free_variables <- IntSet.add v' ctx.free_variables;
+      let v' = assignment ctx v in
       LocalSet (v', e)
   | GlobalSet (nm, e) -> GlobalSet (nm, rewrite_expression ctx e)
   | Loop (typ, l) -> Loop (typ, rewrite_instructions ctx l)
@@ -132,4 +144,5 @@ let f ~param_count ~local_count instrs =
   done;
   ctx.position <- 0;
   let instrs = rewrite_instructions ctx instrs in
+  Format.eprintf "ZZZZ %d ==> %d@." local_count (ctx.largest_used - 1);
   ctx.largest_used + 1, instrs

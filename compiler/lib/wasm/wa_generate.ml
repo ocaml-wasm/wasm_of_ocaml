@@ -1,10 +1,3 @@
-(*
-module Types = Wasm.Types
-module Operators = Wasm.Operators
-module Ast = Wasm.Ast
-module I32 = Wasm.I32
-module Source = Wasm.Source
-*)
 open! Stdlib
 open Code
 module W = Wa_ast
@@ -19,6 +12,7 @@ type ctx =
   ; blocks : block Addr.Map.t
   ; closures : Wa_closure_conversion.closure Var.Map.t
   ; mutable primitives : W.func_type StringMap.t
+  ; mutable other_fields : W.module_field list
   }
 
 type var =
@@ -101,6 +95,8 @@ module Arith = struct
           if Int32.equal n 0l then e else W.BinOp (I32 Add, e, W.Const (I32 (Int32.neg n)))
       | _ -> W.BinOp (I32 Sub, e, e'))
 
+  let ( * ) = binary Mul
+
   let ( lsl ) = binary Shl
 
   let ( lsr ) = binary (Shr U)
@@ -108,6 +104,10 @@ module Arith = struct
   let ( asr ) = binary (Shr S)
 
   let ( land ) = binary And
+
+  let ( lor ) = binary Or
+
+  let ( lxor ) = binary Xor
 
   let ( < ) = binary (Lt S)
 
@@ -120,6 +120,8 @@ module Arith = struct
   let const n = return (W.Const (I32 n))
 
   let val_int i = (i lsl const 1l) + const 1l
+
+  let int_val i = i asr const 1l
 end
 
 let seq l e =
@@ -134,7 +136,8 @@ let load x =
   | Env (x, offset) -> return (W.Load (I32 (Int32.of_int (4 * offset)), W.LocalGet x))
   | Rec (x, offset) ->
       let closure = return (W.LocalGet x) in
-      Arith.(closure + const (Int32.of_int (4 * offset)))
+      let offset = 4 * offset in
+      Arith.(closure + const (Int32.of_int offset))
 
 module Memory = struct
   let mem_load ?(offset = 0) e =
@@ -154,24 +157,33 @@ if (p < young_limit) {caml_call_gc(); p = young_ptr - size}
 ...
 return p + 4
 *)
-  let allocate ~tag a _array_or_not =
-    let len = Array.length a in
-    let header = Int32.of_int ((len lsl 10) + tag) in
+  let header ?(const = false) ~tag ~len () =
+    Int32.of_int ((len lsl 10) + tag + if const then 3 * 256 else 0)
+
+  let allocate ~tag l =
+    let len = List.length l in
     let* p = add_var (Var.fresh_n "p") in
-    let size = (len * 4) + 4 in
+    let size = len + 1 + 4 in
     seq
       (let* v = Arith.(return (W.GlobalGet "young_ptr") - const (Int32.of_int size)) in
        let* () = instr (W.LocalSet (p, v)) in
        let* () = instr (W.GlobalSet ("young_ptr", W.LocalGet p)) in
-       let* () = mem_store (return (W.LocalGet p)) (Arith.const header) in
+       let* () = mem_store (return (W.LocalGet p)) (Arith.const (header ~tag ~len ())) in
        snd
-         (Array.fold_right
+         (List.fold_right
             ~init:(len, return ())
-            ~f:(fun y (i, cont) ->
+            ~f:(fun v (i, cont) ->
               ( i - 1
-              , let* () = mem_store ~offset:(4 * i) (return (W.LocalGet p)) (load y) in
+              , let* () =
+                  mem_store
+                    ~offset:(4 * i)
+                    (return (W.LocalGet p))
+                    (match v with
+                    | `Var y -> load y
+                    | `Expr e -> return e)
+                in
                 cont ))
-            a))
+            l))
       Arith.(return (W.LocalGet p) + const 4l)
   (*ZZZ Float array?*)
 
@@ -216,44 +228,175 @@ let store x e =
   let* e = e in
   instr (LocalSet (i, e))
 
-let transl_constant c =
-  match c with
-  | Int i -> Arith.const Int32.(add (add i i) 1l)
-  | _ -> Arith.const 11115555l
-(*ZZZ *)
+let tee x e =
+  let* i = add_var x in
+  let* e = e in
+  return (W.LocalTee (i, e))
 
-let transl_prim_arg x =
+let rec transl_constant_rec ctx c =
+  match c with
+  | Int i -> W.DataI32 Int32.(add (add i i) 1l)
+  | Tuple (tag, a, _) ->
+      let h = Memory.header ~const:true ~tag ~len:(Array.length a) () in
+      let name = Var.fresh_n "block" in
+      let block =
+        W.Data
+          { name
+          ; read_only = true
+          ; contents =
+              DataI32 h
+              :: List.map ~f:(fun c -> transl_constant_rec ctx c) (Array.to_list a)
+          }
+      in
+      ctx.other_fields <- block :: ctx.other_fields;
+      W.DataSym (name, 4)
+  | NativeString (Byte s | Utf (Utf8 s)) | String s ->
+      let l = String.length s in
+      let len = (l + 4) / 4 in
+      let h = Memory.header ~const:true ~tag:252 ~len () in
+      let name = Var.fresh_n "str" in
+      let extra = (4 * len) - l - 1 in
+      ctx.other_fields <-
+        Data
+          { name
+          ; read_only = true
+          ; contents =
+              DataI32 h
+              :: DataBytes s
+              :: (if extra = 0 then [ DataI8 0 ] else [ DataSpace extra; DataI8 extra ])
+          }
+        :: ctx.other_fields;
+      W.DataSym (name, 4)
+  | Float _ ->
+      prerr_endline "FLOAT";
+      W.DataI32 11115555l
+  | Float_array _ ->
+      prerr_endline "FLOAT ARRAY";
+      W.DataI32 11115555l
+  | Int64 _ ->
+      prerr_endline "FLOAT ARRAY";
+      W.DataI32 11115555l
+
+let transl_constant ctx c =
+  return
+    (match transl_constant_rec ctx c with
+    | W.DataSym (name, offset) -> W.ConstSym (name, offset)
+    | W.DataI32 i -> W.Const (I32 i)
+    | _ -> assert false)
+
+let transl_prim_arg ctx x =
   match x with
   | Pv x -> load x
-  | Pc c -> transl_constant c
+  | Pc c -> transl_constant ctx c
 
-let rec translate_expr ctx e =
+let function_offset_in_closure info f =
+  let rec index i l =
+    match l with
+    | [] -> assert false
+    | (g, arity) :: r ->
+        if Var.equal f g then i else index (i + if arity > 1 then 4 else 3) r
+  in
+  index 0 info.Wa_closure_conversion.functions
+
+let closure_start_env info =
+  List.fold_left
+    ~f:(fun i (_, arity) -> i + if arity > 1 then 4 else 3)
+    ~init:(-1)
+    info.Wa_closure_conversion.functions
+
+let rec translate_expr ctx x e =
   match e with
   | Apply { f; args; exact = _ } ->
       (*ZZZ*)
-      let* closure = load f in
       let rec loop acc l =
         match l with
         | [] ->
-            let* funct = Memory.field (load f) 0 in
+            let len = List.length args in
+            let funct = Var.fresh () in
+            let* closure = tee funct (load f) in
+            let* funct = Memory.field (load funct) (if len = 1 then 0 else 2) in
             return
-              (W.Call_indirect
-                 (func_type (List.length args + 1), funct, closure :: List.rev acc))
+              (W.Call_indirect (func_type (len + 1), funct, List.rev (closure :: acc)))
         | x :: r ->
             let* x = load x in
             loop (x :: acc) r
       in
       loop [] args
-  | Block (tag, a, array_or_not) -> Memory.allocate ~tag a array_or_not
+  | Block (tag, a, _) ->
+      Memory.allocate ~tag (List.map ~f:(fun x -> `Var x) (Array.to_list a))
   | Field (x, n) -> Memory.field (load x) n
-  | Closure (_args, ((_pc, _) as _cont)) -> return (W.Const (I32 11117777l)) (*ZZZ*)
-  | Constant c -> transl_constant c
-  | Prim (IsInt, [ x ]) -> Arith.(transl_prim_arg x land const 1l)
+  | Closure (_args, ((_pc, _) as _cont)) ->
+      let info = Var.Map.find x ctx.closures in
+      let f, _ = List.hd info.functions in
+      if Var.equal x f
+      then
+        let start_env = closure_start_env info in
+        let _, start =
+          List.fold_left
+            ~f:(fun (i, start) (f, arity) ->
+              let start =
+                if i = 0
+                then start
+                else W.Const (I32 (Memory.header ~tag:249 ~len:i ())) :: start
+              in
+              let clos_info =
+                (*ZZZ arity might overflow *)
+                Int32.of_int ((arity lsl 24) + ((start_env - i) lsl 1) + 1)
+              in
+              let start = W.Const (I32 clos_info) :: W.ConstSym (f, 0) :: start in
+              if arity > 1 then i + 4, W.ConstSym (f, 0) :: start else i + 3, start)
+            ~init:(0, [])
+            info.functions
+        in
+        if List.is_empty info.free_variables
+        then (
+          let l =
+            List.rev_map
+              ~f:(fun e ->
+                match e with
+                | W.Const (I32 i) -> W.DataI32 i
+                | ConstSym (sym, offset) -> DataSym (sym, offset)
+                | _ -> assert false)
+              start
+          in
+          let h = Memory.header ~const:true ~tag:247 ~len:(List.length l) () in
+          let name = Var.fork x in
+          let closure = W.Data { name; read_only = true; contents = DataI32 h :: l } in
+          ctx.other_fields <- closure :: ctx.other_fields;
+          return (W.ConstSym (name, 4)))
+        else
+          Memory.allocate
+            ~tag:247
+            (List.rev_map ~f:(fun e -> `Expr e) start
+            @ List.map ~f:(fun x -> `Var x) info.free_variables)
+      else
+        let offset = Int32.of_int (4 * function_offset_in_closure info x) in
+        Arith.(load f + const offset)
+  | Constant c -> transl_constant ctx c
+  | Prim (Extern "caml_array_unsafe_get", [ x; y ]) ->
+      Memory.array_get (transl_prim_arg ctx x) (transl_prim_arg ctx y)
+  | Prim (IsInt, [ x ]) -> Arith.(transl_prim_arg ctx x land const 1l)
   | Prim (Extern "%int_add", [ x; y ]) ->
-      Arith.(transl_prim_arg x + transl_prim_arg y - const 1l)
+      Arith.(transl_prim_arg ctx x + transl_prim_arg ctx y - const 1l)
+  | Prim (Extern "%int_sub", [ x; y ]) ->
+      Arith.(transl_prim_arg ctx x - transl_prim_arg ctx y + const 1l)
+  | Prim (Extern "%int_mul", [ x; y ]) ->
+      Arith.(val_int (int_val (transl_prim_arg ctx x) * int_val (transl_prim_arg ctx y)))
+  | Prim (Extern "%int_neg", [ x ]) -> Arith.(const 2l - transl_prim_arg ctx x)
+  | Prim (Extern "%int_or", [ x; y ]) ->
+      Arith.(transl_prim_arg ctx x lor transl_prim_arg ctx y)
+  | Prim (Extern "%int_and", [ x; y ]) ->
+      Arith.(transl_prim_arg ctx x land transl_prim_arg ctx y)
+  | Prim (Extern "%int_xor", [ x; y ]) ->
+      Arith.(transl_prim_arg ctx x lxor transl_prim_arg ctx y lor const 1l)
   | Prim (Extern "%int_lsl", [ x; y ]) ->
       Arith.(
-        ((transl_prim_arg x - const 1l) lsl transl_prim_arg y asr const 1l) + const 1l)
+        ((transl_prim_arg ctx x - const 1l) lsl int_val (transl_prim_arg ctx y))
+        + const 1l)
+  | Prim (Extern "%int_lsr", [ x; y ]) ->
+      Arith.((transl_prim_arg ctx x lsr int_val (transl_prim_arg ctx y)) lor const 1l)
+  | Prim (Extern "%int_asr", [ x; y ]) ->
+      Arith.((transl_prim_arg ctx x asr int_val (transl_prim_arg ctx y)) lor const 1l)
   | Prim (Extern nm, l) ->
       (*ZZZ Different calling convention when large number of parameters *)
       if not (StringMap.mem nm ctx.primitives)
@@ -262,19 +405,19 @@ let rec translate_expr ctx e =
         match l with
         | [] -> return (W.Call (nm, List.rev acc))
         | x :: r ->
-            let* x = transl_prim_arg x in
+            let* x = transl_prim_arg ctx x in
             loop (x :: acc) r
       in
       loop [] l
   | Prim (p, l) -> (
       match p, l with
-      | Not, [ x ] -> Arith.(const 4l - transl_prim_arg x)
-      | Lt, [ x; y ] -> Arith.(val_int (transl_prim_arg x < transl_prim_arg y))
-      | Le, [ x; y ] -> Arith.(val_int (transl_prim_arg x <= transl_prim_arg y))
-      | Eq, [ x; y ] -> Arith.(val_int (transl_prim_arg x = transl_prim_arg y))
-      | Neq, [ x; y ] -> Arith.(val_int (transl_prim_arg x <> transl_prim_arg y))
+      | Not, [ x ] -> Arith.(const 4l - transl_prim_arg ctx x)
+      | Lt, [ x; y ] -> Arith.(val_int (transl_prim_arg ctx x < transl_prim_arg ctx y))
+      | Le, [ x; y ] -> Arith.(val_int (transl_prim_arg ctx x <= transl_prim_arg ctx y))
+      | Eq, [ x; y ] -> Arith.(val_int (transl_prim_arg ctx x = transl_prim_arg ctx y))
+      | Neq, [ x; y ] -> Arith.(val_int (transl_prim_arg ctx x <> transl_prim_arg ctx y))
       | Ult, [ x; y ] ->
-          Arith.(val_int (binary (Lt U) (transl_prim_arg x) (transl_prim_arg y)))
+          Arith.(val_int (binary (Lt U) (transl_prim_arg ctx x) (transl_prim_arg ctx y)))
       | _ -> Arith.const 11119999l (*ZZZ *))
 
 and translate_instr ctx i =
@@ -282,14 +425,15 @@ and translate_instr ctx i =
   | Assign (x, y) -> assign x (load y)
   | Let (x, e) ->
       if ctx.live.(Var.idx x) = 0
-      then drop (translate_expr ctx e)
-      else store x (translate_expr ctx e)
+      then drop (translate_expr ctx x e)
+      else store x (translate_expr ctx x e)
   | Set_field (x, n, y) -> Memory.set_field (load x) n (load y)
   | Offset_ref (x, n) ->
+      let n' = 2 * n in
       Memory.set_field
         (load x)
         0
-        Arith.(Memory.field (load x) 0 + const (Int32.of_int (2 * n)))
+        Arith.(Memory.field (load x) 0 + const (Int32.of_int n'))
   | Array_set (x, y, z) -> Memory.array_set (load x) (load y) (load z)
 
 and translate_instrs ctx l =
@@ -448,34 +592,21 @@ let translate_closure ctx name_opt params ((pc, _) as cont) acc =
   let initial_env =
     match name_opt with
     | Some f ->
-        let { Wa_closure_conversion.functions; free_variables } =
+        let ({ Wa_closure_conversion.functions; free_variables } as info) =
           Var.Map.find f ctx.closures
         in
-        let funct_index =
-          let rec index i l =
-            match l with
-            | [] -> assert false
-            | (g, long) :: r ->
-                if Var.equal f g then i else index (i + if long then 4 else 3) r
-          in
-          index 0 functions
-        in
+        let funct_index = function_offset_in_closure info f in
         let env = 0 in
         let _, vars =
           List.fold_left
-            ~f:(fun (i, vars) (x, long) ->
-              (i + if long then 4 else 3), Var.Map.add x (Rec (env, i)) vars)
+            ~f:(fun (i, vars) (x, arity) ->
+              (i + if arity > 1 then 4 else 3), Var.Map.add x (Rec (env, i)) vars)
             ~init:(-funct_index, Var.Map.empty)
             functions
         in
-        let funct_pointers =
-          List.fold_left
-            ~f:(fun i (_, long) -> i + if long then 4 else 3)
-            ~init:(-1)
-            functions
-        in
+        let start_env = closure_start_env info in
         let _, vars =
-          let offset = funct_pointers - funct_index in
+          let offset = start_env - funct_index in
           List.fold_left
             ~f:(fun (i, vars) x -> i + 1, Var.Map.add x (Env (env, i)) vars)
             ~init:(offset, vars)
@@ -501,7 +632,9 @@ let translate_closure ctx name_opt params ((pc, _) as cont) acc =
 
   let param_count = List.length params + 1 in
   let local_count, body =
-    Wa_minimize_locals.f ~param_count ~local_count:st.var_count (List.rev st.instrs)
+    if false
+    then st.var_count, List.rev st.instrs
+    else Wa_minimize_locals.f ~param_count ~local_count:st.var_count (List.rev st.instrs)
   in
   W.Function
     { name =
@@ -524,7 +657,12 @@ let f
       _debug *) =
   let closures = Wa_closure_conversion.f p in
   let ctx =
-    { live = live_vars; blocks = p.blocks; closures; primitives = StringMap.empty }
+    { live = live_vars
+    ; blocks = p.blocks
+    ; closures
+    ; primitives = StringMap.empty
+    ; other_fields = []
+    }
   in
   let functions =
     Code.fold_closures
@@ -538,4 +676,5 @@ let f
       (StringMap.bindings ctx.primitives)
   in
   Wa_output.f
-    (W.Import { name = "young_ptr"; desc = Global I32 } :: (primitives @ functions))
+    (W.Import { name = "young_ptr"; desc = Global I32 }
+    :: (primitives @ functions @ ctx.other_fields))
