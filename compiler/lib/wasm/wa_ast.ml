@@ -73,6 +73,10 @@ type memarg = int32
 
 type block_type = value_type option
 
+type symbol =
+  | V of var
+  | S of string
+
 type expression =
   | Const of (int32, int64, float) op
   | ConstSym of var * int
@@ -106,8 +110,9 @@ type import_desc =
 type data =
   | DataI8 of int
   | DataI32 of int32
+  | DataI64 of int64
   | DataBytes of string
-  | DataSym of var * int
+  | DataSym of symbol * int
   | DataSpace of int
 
 type module_field =

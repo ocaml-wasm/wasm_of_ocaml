@@ -98,7 +98,7 @@ let int_un_op op =
   | Popcnt -> "popcnt"
   | Eqz -> "eqz"
 
-let signage op s =
+let signage op (s : Wa_ast.signage) =
   op
   ^
   match s with
@@ -159,7 +159,10 @@ let select i32 i64 f64 op =
   | F64 x -> f64 x
 
 let symbol name offset =
-  string (Code.Var.to_string name)
+  string
+    (match name with
+    | V name -> Code.Var.to_string name
+    | S name -> name)
   ^^
   if offset = 0
   then empty
@@ -173,7 +176,7 @@ let rec expression e =
         ^^ string "const "
         ^^ string (select Int32.to_string Int64.to_string string_of_float (*ZZZ*) op))
   | ConstSym (name, offset) ->
-      line (type_prefix (I32 ()) ^^ string "const " ^^ symbol name offset)
+      line (type_prefix (I32 ()) ^^ string "const " ^^ symbol (V name) offset)
   | UnOp (op, e') ->
       expression e'
       ^^ line (type_prefix op ^^ string (select int_un_op int_un_op float_un_op op))
@@ -321,6 +324,7 @@ let f fields =
                   match d with
                   | DataI8 _ -> 1
                   | DataI32 _ | DataSym _ -> 4
+                  | DataI64 _ -> 8
                   | DataBytes b -> String.length b
                   | DataSpace n -> n)
                 contents
@@ -343,7 +347,9 @@ let f fields =
                         | DataI8 i ->
                             string ".int8 0x" ^^ string (Printf.sprintf "%02x" i)
                         | DataI32 i ->
-                            string ".int32 0x" ^^ string (Printf.sprintf "%02lx" i)
+                            string ".int32 0x" ^^ string (Printf.sprintf "%lx" i)
+                        | DataI64 i ->
+                            string ".int64 0x" ^^ string (Printf.sprintf "%Lx" i)
                         | DataBytes b ->
                             string ".ascii \"" ^^ string (escape_string b) ^^ string "\""
                         | DataSym (name, offset) -> string ".int32 " ^^ symbol name offset

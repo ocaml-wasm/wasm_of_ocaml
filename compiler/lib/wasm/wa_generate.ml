@@ -212,6 +212,8 @@ return p + 4
 
   let tag e = Arith.(mem_load (e - const 4l) land const 0xffl)
 
+  let length e = Arith.(mem_load (e - const 4l) lsr const 10l)
+
   let array_get e e' = mem_load Arith.(e + ((e' - const 1l) lsl const 1l))
 
   let array_set e e' e'' = mem_store Arith.(e + ((e' - const 1l) lsl const 1l)) e''
@@ -269,7 +271,7 @@ let rec transl_constant_rec ctx c =
           }
       in
       ctx.other_fields <- block :: ctx.other_fields;
-      W.DataSym (name, 4)
+      W.DataSym (V name, 4)
   | NativeString (Byte s | Utf (Utf8 s)) | String s ->
       let l = String.length s in
       let len = (l + 4) / 4 in
@@ -286,21 +288,50 @@ let rec transl_constant_rec ctx c =
               :: (if extra = 0 then [ DataI8 0 ] else [ DataSpace extra; DataI8 extra ])
           }
         :: ctx.other_fields;
-      W.DataSym (name, 4)
-  | Float _ ->
-      prerr_endline "FLOAT";
-      W.DataI32 11115555l
-  | Float_array _ ->
-      prerr_endline "FLOAT ARRAY";
-      W.DataI32 11115555l
-  | Int64 _ ->
-      prerr_endline "FLOAT ARRAY";
-      W.DataI32 11115555l
+      W.DataSym (V name, 4)
+  | Float f ->
+      let h = Memory.header ~const:true ~tag:Obj.double_tag ~len:2 () in
+      let name = Var.fresh_n "float" in
+      ctx.other_fields <-
+        Data
+          { name
+          ; read_only = true
+          ; contents = [ DataI32 h; DataI64 (Int64.bits_of_float f) ]
+          }
+        :: ctx.other_fields;
+      W.DataSym (V name, 4)
+  | Float_array l ->
+      (*ZZZ Boxed array? *)
+      let l = Array.to_list l in
+      let h =
+        Memory.header ~const:true ~tag:Obj.double_array_tag ~len:(List.length l) ()
+      in
+      let name = Var.fresh_n "float_array" in
+      ctx.other_fields <-
+        Data
+          { name
+          ; read_only = true
+          ; contents =
+              DataI32 h :: List.map ~f:(fun f -> transl_constant_rec ctx (Float f)) l
+          }
+        :: ctx.other_fields;
+      W.DataSym (V name, 4)
+  | Int64 i ->
+      let h = Memory.header ~const:true ~tag:Obj.custom_tag ~len:3 () in
+      let name = Var.fresh_n "int64" in
+      ctx.other_fields <-
+        Data
+          { name
+          ; read_only = true
+          ; contents = [ DataI32 h; DataSym (S "caml_int64_ops", 0); DataI64 i ]
+          }
+        :: ctx.other_fields;
+      W.DataSym (V name, 4)
 
 let transl_constant ctx c =
   return
     (match transl_constant_rec ctx c with
-    | W.DataSym (name, offset) -> W.ConstSym (name, offset)
+    | W.DataSym (V name, offset) -> W.ConstSym (name, offset)
     | W.DataI32 i -> W.Const (I32 i)
     | _ -> assert false)
 
@@ -323,6 +354,16 @@ let closure_start_env info =
     ~f:(fun i (_, arity) -> i + if arity > 1 then 4 else 3)
     ~init:(-1)
     info.Wa_closure_conversion.functions
+
+let closure_stats =
+  let s = ref 0 in
+  let n = ref 0 in
+  fun info ->
+    if false && not (List.is_empty info.Wa_closure_conversion.free_variables)
+    then (
+      incr n;
+      s := !s + List.length info.free_variables;
+      Format.eprintf "OOO %d %f@." (List.length info.free_variables) (float !s /. float !n))
 
 let rec translate_expr ctx x e =
   match e with
@@ -349,7 +390,7 @@ let rec translate_expr ctx x e =
       let info = Var.Map.find x ctx.closures in
       let f, _ = List.hd info.functions in
       if Var.equal x f
-      then
+      then (
         let start_env = closure_start_env info in
         let _, start =
           List.fold_left
@@ -368,6 +409,7 @@ let rec translate_expr ctx x e =
             ~init:(0, [])
             info.functions
         in
+        closure_stats info;
         if List.is_empty info.free_variables
         then (
           let l =
@@ -375,7 +417,7 @@ let rec translate_expr ctx x e =
               ~f:(fun e ->
                 match e with
                 | W.Const (I32 i) -> W.DataI32 i
-                | ConstSym (sym, offset) -> DataSym (sym, offset)
+                | ConstSym (sym, offset) -> DataSym (V sym, offset)
                 | _ -> assert false)
               start
           in
@@ -390,7 +432,7 @@ let rec translate_expr ctx x e =
           Memory.allocate
             ~tag:Obj.closure_tag
             (List.rev_map ~f:(fun e -> `Expr e) start
-            @ List.map ~f:(fun x -> `Var x) info.free_variables)
+            @ List.map ~f:(fun x -> `Var x) info.free_variables))
       else
         let offset = Int32.of_int (4 * function_offset_in_closure info x) in
         Arith.(load f + const offset)
@@ -451,8 +493,11 @@ let rec translate_expr ctx x e =
       | Array_get, [ x; y ] ->
           Memory.array_get (transl_prim_arg ctx x) (transl_prim_arg ctx y)
       | IsInt, [ x ] -> Arith.(val_int (transl_prim_arg ctx x land const 1l))
-      | (Not | Lt | Le | Eq | Neq | Ult | Array_get | IsInt), _ -> assert false
-      | _ -> Arith.const 11119999l (*ZZZ *))
+      | Vectlength, [ x ] ->
+          Arith.(
+            (Memory.mem_load (transl_prim_arg ctx x - const 4l) lsr const 9l) lor const 1l)
+      | (Not | Lt | Le | Eq | Neq | Ult | Array_get | IsInt | Vectlength), _ ->
+          assert false)
 
 and translate_instr ctx i =
   match i with

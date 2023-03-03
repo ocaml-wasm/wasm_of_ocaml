@@ -8,9 +8,9 @@ ZZZ OKRA ZZZ
 
 =======
 
-- target GC proposal as well
+- propagate constants (which should make more closures constant)
 
-- sections: creator + feature used
+- target GC proposal as well
 
 - check integer overflows (integers are 31 bits only...)
 
@@ -26,6 +26,7 @@ ZZZ OKRA ZZZ
 
 - Spilling
   Naive spilling for a start?
+  ==> How do we avoid spilling thousand of values?
 
 - specialize: divide by zero / modulus / check array bound
 
