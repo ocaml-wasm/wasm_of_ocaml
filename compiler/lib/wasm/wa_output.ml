@@ -77,7 +77,7 @@ let func_type { params; result } =
   string "("
   ^^ separate_map (string ", ") value_type params
   ^^ string ") -> ("
-  ^^ value_type result
+  ^^ separate_map (string ", ") value_type result
   ^^ string ")"
 
 let block_type ty =
@@ -176,7 +176,7 @@ let rec expression e =
         ^^ string "const "
         ^^ string (select Int32.to_string Int64.to_string string_of_float (*ZZZ*) op))
   | ConstSym (name, offset) ->
-      line (type_prefix (I32 ()) ^^ string "const " ^^ symbol (V name) offset)
+      line (type_prefix (I32 ()) ^^ string "const " ^^ symbol name offset)
   | UnOp (op, e') ->
       expression e'
       ^^ line (type_prefix op ^^ string (select int_un_op int_un_op float_un_op op))
@@ -198,7 +198,9 @@ let rec expression e =
       concat_map expression l
       ^^ expression f
       ^^ line (string "call_indirect " ^^ func_type typ)
-  | Call (x, l) -> concat_map expression l ^^ line (string "call " ^^ string x)
+  | Call (x, l) -> concat_map expression l ^^ line (string "call " ^^ symbol x 0)
+  | MemoryGrow (mem, e) ->
+      expression e ^^ line (string "memory.grow " ^^ string (string_of_int mem))
   | Seq (l, e') -> concat_map instruction l ^^ expression e'
 
 and instruction i =
@@ -288,7 +290,7 @@ let f fields =
         match f with
         | Function { name; typ; _ } -> Some (Code.Var.to_string name, typ)
         | Import { name; desc = Fun typ } -> Some (name, typ)
-        | Import { desc = Global _; _ } | Data _ -> None)
+        | Import { desc = Global _; _ } | Data _ | Global _ -> None)
       fields
   in
   let globals =
@@ -296,7 +298,7 @@ let f fields =
       ~f:(fun f ->
         match f with
         | Function _ | Import { desc = Fun _; _ } | Data _ -> None
-        | Import { name; desc = Global ty; _ } -> Some (name, ty))
+        | Import { name; desc = Global typ; _ } | Global { name; typ } -> Some (name, typ))
       fields
   in
   let define_symbol name =
@@ -354,30 +356,47 @@ let f fields =
                             string ".ascii \"" ^^ string (escape_string b) ^^ string "\""
                         | DataSym (name, offset) -> string ".int32 " ^^ symbol name offset
                         | DataSpace n -> string ".space " ^^ string (string_of_int n)))
-                    contents))
+                    contents)
+        | Global { name; _ } ->
+            indent (section_header "data" name ^^ define_symbol name)
+            ^^ line (string name ^^ string ":"))
+      fields
+  in
+  let function_section =
+    concat_map
+      (fun f ->
+        match f with
+        | Function { name; exported_name; typ; locals; body } ->
+            let name = Code.Var.to_string name in
+            indent
+              (section_header "text" name
+              ^^ define_symbol name
+              ^^
+              match exported_name with
+              | None -> empty
+              | Some exported_name ->
+                  line
+                    (string ".export_name "
+                    ^^ string name
+                    ^^ string ","
+                    ^^ string exported_name))
+            ^^ line (string name ^^ string ":")
+            ^^ indent
+                 (declare_func_type name typ
+                 ^^ (if List.is_empty locals
+                    then empty
+                    else
+                      line
+                        (string ".local " ^^ separate_map (string ", ") value_type locals))
+                 ^^ concat_map instruction body
+                 ^^ line (string "end_function"))
+        | Import _ | Data _ | Global _ -> empty)
       fields
   in
   indent
     (concat_map (fun (name, typ) -> declare_global name typ) globals
     ^^ concat_map (fun (name, typ) -> declare_func_type name typ) types)
-  ^^ concat_map
-       (fun f ->
-         match f with
-         | Function { name; typ; locals; body } ->
-             let name = Code.Var.to_string name in
-             indent (section_header "text" name ^^ define_symbol name)
-             ^^ line (string name ^^ string ":")
-             ^^ indent
-                  (declare_func_type name typ
-                  ^^ (if List.is_empty locals
-                     then empty
-                     else
-                       line
-                         (string ".local " ^^ separate_map (string ", ") value_type locals))
-                  ^^ concat_map instruction body
-                  ^^ line (string "end_function"))
-         | Import _ | Data _ -> empty)
-       fields
+  ^^ function_section
   ^^ data_sections
   ^^ producer_section ()
   ^^ target_features ()

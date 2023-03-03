@@ -6,9 +6,17 @@ ZZZ OKRA ZZZ
   https://reviews.llvm.org/D42520
   https://tezos.gitlab.io/alpha/smart_rollups.html#developing-wasm-kernels
 
+- choose enty point
+  linker
+  ==> wasm_of_ocaml hello.bc smart_rollup_core.wasm runtime.wasm \
+                 --entry kernel_run
+      ==> hello.wasm
+
 =======
 
 - propagate constants (which should make more closures constant)
+
+- partial application
 
 - target GC proposal as well
 
@@ -40,6 +48,14 @@ ZZZ OKRA ZZZ
 ==============================================
 
 GHC: https://gitlab.haskell.org/ghc/ghc/-/merge_requests/9204/diffs
+     https://gitlab.haskell.org/ghc/ghc-wasm-meta
 
 https://depth-first.com/articles/2019/10/16/compiling-c-to-webassembly-and-running-it-without-emscripten/
 clang -O3 --target=wasm32 --no-standard-libraries -Wl,--export-all -Wl,--no-entry -S foo.c
+
+====================
+
+dune exec -- js_of_ocaml ~/tezos-kernel/_build/default/src/hello.bc --pretty > hello.s
+clang-16  --no-standard-libraries --target=wasm32 hello.s ../tezos-kernel/_build/default/src/smart_rollup_core/smart_rollup_core.wasm ../tezos-kernel/_build/default/src/runtime/runtime.wasm  -Wl,--no-entry -Wl,-allow-undefined -o kernel.wasm
+
+wasm2wat kernel.wasm | wat2wasm - -o kernel2.wasm

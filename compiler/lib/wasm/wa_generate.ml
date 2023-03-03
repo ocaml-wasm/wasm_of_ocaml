@@ -34,10 +34,12 @@ type state =
   ; instrs : W.instruction list
   }
 
+let empty_env = { var_count = 0; vars = Var.Map.empty; instrs = [] }
+
 type 'a t = state -> 'a * state
 
 let func_type n =
-  { W.params = List.init ~len:n ~f:(fun _ : W.value_type -> I32); result = I32 }
+  { W.params = List.init ~len:n ~f:(fun _ : W.value_type -> I32); result = [ I32 ] }
 
 let ( let* ) (type a b) (e : a t) (f : a -> b t) : b t =
  fun st ->
@@ -331,7 +333,7 @@ let rec transl_constant_rec ctx c =
 let transl_constant ctx c =
   return
     (match transl_constant_rec ctx c with
-    | W.DataSym (V name, offset) -> W.ConstSym (name, offset)
+    | W.DataSym (V name, offset) -> W.ConstSym (V name, offset)
     | W.DataI32 i -> W.Const (I32 i)
     | _ -> assert false)
 
@@ -404,8 +406,8 @@ let rec translate_expr ctx x e =
                 (*ZZZ arity might overflow *)
                 Int32.of_int ((arity lsl 24) + ((start_env - i) lsl 1) + 1)
               in
-              let start = W.Const (I32 clos_info) :: W.ConstSym (f, 0) :: start in
-              if arity > 1 then i + 4, W.ConstSym (f, 0) :: start else i + 3, start)
+              let start = W.Const (I32 clos_info) :: W.ConstSym (V f, 0) :: start in
+              if arity > 1 then i + 4, W.ConstSym (V f, 0) :: start else i + 3, start)
             ~init:(0, [])
             info.functions
         in
@@ -417,7 +419,7 @@ let rec translate_expr ctx x e =
               ~f:(fun e ->
                 match e with
                 | W.Const (I32 i) -> W.DataI32 i
-                | ConstSym (sym, offset) -> DataSym (V sym, offset)
+                | ConstSym (sym, offset) -> DataSym (sym, offset)
                 | _ -> assert false)
               start
           in
@@ -427,7 +429,7 @@ let rec translate_expr ctx x e =
           let name = Var.fork x in
           let closure = W.Data { name; read_only = true; contents = DataI32 h :: l } in
           ctx.other_fields <- closure :: ctx.other_fields;
-          return (W.ConstSym (name, 4)))
+          return (W.ConstSym (V name, 4)))
         else
           Memory.allocate
             ~tag:Obj.closure_tag
@@ -477,7 +479,7 @@ let rec translate_expr ctx x e =
             ctx.primitives <- StringMap.add nm (func_type (List.length l)) ctx.primitives;
           let rec loop acc l =
             match l with
-            | [] -> return (W.Call (nm, List.rev acc))
+            | [] -> return (W.Call (S nm, List.rev acc))
             | x :: r ->
                 let* x = transl_prim_arg ctx x in
                 loop (x :: acc) r
@@ -565,7 +567,7 @@ let parallel_renaming params args =
       store y (load x))
     ~init:(return ())
 
-let translate_closure ctx name_opt params ((pc, _) as cont) acc =
+let translate_closure ctx name_opt toplevel_name params ((pc, _) as cont) acc =
   let g = Wa_structure.build_graph ctx.blocks pc in
   let idom = Wa_structure.dominator_tree g in
   let dom = Wa_structure.reverse_tree idom in
@@ -663,7 +665,6 @@ let translate_closure ctx name_opt params ((pc, _) as cont) acc =
     then instr (Br (index dst 0 context, None))
     else translate_tree typ dst context
   in
-  let initial_env = { var_count = 0; vars = Var.Map.empty; instrs = [] } in
   let _, env =
     List.fold_left
       ~f:(fun l x ->
@@ -672,7 +673,7 @@ let translate_closure ctx name_opt params ((pc, _) as cont) acc =
         return ())
       ~init:(return ())
       params
-      initial_env
+      empty_env
   in
   let env =
     match name_opt with
@@ -714,13 +715,32 @@ let translate_closure ctx name_opt params ((pc, _) as cont) acc =
   W.Function
     { name =
         (match name_opt with
-        | None -> Var.fresh ()
+        | None -> toplevel_name
         | Some x -> x)
+    ; exported_name = None
     ; typ = func_type param_count
     ; locals = List.init ~len:(local_count - param_count) ~f:(fun _ : W.value_type -> I32)
     ; body
     }
   :: acc
+
+let entry_point toplevel_fun entry_name =
+  let body =
+    let* sz = Arith.const 3l in
+    let* high = Arith.((return (W.MemoryGrow (0, sz)) + const 3l) lsl const 16l) in
+    let* () = instr (W.GlobalSet ("young_ptr", high)) in
+    let low = W.ConstSym (S "__heap_base", 0) in
+    let* () = instr (W.GlobalSet ("young_limit", low)) in
+    let* arg = Arith.const 0l in
+    drop (return (W.Call (V toplevel_fun, [ arg ])))
+  in
+  W.Function
+    { name = Var.fresh_n "entry_point"
+    ; exported_name = Some entry_name
+    ; typ = { params = []; result = [] }
+    ; locals = []
+    ; body = List.rev (snd (body empty_env)).instrs
+    }
 
 let f
     (p : Code.program)
@@ -742,10 +762,12 @@ let f
     ; other_fields = []
     }
   in
+  let toplevel_name = Var.fresh_n "toplevel" in
   let functions =
     Code.fold_closures
       p
-      (fun name_opt params cont -> translate_closure ctx name_opt params cont)
+      (fun name_opt params cont ->
+        translate_closure ctx name_opt toplevel_name params cont)
       []
   in
   let primitives =
@@ -754,5 +776,8 @@ let f
       (StringMap.bindings ctx.primitives)
   in
   Wa_output.f
-    (W.Import { name = "young_ptr"; desc = Global I32 }
-    :: (primitives @ functions @ ctx.other_fields))
+    (W.Global { name = "young_ptr"; typ = I32 }
+    :: W.Global { name = "young_limit"; typ = I32 }
+    :: (primitives
+       @ functions
+       @ (entry_point toplevel_name "kernel_run" :: ctx.other_fields)))

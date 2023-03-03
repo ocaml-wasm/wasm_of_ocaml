@@ -7,7 +7,7 @@ type value_type =
 
 type func_type =
   { params : value_type list
-  ; result : value_type
+  ; result : value_type list
   }
 
 type ('i32, 'i64, 'f64) op =
@@ -79,7 +79,7 @@ type symbol =
 
 type expression =
   | Const of (int32, int64, float) op
-  | ConstSym of var * int
+  | ConstSym of symbol * int
   | UnOp of (int_un_op, int_un_op, float_un_op) op * expression
   | BinOp of (int_bin_op, int_bin_op, float_bin_op) op * expression * expression
   | Load of (memarg, memarg, memarg) op * expression
@@ -87,7 +87,8 @@ type expression =
   | LocalTee of int * expression
   | GlobalGet of string
   | Call_indirect of func_type * expression * expression list
-  | Call of string * expression list
+  | Call of symbol * expression list
+  | MemoryGrow of int * expression
   | Seq of instruction list * expression
 
 and instruction =
@@ -118,6 +119,7 @@ type data =
 type module_field =
   | Function of
       { name : var
+      ; exported_name : string option
       ; typ : func_type
       ; locals : value_type list
       ; body : instruction list
@@ -126,6 +128,10 @@ type module_field =
       { name : var
       ; read_only : bool
       ; contents : data list
+      }
+  | Global of
+      { name : string
+      ; typ : value_type
       }
   | Import of
       { name : string

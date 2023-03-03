@@ -13,7 +13,7 @@ type ctx =
 let rec scan_expression ctx e =
   match e with
   | Wa_ast.Const _ | ConstSym _ | GlobalGet _ -> ()
-  | UnOp (_, e') | Load (_, e') -> scan_expression ctx e'
+  | UnOp (_, e') | Load (_, e') | MemoryGrow (_, e') -> scan_expression ctx e'
   | BinOp (_, e', e'') ->
       scan_expression ctx e';
       scan_expression ctx e''
@@ -106,6 +106,7 @@ let rec rewrite_expression ctx e =
       let e' = rewrite_expression ctx e' in
       Call_indirect (typ, e', l)
   | Call (f, l) -> Call (f, List.map ~f:(fun e' -> rewrite_expression ctx e') l)
+  | MemoryGrow (m, e') -> MemoryGrow (m, rewrite_expression ctx e')
   | Seq (l, e') ->
       let l = List.map ~f:(fun i -> rewrite_instruction ctx i) l in
       let e' = rewrite_expression ctx e' in
