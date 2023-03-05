@@ -32,8 +32,12 @@ let rec scan_expression ctx e =
 
 and scan_instruction ctx i =
   match i with
-  | Drop e | GlobalSet (_, e) | Br (_, Some e) | Br_table (e, _, _) | Return (Some e) ->
-      scan_expression ctx e
+  | Drop e
+  | GlobalSet (_, e)
+  | Br (_, Some e)
+  | Br_table (e, _, _)
+  | Throw e
+  | Return (Some e) -> scan_expression ctx e
   | Store (_, e, e') ->
       scan_expression ctx e;
       scan_expression ctx e'
@@ -46,8 +50,12 @@ and scan_instruction ctx i =
       scan_expression ctx e;
       scan_instructions ctx l;
       scan_instructions ctx l'
+  | Try (_, body, catches, catch_all) ->
+      scan_instructions ctx body;
+      List.iter ~f:(fun (_, l) -> scan_instructions ctx l) catches;
+      Option.iter ~f:(fun l -> scan_instructions ctx l) catch_all
   | CallInstr (_, l) -> List.iter ~f:(fun e -> scan_expression ctx e) l
-  | Br (_, None) | Return None | Nop -> ()
+  | Br (_, None) | Return None | Rethrow _ | Nop -> ()
 
 and scan_instructions ctx l = List.iter ~f:(fun i' -> scan_instruction ctx i') l
 
@@ -134,11 +142,19 @@ and rewrite_instruction ctx i =
       let l = rewrite_instructions ctx l in
       let l' = rewrite_instructions ctx l' in
       If (typ, e, l, l')
+  | Try (typ, body, catches, catch_all) ->
+      let body = rewrite_instructions ctx body in
+      let catches =
+        List.map ~f:(fun (tag, l) -> tag, rewrite_instructions ctx l) catches
+      in
+      let catch_all = Option.map ~f:(fun l -> rewrite_instructions ctx l) catch_all in
+      Try (typ, body, catches, catch_all)
   | Br (label, Some e) -> Br (label, Some (rewrite_expression ctx e))
   | Br_table (e, l, label) -> Br_table (rewrite_expression ctx e, l, label)
   | Return (Some e) -> Return (Some (rewrite_expression ctx e))
+  | Throw e -> Throw (rewrite_expression ctx e)
   | CallInstr (f, l) -> CallInstr (f, List.map ~f:(fun e -> rewrite_expression ctx e) l)
-  | Br (_, None) | Return None | Nop -> i
+  | Br (_, None) | Return None | Rethrow _ | Nop -> i
 
 and rewrite_instructions ctx l = List.map ~f:(fun i' -> rewrite_instruction ctx i') l
 

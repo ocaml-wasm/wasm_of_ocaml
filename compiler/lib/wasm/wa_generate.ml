@@ -824,5 +824,6 @@ let f
   in
   Wa_output.f
     (W.Global { name = "young_ptr"; typ = I32 }
-    :: W.Global { name = "young_limit"; typ = I32 }
+    :: Global { name = "young_limit"; typ = I32 }
+       (*    :: Tag { name = "ocaml_exception"; typ = I32 }*)
     :: (primitives @ functions @ (start_function :: constant_data)))

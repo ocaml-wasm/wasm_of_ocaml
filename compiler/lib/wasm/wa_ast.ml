@@ -99,9 +99,16 @@ and instruction =
   | Loop of block_type * instruction list
   | Block of block_type * instruction list
   | If of block_type * expression * instruction list * instruction list
+  | Try of
+      block_type
+      * instruction list
+      * (string * instruction list) list
+      * instruction list option
   | Br_table of expression * int list * int
   | Br of int * expression option
   | Return of expression option
+  | Throw of expression
+  | Rethrow of int
   | CallInstr of symbol * expression list
   | Nop
 
@@ -131,6 +138,10 @@ type module_field =
       ; contents : data list
       }
   | Global of
+      { name : string
+      ; typ : value_type
+      }
+  | Tag of
       { name : string
       ; typ : value_type
       }

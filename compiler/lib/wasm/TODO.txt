@@ -52,9 +52,16 @@ clang -O3 --target=wasm32 --no-standard-libraries -Wl,--export-all -Wl,--no-entr
   https://reviews.llvm.org/D42520
   https://tezos.gitlab.io/alpha/smart_rollups.html#developing-wasm-kernels
 
+- ABI
+  https://github.com/WebAssembly/tool-conventions/
+
 ====================
 
 BUILD PROCESS
 
 dune exec -- js_of_ocaml ~/tezos-kernel/_build/default/src/hello.bc --pretty > hello.s
 clang-16  --no-standard-libraries --target=wasm32 hello.s ../tezos-kernel/_build/default/src/smart_rollup_core/smart_rollup_core.wasm ../tezos-kernel/_build/default/src/runtime/runtime.wasm  -Wl,--no-entry -o kernel.wasm
+
+
+clang-16 -mexception-handling
+wasm2wat --enable-exceptions

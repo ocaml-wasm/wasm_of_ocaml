@@ -231,6 +231,17 @@ and instruction i =
       ^^ line (string "else")
       ^^ indent (concat_map instruction l2)
       ^^ line (string "end_if")
+  | Try (ty, body, catches, catch_all) ->
+      line (string "try" ^^ block_type ty)
+      ^^ indent (concat_map instruction body)
+      ^^ concat_map
+           (fun (tag, l) ->
+             line (string "catch " ^^ string tag) ^^ indent (concat_map instruction l))
+           catches
+      ^^ (match catch_all with
+         | None -> empty
+         | Some l -> line (string "catch_all") ^^ indent (concat_map instruction l))
+      ^^ line (string "end_try")
   | Br_table (e, l, i) ->
       expression e
       ^^ line
@@ -241,6 +252,8 @@ and instruction i =
   | Br (i, None) -> line (string "br " ^^ string (string_of_int i))
   | Return (Some e) -> expression e ^^ instruction (Return None)
   | Return None -> line (string "return")
+  | Throw e -> expression e ^^ line (string "throw")
+  | Rethrow i -> line (string "rethrow " ^^ string (string_of_int i))
   | CallInstr (x, l) -> concat_map expression l ^^ line (string "call " ^^ symbol x 0)
   | Nop -> empty
 
@@ -297,15 +310,23 @@ let f fields =
         match f with
         | Function { name; typ; _ } -> Some (Code.Var.to_string name, typ)
         | Import { name; desc = Fun typ } -> Some (name, typ)
-        | Import { desc = Global _; _ } | Data _ | Global _ -> None)
+        | Import { desc = Global _; _ } | Data _ | Global _ | Tag _ -> None)
       fields
   in
   let globals =
     List.filter_map
       ~f:(fun f ->
         match f with
-        | Function _ | Import { desc = Fun _; _ } | Data _ -> None
+        | Function _ | Import { desc = Fun _; _ } | Data _ | Tag _ -> None
         | Import { name; desc = Global typ; _ } | Global { name; typ } -> Some (name, typ))
+      fields
+  in
+  let tags =
+    List.filter_map
+      ~f:(fun f ->
+        match f with
+        | Function _ | Import _ | Data _ | Global _ -> None
+        | Tag { name; typ } -> Some (name, typ))
       fields
   in
   let define_symbol name =
@@ -313,6 +334,9 @@ let f fields =
   in
   let declare_global name typ =
     line (string ".globaltype " ^^ string name ^^ string ", " ^^ value_type typ)
+  in
+  let declare_tag name typ =
+    line (string ".tagtype " ^^ string name ^^ string " " ^^ value_type typ)
   in
   let declare_func_type name typ =
     line (string ".functype " ^^ string name ^^ string " " ^^ func_type typ)
@@ -364,7 +388,7 @@ let f fields =
                         | DataSym (name, offset) -> string ".int32 " ^^ symbol name offset
                         | DataSpace n -> string ".space " ^^ string (string_of_int n)))
                     contents)
-        | Global { name; _ } ->
+        | Global { name; _ } | Tag { name; _ } ->
             indent (section_header "data" name ^^ define_symbol name)
             ^^ line (string name ^^ string ":"))
       fields
@@ -397,12 +421,13 @@ let f fields =
                         (string ".local " ^^ separate_map (string ", ") value_type locals))
                  ^^ concat_map instruction body
                  ^^ line (string "end_function"))
-        | Import _ | Data _ | Global _ -> empty)
+        | Import _ | Data _ | Global _ | Tag _ -> empty)
       fields
   in
   indent
     (concat_map (fun (name, typ) -> declare_global name typ) globals
-    ^^ concat_map (fun (name, typ) -> declare_func_type name typ) types)
+    ^^ concat_map (fun (name, typ) -> declare_func_type name typ) types
+    ^^ concat_map (fun (name, typ) -> declare_tag name typ) tags)
   ^^ function_section
   ^^ data_sections
   ^^ producer_section ()
