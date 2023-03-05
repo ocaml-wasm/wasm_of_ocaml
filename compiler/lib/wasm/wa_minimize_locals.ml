@@ -46,6 +46,7 @@ and scan_instruction ctx i =
       scan_expression ctx e;
       scan_instructions ctx l;
       scan_instructions ctx l'
+  | CallInstr (_, l) -> List.iter ~f:(fun e -> scan_expression ctx e) l
   | Br (_, None) | Return None | Nop -> ()
 
 and scan_instructions ctx l = List.iter ~f:(fun i' -> scan_instruction ctx i') l
@@ -136,6 +137,7 @@ and rewrite_instruction ctx i =
   | Br (label, Some e) -> Br (label, Some (rewrite_expression ctx e))
   | Br_table (e, l, label) -> Br_table (rewrite_expression ctx e, l, label)
   | Return (Some e) -> Return (Some (rewrite_expression ctx e))
+  | CallInstr (f, l) -> CallInstr (f, List.map ~f:(fun e -> rewrite_expression ctx e) l)
   | Br (_, None) | Return None | Nop -> i
 
 and rewrite_instructions ctx l = List.map ~f:(fun i' -> rewrite_instruction ctx i') l

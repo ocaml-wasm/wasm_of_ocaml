@@ -102,6 +102,7 @@ and instruction =
   | Br_table of expression * int list * int
   | Br of int * expression option
   | Return of expression option
+  | CallInstr of symbol * expression list
   | Nop
 
 type import_desc =

@@ -241,6 +241,7 @@ and instruction i =
   | Br (i, None) -> line (string "br " ^^ string (string_of_int i))
   | Return (Some e) -> expression e ^^ instruction (Return None)
   | Return None -> line (string "return")
+  | CallInstr (x, l) -> concat_map expression l ^^ line (string "call " ^^ symbol x 0)
   | Nop -> empty
 
 let escape_string s =
@@ -266,13 +267,19 @@ let len_string s =
   ^^ line (string ".ascii \"" ^^ string (escape_string s) ^^ string "\"")
 
 let producer_section () =
-  (*ZZZ Versions*)
   indent
     (section_header "custom_section" "producers"
     ^^ vector
-         [ len_string "language" ^^ vector [ len_string "OCaml" ^^ len_string "4.14" ]
+         [ len_string "language"
+           ^^ vector [ len_string "OCaml" ^^ len_string Sys.ocaml_version ]
          ; len_string "processed-by"
-           ^^ vector [ len_string "Wasm_of_ocaml" ^^ len_string "0.1" ]
+           ^^ vector
+                [ len_string "wasm_of_ocaml"
+                  ^^ len_string
+                       (match Compiler_version.git_version with
+                       | "" -> Compiler_version.s
+                       | v -> Printf.sprintf "%s+git-%s" Compiler_version.s v)
+                ]
          ])
 
 let target_features () =

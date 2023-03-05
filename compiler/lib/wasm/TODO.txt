@@ -2,19 +2,14 @@ ZZZ OKRA ZZZ
 
 =====
 
-- C stubs to access the host functions
-  https://reviews.llvm.org/D42520
-  https://tezos.gitlab.io/alpha/smart_rollups.html#developing-wasm-kernels
-
-- choose enty point
+- choose entry point
   linker
   ==> wasm_of_ocaml hello.bc smart_rollup_core.wasm runtime.wasm \
                  --entry kernel_run
+      ==> hello.s (for debugging)
       ==> hello.wasm
 
 =======
-
-- propagate constants (which should make more closures constant)
 
 - partial application
 
@@ -53,9 +48,13 @@ GHC: https://gitlab.haskell.org/ghc/ghc/-/merge_requests/9204/diffs
 https://depth-first.com/articles/2019/10/16/compiling-c-to-webassembly-and-running-it-without-emscripten/
 clang -O3 --target=wasm32 --no-standard-libraries -Wl,--export-all -Wl,--no-entry -S foo.c
 
+- C stubs to access the host functions
+  https://reviews.llvm.org/D42520
+  https://tezos.gitlab.io/alpha/smart_rollups.html#developing-wasm-kernels
+
 ====================
 
-dune exec -- js_of_ocaml ~/tezos-kernel/_build/default/src/hello.bc --pretty > hello.s
-clang-16  --no-standard-libraries --target=wasm32 hello.s ../tezos-kernel/_build/default/src/smart_rollup_core/smart_rollup_core.wasm ../tezos-kernel/_build/default/src/runtime/runtime.wasm  -Wl,--no-entry -Wl,-allow-undefined -o kernel.wasm
+BUILD PROCESS
 
-wasm2wat kernel.wasm | wat2wasm - -o kernel2.wasm
+dune exec -- js_of_ocaml ~/tezos-kernel/_build/default/src/hello.bc --pretty > hello.s
+clang-16  --no-standard-libraries --target=wasm32 hello.s ../tezos-kernel/_build/default/src/smart_rollup_core/smart_rollup_core.wasm ../tezos-kernel/_build/default/src/runtime/runtime.wasm  -Wl,--no-entry -o kernel.wasm

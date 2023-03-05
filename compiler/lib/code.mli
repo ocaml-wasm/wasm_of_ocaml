@@ -256,6 +256,9 @@ val fold_closures_innermost_first :
     innermost closures first. Unlike with {!fold_closures}, only the closures
     reachable from [p.start] are considered. *)
 
+val fold_closures_outermost_first :
+  program -> (Var.t option -> Var.t list -> cont -> 'd -> 'd) -> 'd -> 'd
+
 val fold_children : 'c fold_blocs
 
 val traverse :
