@@ -14,6 +14,8 @@ ZZZ OKRA ZZZ
 - partial application
 
 - target GC proposal as well
+  ==> output webassembly
+  ==> GC extensions
 
 - check integer overflows (integers are 31 bits only...)
 
@@ -36,9 +38,9 @@ ZZZ OKRA ZZZ
 - Rebuild call-graph
   ==> check for unnecessary blocks, branches, returns
 
-- local optimizations: constants used only once can be moved;
+- local optimizations:
   avoid store followed by unique load
-  ...
+  inline non-mutable expressions
 
 ==============================================
 
@@ -64,4 +66,4 @@ clang-16  --no-standard-libraries --target=wasm32 hello.s ../tezos-kernel/_build
 
 
 clang-16 -mexception-handling
-wasm2wat --enable-exceptions
+wasm2wat --enable-exceptions  // --enable-all

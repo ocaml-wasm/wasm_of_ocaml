@@ -31,16 +31,6 @@ let iter_closures ~f instrs =
   in
   iter_closures_rec f [] Var.Map.empty instrs
 
-let rec collect_closures acc clos_acc instrs =
-  let push_closures clos_acc acc =
-    if List.is_empty clos_acc then acc else clos_acc :: acc
-  in
-  match instrs with
-  | [] -> push_closures clos_acc acc
-  | Let (f, Closure (params, (pc, _))) :: rem ->
-      collect_closures acc ((f, List.length params, pc) :: clos_acc) rem
-  | _ :: rem -> collect_closures (push_closures clos_acc acc) [] rem
-
 let collect_free_vars program var_depth depth pc closures =
   let vars = ref Var.Set.empty in
   let add_if_free_variable x =

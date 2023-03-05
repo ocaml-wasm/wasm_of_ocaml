@@ -10,11 +10,6 @@ https://github.com/llvm/llvm-project/issues/56935
 https://github.com/llvm/llvm-project/issues/58438
 *)
 
-type primitive =
-  { index : int
-  ; arity : int
-  }
-
 type ctx =
   { live : int array
   ; blocks : block Addr.Map.t
@@ -255,7 +250,9 @@ module Memory = struct
 
   let tag e = Arith.(mem_load (e - const 4l) land const 0xffl)
 
+  (*
   let length e = Arith.(mem_load (e - const 4l) lsr const 10l)
+*)
 
   let array_get e e' = mem_load Arith.(e + ((e' - const 1l) lsl const 1l))
 
@@ -822,7 +819,7 @@ let f
       ~f:(fun (name, contents) -> W.Data { name; read_only = true; contents })
       (Var.Map.bindings !(ctx.constant_data))
   in
-  Wa_output.f
+  Wa_asm_output.f
     (W.Global { name = "young_ptr"; typ = I32 }
     :: Global { name = "young_limit"; typ = I32 }
        (*    :: Tag { name = "ocaml_exception"; typ = I32 }*)

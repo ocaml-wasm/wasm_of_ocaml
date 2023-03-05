@@ -19,7 +19,7 @@ module PP : sig
 
   val to_channel : out_channel -> t -> unit
 
-  val to_buffer : Buffer.t -> t -> unit
+  (*  val to_buffer : Buffer.t -> t -> unit *)
 end = struct
   let spaces = "\t" ^ String.make 80 ' '
 
@@ -59,8 +59,10 @@ end = struct
 
   let to_channel ch doc = doc { indent = 0; output = output_substring ch }
 
+  (*
   let to_buffer b doc =
     doc { indent = 0; output = (fun s i l -> Buffer.add_substring b s i l) }
+  *)
 end
 
 open PP
