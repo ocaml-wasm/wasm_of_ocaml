@@ -254,7 +254,7 @@ and instruction i =
   | Br (i, None) -> line (string "br " ^^ string (string_of_int i))
   | Return (Some e) -> expression e ^^ instruction (Return None)
   | Return None -> line (string "return")
-  | Throw e -> expression e ^^ line (string "throw")
+  | Throw (i, e) -> expression e ^^ line (string "throw " ^^ symbol (S i) 0)
   | Rethrow i -> line (string "rethrow " ^^ string (string_of_int i))
   | CallInstr (x, l) -> concat_map expression l ^^ line (string "call " ^^ symbol x 0)
   | Nop -> empty
@@ -263,7 +263,7 @@ let escape_string s =
   let b = Buffer.create (String.length s + 2) in
   for i = 0 to String.length s - 1 do
     let c = s.[i] in
-    if Poly.(c >= ' ' && c <= '~' && c <> '"')
+    if Poly.(c >= ' ' && c <= '~' && c <> '"' && c <> '\\')
     then Buffer.add_char b c
     else Printf.bprintf b "\\x%02x" (Char.code c)
   done;

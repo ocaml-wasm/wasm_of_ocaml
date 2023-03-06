@@ -107,7 +107,7 @@ and instruction =
   | Br_table of expression * int list * int
   | Br of int * expression option
   | Return of expression option
-  | Throw of expression
+  | Throw of string * expression
   | Rethrow of int
   | CallInstr of symbol * expression list
   | Nop

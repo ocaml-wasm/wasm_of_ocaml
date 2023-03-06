@@ -819,8 +819,11 @@ let f
       ~f:(fun (name, contents) -> W.Data { name; read_only = true; contents })
       (Var.Map.bindings !(ctx.constant_data))
   in
-  Wa_asm_output.f
-    (W.Global { name = "young_ptr"; typ = I32 }
+  let fields =
+    W.Global { name = "young_ptr"; typ = I32 }
     :: Global { name = "young_limit"; typ = I32 }
        (*    :: Tag { name = "ocaml_exception"; typ = I32 }*)
-    :: (primitives @ functions @ (start_function :: constant_data)))
+    :: (primitives @ functions @ (start_function :: constant_data))
+  in
+  (*  Wa_wat_output.f fields;*)
+  Wa_asm_output.f fields

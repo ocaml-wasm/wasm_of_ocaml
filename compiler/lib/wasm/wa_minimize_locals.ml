@@ -36,7 +36,7 @@ and scan_instruction ctx i =
   | GlobalSet (_, e)
   | Br (_, Some e)
   | Br_table (e, _, _)
-  | Throw e
+  | Throw (_, e)
   | Return (Some e) -> scan_expression ctx e
   | Store (_, e, e') ->
       scan_expression ctx e;
@@ -152,7 +152,7 @@ and rewrite_instruction ctx i =
   | Br (label, Some e) -> Br (label, Some (rewrite_expression ctx e))
   | Br_table (e, l, label) -> Br_table (rewrite_expression ctx e, l, label)
   | Return (Some e) -> Return (Some (rewrite_expression ctx e))
-  | Throw e -> Throw (rewrite_expression ctx e)
+  | Throw (i, e) -> Throw (i, rewrite_expression ctx e)
   | CallInstr (f, l) -> CallInstr (f, List.map ~f:(fun e -> rewrite_expression ctx e) l)
   | Br (_, None) | Return None | Rethrow _ | Nop -> i
 
