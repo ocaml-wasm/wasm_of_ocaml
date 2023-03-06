@@ -7,8 +7,6 @@
   compiler-libs.bytecomp
   menhirLib
   sedlex
-  sexplib
-  wasm
   (select
    source_map_io.ml
    from
