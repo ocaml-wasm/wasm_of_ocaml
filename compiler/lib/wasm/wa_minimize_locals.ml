@@ -12,7 +12,7 @@ type ctx =
 
 let rec scan_expression ctx e =
   match e with
-  | Wa_ast.Const _ | ConstSym _ | GlobalGet _ | Pop -> ()
+  | Wa_ast.Const _ | ConstSym _ | GlobalGet _ | Pop | RefFunc _ -> ()
   | UnOp (_, e') | Load (_, e') | MemoryGrow (_, e') -> scan_expression ctx e'
   | BinOp (_, e', e'') ->
       scan_expression ctx e';
@@ -22,7 +22,7 @@ let rec scan_expression ctx e =
       scan_expression ctx e';
       ctx.position <- ctx.position + 1;
       ctx.last_use.(i) <- ctx.position
-  | Call_indirect (_, e', l) ->
+  | Call_indirect (_, e', l) | Call_ref (_, e', l) ->
       List.iter ~f:(fun e' -> scan_expression ctx e') l;
       scan_expression ctx e'
   | Call (_, l) -> List.iter ~f:(fun e' -> scan_expression ctx e') l
@@ -92,7 +92,7 @@ let assignment ctx v e =
 
 let rec rewrite_expression ctx e =
   match e with
-  | Wa_ast.Const _ | ConstSym _ | GlobalGet _ | Pop -> e
+  | Wa_ast.Const _ | ConstSym _ | GlobalGet _ | Pop | RefFunc _ -> e
   | UnOp (op, e') -> UnOp (op, rewrite_expression ctx e')
   | BinOp (op, e', e'') ->
       let e' = rewrite_expression ctx e' in
@@ -121,6 +121,10 @@ let rec rewrite_expression ctx e =
       let l = List.map ~f:(fun i -> rewrite_instruction ctx i) l in
       let e' = rewrite_expression ctx e' in
       Seq (l, e')
+  | Call_ref (typ, e', l) ->
+      let l = List.map ~f:(fun e' -> rewrite_expression ctx e') l in
+      let e' = rewrite_expression ctx e' in
+      Call_ref (typ, e', l)
 
 and rewrite_instruction ctx i =
   match i with

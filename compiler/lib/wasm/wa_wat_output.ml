@@ -15,7 +15,7 @@ let rec format_sexp f s =
       Format.pp_print_list ~pp_sep:(fun f () -> Format.fprintf f "@ ") format_sexp f l;
       Format.fprintf f ")@]"
 
-let index symb =
+let index (symb : symbol) =
   Atom
     ("$"
     ^
@@ -23,12 +23,18 @@ let index symb =
     | S s -> s
     | V x -> Code.Var.to_string x)
 
+let heap_type ty =
+  match ty with
+  | Func -> Atom "func"
+  | Extern -> Atom "extern"
+  | Type symb -> index symb
+
 let value_type (t : value_type) =
-  Atom
-    (match t with
-    | I32 -> "i32"
-    | I64 -> "i64"
-    | F64 -> "f64")
+  match t with
+  | I32 -> Atom "i32"
+  | I64 -> Atom "i64"
+  | F64 -> Atom "f64"
+  | Ref ty -> List [ Atom "ref"; heap_type ty ]
 
 let list ?(always = false) name f l =
   if (not always) && List.is_empty l then [] else [ List (Atom name :: f l) ]
@@ -128,7 +134,7 @@ type ctx =
   ; mutable function_count : int
   }
 
-let lookup_symbol ctx symb =
+let lookup_symbol ctx (symb : symbol) =
   match symb with
   | S nm -> (
       try StringMap.find nm ctx.constants
@@ -189,6 +195,13 @@ let expression_or_instructions ctx =
     | MemoryGrow (_, e) -> [ List (Atom "memory.grow" :: expression e) ]
     | Seq (l, e) -> instructions l @ expression e
     | Pop -> []
+    | RefFunc symb -> [ List [ Atom "ref.func"; index symb ] ]
+    | Call_ref (symb, e, l) ->
+        [ List
+            (Atom "call_ref"
+            :: index symb
+            :: List.concat (List.map ~f:expression (l @ [ e ])))
+        ]
   and instruction i =
     match i with
     | Drop e -> [ List (Atom "drop" :: expression e) ]
@@ -276,7 +289,7 @@ let funct ctx name exported_name typ locals body =
 
 let import f =
   match f with
-  | Function _ | Global _ | Data _ | Tag _ -> []
+  | Function _ | Global _ | Data _ | Tag _ | Type _ -> []
   | Import { name; desc } ->
       [ List
           [ Atom "import"
@@ -336,6 +349,8 @@ let field ctx f =
           :: (expression ctx (Const (I32 (Int32.of_int (lookup_symbol ctx (V name)))))
              @ [ Atom ("\"" ^ data_contents ctx contents ^ "\"") ]))
       ]
+  | Type { name; typ } ->
+      [ List [ Atom "type"; index (V name); List (Atom "func" :: funct_type typ) ] ]
 
 let data_size contents =
   List.fold_left
@@ -358,7 +373,7 @@ let data_offsets fields =
       match f with
       | Data { name; contents; _ } ->
           i + data_size contents, Code.Var.Map.add name i addresses
-      | Function _ | Global _ | Tag _ | Import _ -> i, addresses)
+      | Function _ | Global _ | Tag _ | Import _ | Type _ -> i, addresses)
     ~init:(0, Code.Var.Map.empty)
     fields
 

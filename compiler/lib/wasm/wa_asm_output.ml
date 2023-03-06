@@ -85,7 +85,8 @@ module Output () = struct
       (match t with
       | I32 -> "i32"
       | I64 -> "i64"
-      | F64 -> "f64")
+      | F64 -> "f64"
+      | _ -> assert false (* Not supported *))
 
   let func_type { params; result } =
     if List.length result > 1 then features.multivalue <- true;
@@ -221,6 +222,7 @@ module Output () = struct
         expression e ^^ line (string "memory.grow " ^^ string (string_of_int mem))
     | Seq (l, e') -> concat_map instruction l ^^ expression e'
     | Pop -> empty
+    | RefFunc _ | Call_ref _ -> assert false (* Not supported *)
 
   and instruction i =
     match i with
@@ -343,14 +345,14 @@ module Output () = struct
           match f with
           | Function { name; typ; _ } -> Some (Code.Var.to_string name, typ)
           | Import { name; desc = Fun typ } -> Some (name, typ)
-          | Import { desc = Global _; _ } | Data _ | Global _ | Tag _ -> None)
+          | Import { desc = Global _; _ } | Data _ | Global _ | Tag _ | Type _ -> None)
         fields
     in
     let globals =
       List.filter_map
         ~f:(fun f ->
           match f with
-          | Function _ | Import { desc = Fun _; _ } | Data _ | Tag _ -> None
+          | Function _ | Import { desc = Fun _; _ } | Data _ | Tag _ | Type _ -> None
           | Import { name; desc = Global typ; _ } | Global { name; typ } ->
               Some (name, typ))
         fields
@@ -359,7 +361,7 @@ module Output () = struct
       List.filter_map
         ~f:(fun f ->
           match f with
-          | Function _ | Import _ | Data _ | Global _ -> None
+          | Function _ | Import _ | Data _ | Global _ | Type _ -> None
           | Tag { name; typ } -> Some (name, typ))
         fields
     in
@@ -379,7 +381,7 @@ module Output () = struct
       concat_map
         (fun f ->
           match f with
-          | Function _ | Import _ -> empty
+          | Function _ | Import _ | Type _ -> empty
           | Data { name; read_only; contents } ->
               let name = Code.Var.to_string name in
               let size =
@@ -459,7 +461,7 @@ module Output () = struct
                           ^^ separate_map (string ", ") value_type locals))
                    ^^ concat_map instruction body
                    ^^ line (string "end_function"))
-          | Import _ | Data _ | Global _ | Tag _ -> empty)
+          | Import _ | Data _ | Global _ | Tag _ | Type _ -> empty)
         fields
     in
     indent

@@ -1,9 +1,19 @@
 type var = Code.Var.t
 
+type symbol =
+  | V of var
+  | S of string
+
+type heap_type =
+  | Func
+  | Extern
+  | Type of symbol
+
 type value_type =
   | I32
   | I64
   | F64
+  | Ref of heap_type
 
 type func_type =
   { params : value_type list
@@ -71,10 +81,6 @@ type float_bin_op =
 
 type memarg = int32
 
-type symbol =
-  | V of var
-  | S of string
-
 type expression =
   | Const of (int32, int64, float) op
   | ConstSym of symbol * int
@@ -89,6 +95,8 @@ type expression =
   | MemoryGrow of int * expression
   | Seq of instruction list * expression
   | Pop
+  | RefFunc of symbol
+  | Call_ref of symbol * expression * expression list
 
 and instruction =
   | Drop of expression
@@ -148,4 +156,8 @@ type module_field =
   | Import of
       { name : string
       ; desc : import_desc
+      }
+  | Type of
+      { name : var
+      ; typ : func_type
       }

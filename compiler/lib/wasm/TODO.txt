@@ -24,12 +24,15 @@ ZZZ OKRA ZZZ
 - Constants
   ==> statically allocated ==> int32/int64/floats
 
-- we need to keep track of int32 constants
+- we need to keep track of ocaml int32 constants
 
 - Partial application / over application
   apply1 really fast
   apply2 fast through indirect function
   other cases slow
+
+- shall we use one table by function arity, to avoid runtime checks?
+https://github.com/WebAssembly/function-references/blob/main/proposals/function-references/Overview.md
 
 - Spilling
   Naive spilling for a start?
