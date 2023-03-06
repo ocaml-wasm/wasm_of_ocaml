@@ -84,8 +84,9 @@ let func_type { params; result } =
 
 let block_type ty =
   match ty with
-  | None -> empty
-  | Some t -> string " " ^^ value_type t
+  | { params = []; result = [] } -> empty
+  | { params = []; result = [ res ] } -> string " " ^^ value_type res
+  | _ -> string " " ^^ func_type ty
 
 let type_prefix op =
   match op with
@@ -204,6 +205,7 @@ let rec expression e =
   | MemoryGrow (mem, e) ->
       expression e ^^ line (string "memory.grow " ^^ string (string_of_int mem))
   | Seq (l, e') -> concat_map instruction l ^^ expression e'
+  | Pop -> empty
 
 and instruction i =
   match i with
@@ -258,6 +260,7 @@ and instruction i =
   | Rethrow i -> line (string "rethrow " ^^ string (string_of_int i))
   | CallInstr (x, l) -> concat_map expression l ^^ line (string "call " ^^ symbol x 0)
   | Nop -> empty
+  | Push e -> expression e
 
 let escape_string s =
   let b = Buffer.create (String.length s + 2) in

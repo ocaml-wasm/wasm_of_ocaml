@@ -544,49 +544,6 @@ and translate_instrs ctx l =
       let* () = translate_instr ctx i in
       translate_instrs ctx rem
 
-let parallel_renaming params args =
-  let rec visit visited prev s m x l =
-    if not (Var.Set.mem x visited)
-    then
-      let visited = Var.Set.add x visited in
-      let y = Var.Map.find x m in
-      if Code.Var.compare x y = 0
-      then visited, None, l
-      else if Var.Set.mem y prev
-      then
-        let t = Code.Var.fresh () in
-        visited, Some (y, t), (x, t) :: l
-      else if Var.Set.mem y s
-      then
-        let visited, aliases, l = visit visited (Var.Set.add x prev) s m y l in
-        match aliases with
-        | Some (a, b) when Code.Var.compare a x = 0 ->
-            visited, None, (b, a) :: (x, y) :: l
-        | _ -> visited, aliases, (x, y) :: l
-      else visited, None, (x, y) :: l
-    else visited, None, l
-  in
-  let visit_all params args =
-    let m = Subst.build_mapping params args in
-    let s = List.fold_left params ~init:Var.Set.empty ~f:(fun s x -> Var.Set.add x s) in
-    let _, l =
-      Var.Set.fold
-        (fun x (visited, l) ->
-          let visited, _, l = visit visited Var.Set.empty s m x l in
-          visited, l)
-        s
-        (Var.Set.empty, [])
-    in
-    l
-  in
-  let l = List.rev (visit_all params args) in
-  List.fold_left
-    l
-    ~f:(fun continuation (y, x) ->
-      let* () = continuation in
-      store ~always:true y (load x))
-    ~init:(return ())
-
 let translate_closure ctx name_opt toplevel_name params ((pc, _) as cont) acc =
   let g = Wa_structure.build_graph ctx.blocks pc in
   let idom = Wa_structure.dominator_tree g in
@@ -597,48 +554,76 @@ let translate_closure ctx name_opt toplevel_name params ((pc, _) as cont) acc =
     | _ :: rem -> index pc (i + 1) rem
     | [] -> assert false
   in
-  let rec translate_tree typ pc context =
+  let rec translate_tree result_typ fall_through pc context =
+    let block = Addr.Map.find pc ctx.blocks in
     let is_switch =
-      let block = Addr.Map.find pc ctx.blocks in
       match block.branch with
       | Switch _ -> true
       | _ -> false
     in
+    let param_ty = List.map ~f:(fun _ : W.value_type -> I32) block.params in
     let code =
       translate_node_within
-        typ
+        param_ty
+        result_typ
+        fall_through
         pc
         (List.filter
            ~f:(fun pc' -> is_switch || Wa_structure.is_merge_node g pc')
            (List.rev (Addr.Set.elements (Wa_structure.get_edges dom pc))))
     in
     if Wa_structure.is_loop_header g pc
-    then loop typ (code (`Loop pc :: context))
+    then loop { params = param_ty; result = result_typ } (code (`Loop pc :: context))
     else code context
-  and translate_node_within typ pc l context =
+  and translate_node_within param_ty result_typ fall_through pc l context =
     match l with
     | pc' :: rem ->
         let* () =
-          block None (translate_node_within None pc rem (`Block pc' :: context))
+          let result_typ =
+            let block' = Addr.Map.find pc' ctx.blocks in
+            List.map ~f:(fun _ : W.value_type -> I32) block'.params
+          in
+          block
+            { params = param_ty; result = result_typ }
+            (translate_node_within
+               param_ty
+               result_typ
+               (`Block pc')
+               pc
+               rem
+               (`Block pc' :: context))
         in
-        translate_tree typ pc' context
+        translate_tree result_typ fall_through pc' context
     | [] -> (
         let block = Addr.Map.find pc ctx.blocks in
+        let* () =
+          List.fold_left
+            block.params
+            ~f:(fun continuation x ->
+              (*ZZZ Check order *)
+              let* () = store x (return W.Pop) in
+              continuation)
+            ~init:(return ())
+        in
         let* () = translate_instrs ctx block.body in
         match block.branch with
-        | Branch cont -> translate_branch typ pc cont context
-        | Return x ->
+        | Branch cont -> translate_branch result_typ fall_through pc cont context
+        | Return x -> (
             let* e = load x in
-            instr (Return (Some e))
+            match fall_through with
+            | `Return -> instr (Push e)
+            | `Block _ -> instr (Return (Some e)))
         | Cond (x, cont1, cont2) ->
             if_
-              typ
+              { params = []; result = result_typ }
               Arith.(load x <> const 1l)
-              (translate_branch typ pc cont1 (`If :: context))
-              (translate_branch typ pc cont2 (`If :: context))
-        | Stop ->
+              (translate_branch result_typ fall_through pc cont1 (`If :: context))
+              (translate_branch result_typ fall_through pc cont2 (`If :: context))
+        | Stop -> (
             let* e = Arith.const 1l in
-            instr (Return (Some e))
+            match fall_through with
+            | `Return -> instr (Push e)
+            | `Block _ -> instr (Return (Some e)))
         | Switch (x, a1, a2) -> (
             let br_table e a context =
               let len = Array.length a in
@@ -655,7 +640,7 @@ let translate_closure ctx name_opt toplevel_name params ((pc, _) as cont) acc =
             | _, [||] -> br_table (load x) a1 context
             | _ ->
                 if_
-                  typ
+                  { params = []; result = result_typ }
                   Arith.(load x land const 1l)
                   (br_table (load x) a1 context)
                   (br_table (Memory.tag (load x)) a2 context))
@@ -665,25 +650,31 @@ let translate_closure ctx name_opt toplevel_name params ((pc, _) as cont) acc =
             (*ZZZ*)
         | Pushtrap (cont, x, cont', _) ->
             if_
-              typ
+              { params = []; result = result_typ }
               (Arith.const 0l)
               (let* () = store ~always:true x (Arith.const 1l) in
-               translate_branch typ pc cont' (`Then :: context))
-              (translate_branch typ pc cont (`Else :: context))
+               translate_branch result_typ fall_through pc cont' (`Then :: context))
+              (translate_branch result_typ fall_through pc cont (`Else :: context))
             (*ZZZ*)
-        | Poptrap cont -> translate_branch typ pc cont context (*ZZZ*))
-  and translate_branch typ src (dst, args) context =
+        | Poptrap cont -> translate_branch result_typ fall_through pc cont context (*ZZZ*)
+        )
+  and translate_branch result_typ fall_through src (dst, args) context =
     let* () =
-      if List.is_empty args
-      then return ()
-      else
-        let block = Addr.Map.find dst ctx.blocks in
-        parallel_renaming block.params args
+      List.fold_left
+        args
+        ~f:(fun continuation x ->
+          let* () = continuation in
+          let* x = load x in
+          instr (Push x))
+        ~init:(return ())
     in
     if (src >= 0 && Wa_structure.is_backward g src dst)
        || Wa_structure.is_merge_node g dst
-    then instr (Br (index dst 0 context, None))
-    else translate_tree typ dst context
+    then
+      match fall_through with
+      | `Block dst' when dst = dst' -> return ()
+      | _ -> instr (Br (index dst 0 context, None))
+    else translate_tree result_typ fall_through dst context
   in
   let env = empty_env ctx.constants ctx.constant_data in
   let _, env =
@@ -736,7 +727,7 @@ let translate_closure ctx name_opt toplevel_name params ((pc, _) as cont) acc =
   (*
   Format.eprintf "=== %d ===@." pc;
 *)
-  let _, st = translate_branch (Some (I32 : W.value_type)) (-1) cont [] env in
+  let _, st = translate_branch [ (I32 : W.value_type) ] `Return (-1) cont [] env in
 
   let param_count =
     match name_opt with
@@ -771,8 +762,7 @@ let entry_point ctx toplevel_fun entry_name =
     let* () = instr (W.GlobalSet ("young_ptr", high)) in
     let low = W.ConstSym (S "__heap_base", 0) in
     let* () = instr (W.GlobalSet ("young_limit", low)) in
-    let* arg = Arith.const 1l in
-    drop (return (W.Call (V toplevel_fun, [ arg ])))
+    drop (return (W.Call (V toplevel_fun, [])))
   in
   W.Function
     { name = Var.fresh_n "entry_point"

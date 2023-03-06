@@ -14,8 +14,8 @@ ZZZ OKRA ZZZ
 - partial application
 
 - target GC proposal as well
-  ==> output webassembly
   ==> GC extensions
+  ==> generate code
 
 - check integer overflows (integers are 31 bits only...)
 
@@ -36,7 +36,7 @@ ZZZ OKRA ZZZ
 - specialize: divide by zero / modulus / check array bound
 
 - Rebuild call-graph
-  ==> check for unnecessary blocks, branches, returns
+  ==> unnecessary blocks / simplification of switch/if
 
 - local optimizations:
   avoid store followed by unique load
@@ -67,3 +67,20 @@ clang-16  --no-standard-libraries --target=wasm32 hello.s ../tezos-kernel/_build
 
 clang-16 -mexception-handling
 wasm2wat --enable-exceptions  // --enable-all
+
+===========================
+
+ocaml value: (ref eq)
+integers: i31
+string : (ref (array (mut i8)))
+block : (ref (array (mut (ref eq))))
+closure : (ref (array (mut any)))   <- patch?
+===> f arity f' ...
+
+GC
+==
+https://docs.google.com/document/d/1DklC3qVuOdLHSXB5UXghM_syCh-4cMinQ50ICiXnK3Q/edit#
+https://github.com/WebAssembly/binaryen/blob/main/scripts/gen-s-parser.py
+https://github.com/WebAssembly/gc/blob/main/interpreter/syntax/ast.ml
+
+Change compilation strategy for branches: push arguments to the stack

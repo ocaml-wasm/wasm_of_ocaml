@@ -35,10 +35,7 @@ let value_type_list name tl = list name (fun tl -> List.map ~f:value_type tl) tl
 let funct_type { params; result } =
   value_type_list "param" params @ value_type_list "result" result
 
-let block_type ty =
-  match ty with
-  | None -> []
-  | Some t -> [ List [ Atom "result"; value_type t ] ]
+let block_type = funct_type
 
 let quoted_name name = Atom ("\"" ^ name ^ "\"")
 
@@ -188,6 +185,7 @@ let expression_or_instructions ctx =
         [ List (Atom "call" :: index f :: List.concat (List.map ~f:expression l)) ]
     | MemoryGrow (_, e) -> [ List (Atom "memory.grow" :: expression e) ]
     | Seq (l, e) -> List.concat (List.map ~f:instruction l) @ expression e
+    | Pop -> []
   and instruction i =
     match i with
     | Drop e -> [ List (Atom "drop" :: expression e) ]
@@ -254,6 +252,7 @@ let expression_or_instructions ctx =
     | CallInstr (f, l) ->
         [ List (Atom "call" :: index f :: List.concat (List.map ~f:expression l)) ]
     | Nop -> []
+    | Push e -> expression e
   and instructions l = List.concat (List.map ~f:instruction l) in
   expression, instructions
 

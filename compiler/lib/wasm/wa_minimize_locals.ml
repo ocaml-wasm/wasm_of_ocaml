@@ -12,7 +12,7 @@ type ctx =
 
 let rec scan_expression ctx e =
   match e with
-  | Wa_ast.Const _ | ConstSym _ | GlobalGet _ -> ()
+  | Wa_ast.Const _ | ConstSym _ | GlobalGet _ | Pop -> ()
   | UnOp (_, e') | Load (_, e') | MemoryGrow (_, e') -> scan_expression ctx e'
   | BinOp (_, e', e'') ->
       scan_expression ctx e';
@@ -37,7 +37,8 @@ and scan_instruction ctx i =
   | Br (_, Some e)
   | Br_table (e, _, _)
   | Throw (_, e)
-  | Return (Some e) -> scan_expression ctx e
+  | Return (Some e)
+  | Push e -> scan_expression ctx e
   | Store (_, e, e') ->
       scan_expression ctx e;
       scan_expression ctx e'
@@ -91,7 +92,7 @@ let assignment ctx v e =
 
 let rec rewrite_expression ctx e =
   match e with
-  | Wa_ast.Const _ | ConstSym _ | GlobalGet _ -> e
+  | Wa_ast.Const _ | ConstSym _ | GlobalGet _ | Pop -> e
   | UnOp (op, e') -> UnOp (op, rewrite_expression ctx e')
   | BinOp (op, e', e'') ->
       let e' = rewrite_expression ctx e' in
@@ -154,6 +155,7 @@ and rewrite_instruction ctx i =
   | Return (Some e) -> Return (Some (rewrite_expression ctx e))
   | Throw (i, e) -> Throw (i, rewrite_expression ctx e)
   | CallInstr (f, l) -> CallInstr (f, List.map ~f:(fun e -> rewrite_expression ctx e) l)
+  | Push e -> Push (rewrite_expression ctx e)
   | Br (_, None) | Return None | Rethrow _ | Nop -> i
 
 and rewrite_instructions ctx l = List.map ~f:(fun i' -> rewrite_instruction ctx i') l

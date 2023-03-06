@@ -71,8 +71,6 @@ type float_bin_op =
 
 type memarg = int32
 
-type block_type = value_type option
-
 type symbol =
   | V of var
   | S of string
@@ -90,17 +88,18 @@ type expression =
   | Call of symbol * expression list
   | MemoryGrow of int * expression
   | Seq of instruction list * expression
+  | Pop
 
 and instruction =
   | Drop of expression
   | Store of (memarg, memarg, memarg) op * expression * expression
   | LocalSet of int * expression
   | GlobalSet of string * expression
-  | Loop of block_type * instruction list
-  | Block of block_type * instruction list
-  | If of block_type * expression * instruction list * instruction list
+  | Loop of func_type * instruction list
+  | Block of func_type * instruction list
+  | If of func_type * expression * instruction list * instruction list
   | Try of
-      block_type
+      func_type
       * instruction list
       * (string * instruction list) list
       * instruction list option
@@ -111,6 +110,7 @@ and instruction =
   | Rethrow of int
   | CallInstr of symbol * expression list
   | Nop
+  | Push of expression
 
 type import_desc =
   | Fun of func_type
