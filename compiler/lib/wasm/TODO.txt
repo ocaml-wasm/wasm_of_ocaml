@@ -11,11 +11,13 @@ ZZZ OKRA ZZZ
 
 =======
 
-- partial application
-
 - target GC proposal as well
   ==> GC extensions
   ==> generate code
+
+- exceptions (if supported)
+
+- partial application
 
 - check integer overflows (integers are 31 bits only...)
 
@@ -42,6 +44,9 @@ ZZZ OKRA ZZZ
   avoid store followed by unique load
   inline non-mutable expressions
 
+- issue: binaryen does not support block input parameters
+  https://github.com/WebAssembly/binaryen/issues/5047
+
 ==============================================
 
 GHC: https://gitlab.haskell.org/ghc/ghc/-/merge_requests/9204/diffs
@@ -62,7 +67,7 @@ clang -O3 --target=wasm32 --no-standard-libraries -Wl,--export-all -Wl,--no-entr
 BUILD PROCESS
 
 dune exec -- js_of_ocaml ~/tezos-kernel/_build/default/src/hello.bc --pretty > hello.s
-clang-16  --no-standard-libraries --target=wasm32 hello.s ../tezos-kernel/_build/default/src/smart_rollup_core/smart_rollup_core.wasm ../tezos-kernel/_build/default/src/runtime/runtime.wasm  -Wl,--no-entry -o kernel.wasm
+clang-16  --no-standard-libraries --target=wasm32 hello.s ../tezos-kernel/_build/default/src/smart_rollup_core/smart_rollup_core.wasm ../tezos-kernel/_build/default/src/runtime/runtime.wasm  -Wl,--no-entry -Wa,--no-type-check -o kernel.wasm
 
 
 clang-16 -mexception-handling
@@ -84,3 +89,13 @@ https://github.com/WebAssembly/binaryen/blob/main/scripts/gen-s-parser.py
 https://github.com/WebAssembly/gc/blob/main/interpreter/syntax/ast.ml
 
 Change compilation strategy for branches: push arguments to the stack
+
+
+Tezos proposal:
+https://docs.google.com/document/d/1QDXMuixu0cv7ukwc-JgaiwBK4SssM4eIRpzlcKpGqt0. 
+
+========
+
+estimates in document
+okra
+js_of_ocaml

@@ -10,6 +10,10 @@ https://github.com/llvm/llvm-project/issues/56935
 https://github.com/llvm/llvm-project/issues/58438
 *)
 
+(* binaryen does not support block input parameters
+   https://github.com/WebAssembly/binaryen/issues/5047 *)
+let multivalue_enabled = false
+
 type ctx =
   { live : int array
   ; blocks : block Addr.Map.t
@@ -37,9 +41,6 @@ let empty_env constants constant_data =
   { var_count = 0; vars = Var.Map.empty; instrs = []; constants; constant_data }
 
 type 'a t = state -> 'a * state
-
-let func_type n =
-  { W.params = List.init ~len:n ~f:(fun _ : W.value_type -> I32); result = [ I32 ] }
 
 let ( let* ) (type a b) (e : a t) (f : a -> b t) : b t =
  fun st ->
@@ -186,6 +187,33 @@ let store ?(always = false) x e =
       let* i = add_var x in
       instr (LocalSet (i, e))
 
+let assign x e =
+  let* x = var x in
+  let* e = e in
+  match x with
+  | Local x -> instr (W.LocalSet (x, e))
+  | Env _ | Rec _ | Const _ -> assert false
+
+let drop e =
+  let* e = e in
+  match e with
+  | W.Seq (l, Const _) -> instrs l
+  | _ -> instr (Drop e)
+
+let loop ty l =
+  let* instrs = blk l in
+  instr (Loop (ty, instrs))
+
+let block ty l =
+  let* instrs = blk l in
+  instr (Block (ty, instrs))
+
+let if_ ty e l1 l2 =
+  let* e = e in
+  let* instrs1 = blk l1 in
+  let* instrs2 = blk l2 in
+  instr (If (ty, e, instrs1, instrs2))
+
 module Memory = struct
   let mem_load ?(offset = 0) e =
     assert (offset >= 0);
@@ -262,33 +290,6 @@ module Memory = struct
 
   let set_field e idx e' = mem_store ~offset:(4 * idx) e e'
 end
-
-let assign x e =
-  let* x = var x in
-  let* e = e in
-  match x with
-  | Local x -> instr (W.LocalSet (x, e))
-  | Env _ | Rec _ | Const _ -> assert false
-
-let drop e =
-  let* e = e in
-  match e with
-  | W.Seq (l, Const (I32 1l)) -> instrs l
-  | _ -> instr (Drop e)
-
-let loop ty l =
-  let* instrs = blk l in
-  instr (Loop (ty, instrs))
-
-let block ty l =
-  let* instrs = blk l in
-  instr (Block (ty, instrs))
-
-let if_ ty e l1 l2 =
-  let* e = e in
-  let* instrs1 = blk l1 in
-  let* instrs2 = blk l2 in
-  instr (If (ty, e, instrs1, instrs2))
 
 let rec transl_constant_rec constant_data c =
   match c with
@@ -388,6 +389,9 @@ let register_primitive ctx nm typ =
   (*ZZZ check type*)
   if not (StringMap.mem nm ctx.primitives)
   then ctx.primitives <- StringMap.add nm typ ctx.primitives
+
+let func_type n =
+  { W.params = List.init ~len:n ~f:(fun _ : W.value_type -> I32); result = [ I32 ] }
 
 let rec translate_expr ctx x e =
   match e with
@@ -544,6 +548,49 @@ and translate_instrs ctx l =
       let* () = translate_instr ctx i in
       translate_instrs ctx rem
 
+let parallel_renaming params args =
+  let rec visit visited prev s m x l =
+    if not (Var.Set.mem x visited)
+    then
+      let visited = Var.Set.add x visited in
+      let y = Var.Map.find x m in
+      if Code.Var.compare x y = 0
+      then visited, None, l
+      else if Var.Set.mem y prev
+      then
+        let t = Code.Var.fresh () in
+        visited, Some (y, t), (x, t) :: l
+      else if Var.Set.mem y s
+      then
+        let visited, aliases, l = visit visited (Var.Set.add x prev) s m y l in
+        match aliases with
+        | Some (a, b) when Code.Var.compare a x = 0 ->
+            visited, None, (b, a) :: (x, y) :: l
+        | _ -> visited, aliases, (x, y) :: l
+      else visited, None, (x, y) :: l
+    else visited, None, l
+  in
+  let visit_all params args =
+    let m = Subst.build_mapping params args in
+    let s = List.fold_left params ~init:Var.Set.empty ~f:(fun s x -> Var.Set.add x s) in
+    let _, l =
+      Var.Set.fold
+        (fun x (visited, l) ->
+          let visited, _, l = visit visited Var.Set.empty s m x l in
+          visited, l)
+        s
+        (Var.Set.empty, [])
+    in
+    l
+  in
+  let l = List.rev (visit_all params args) in
+  List.fold_left
+    l
+    ~f:(fun continuation (y, x) ->
+      let* () = continuation in
+      store ~always:true y (load x))
+    ~init:(return ())
+
 let translate_closure ctx name_opt toplevel_name params ((pc, _) as cont) acc =
   let g = Wa_structure.build_graph ctx.blocks pc in
   let idom = Wa_structure.dominator_tree g in
@@ -561,7 +608,11 @@ let translate_closure ctx name_opt toplevel_name params ((pc, _) as cont) acc =
       | Switch _ -> true
       | _ -> false
     in
-    let param_ty = List.map ~f:(fun _ : W.value_type -> I32) block.params in
+    let param_ty =
+      if multivalue_enabled
+      then List.map ~f:(fun _ : W.value_type -> I32) block.params
+      else []
+    in
     let code =
       translate_node_within
         param_ty
@@ -580,8 +631,11 @@ let translate_closure ctx name_opt toplevel_name params ((pc, _) as cont) acc =
     | pc' :: rem ->
         let* () =
           let result_typ =
-            let block' = Addr.Map.find pc' ctx.blocks in
-            List.map ~f:(fun _ : W.value_type -> I32) block'.params
+            if multivalue_enabled
+            then
+              let block' = Addr.Map.find pc' ctx.blocks in
+              List.map ~f:(fun _ : W.value_type -> I32) block'.params
+            else []
           in
           block
             { params = param_ty; result = result_typ }
@@ -597,13 +651,16 @@ let translate_closure ctx name_opt toplevel_name params ((pc, _) as cont) acc =
     | [] -> (
         let block = Addr.Map.find pc ctx.blocks in
         let* () =
-          List.fold_left
-            block.params
-            ~f:(fun continuation x ->
-              (*ZZZ Check order *)
-              let* () = store x (return W.Pop) in
-              continuation)
-            ~init:(return ())
+          if multivalue_enabled
+          then
+            List.fold_left
+              block.params
+              ~f:(fun continuation x ->
+                (*ZZZ Check order *)
+                let* () = store x (return W.Pop) in
+                continuation)
+              ~init:(return ())
+          else return ()
         in
         let* () = translate_instrs ctx block.body in
         match block.branch with
@@ -660,13 +717,20 @@ let translate_closure ctx name_opt toplevel_name params ((pc, _) as cont) acc =
         )
   and translate_branch result_typ fall_through src (dst, args) context =
     let* () =
-      List.fold_left
-        args
-        ~f:(fun continuation x ->
-          let* () = continuation in
-          let* x = load x in
-          instr (Push x))
-        ~init:(return ())
+      if multivalue_enabled
+      then
+        List.fold_left
+          args
+          ~f:(fun continuation x ->
+            let* () = continuation in
+            let* x = load x in
+            instr (Push x))
+          ~init:(return ())
+      else if List.is_empty args
+      then return ()
+      else
+        let block = Addr.Map.find dst ctx.blocks in
+        parallel_renaming block.params args
     in
     if (src >= 0 && Wa_structure.is_backward g src dst)
        || Wa_structure.is_merge_node g dst
@@ -819,5 +883,5 @@ let f
        (*    :: Tag { name = "ocaml_exception"; typ = I32 }*)
     :: (primitives @ functions @ (start_function :: constant_data))
   in
-  (*  Wa_wat_output.f fields;*)
+  (* Wa_wat_output.f fields;*)
   Wa_asm_output.f fields

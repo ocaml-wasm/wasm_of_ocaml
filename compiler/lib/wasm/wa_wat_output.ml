@@ -1,6 +1,8 @@
 open! Stdlib
 open Wa_ast
 
+let binaryen_compat = true
+
 type sexp =
   | Atom of string
   | List of sexp list
@@ -28,7 +30,8 @@ let value_type (t : value_type) =
     | I64 -> "i64"
     | F64 -> "f64")
 
-let list name f l = if List.is_empty l then [] else [ List (Atom name :: f l) ]
+let list ?(always = false) name f l =
+  if (not always) && List.is_empty l then [] else [ List (Atom name :: f l) ]
 
 let value_type_list name tl = list name (fun tl -> List.map ~f:value_type tl) tl
 
@@ -184,7 +187,7 @@ let expression_or_instructions ctx =
     | Call (f, l) ->
         [ List (Atom "call" :: index f :: List.concat (List.map ~f:expression l)) ]
     | MemoryGrow (_, e) -> [ List (Atom "memory.grow" :: expression e) ]
-    | Seq (l, e) -> List.concat (List.map ~f:instruction l) @ expression e
+    | Seq (l, e) -> instructions l @ expression e
     | Pop -> []
   and instruction i =
     match i with
@@ -197,6 +200,8 @@ let expression_or_instructions ctx =
             (Atom (type_prefix offset "store")
             :: (select offs offs offs offset @ expression e1 @ expression e2))
         ]
+    | LocalSet (i, Seq (l, e)) when binaryen_compat ->
+        instructions (l @ [ LocalSet (i, e) ])
     | LocalSet (i, e) ->
         [ List (Atom "local.set" :: Atom (string_of_int i) :: expression e) ]
     | GlobalSet (nm, e) -> [ List (Atom "global.set" :: index (S nm) :: expression e) ]
@@ -207,7 +212,9 @@ let expression_or_instructions ctx =
             (Atom "if"
             :: (block_type ty
                @ expression e
-               @ list "then" instructions l1
+               @ (if binaryen_compat && List.is_empty l1
+                 then [ List [ Atom "then"; Atom "nop" ] ]
+                 else list ~always:true "then" instructions l1)
                @ list "else" instructions l2))
         ]
     | Try (ty, body, catches, catch_all) ->
@@ -385,9 +392,5 @@ let f fields =
     format_sexp
     (List
        (Atom "module"
-       :: (List.concat (List.map ~f:import fields)
-          @ other_fields
-          @ funct_table
-          @ [ List
-                [ Atom "memory"; Atom (string_of_int ((heap_base + 0xffff) / 0x10000)) ]
-            ])))
+       :: List [ Atom "memory"; Atom (string_of_int ((heap_base + 0xffff) / 0x10000)) ]
+       :: (List.concat (List.map ~f:import fields) @ funct_table @ other_fields)))
