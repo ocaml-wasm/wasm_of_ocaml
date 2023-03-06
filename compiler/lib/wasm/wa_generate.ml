@@ -738,7 +738,11 @@ let translate_closure ctx name_opt toplevel_name params ((pc, _) as cont) acc =
 *)
   let _, st = translate_branch (Some (I32 : W.value_type)) (-1) cont [] env in
 
-  let param_count = List.length params + 1 in
+  let param_count =
+    match name_opt with
+    | None -> 0
+    | Some _ -> List.length params + 1
+  in
   let local_count, body =
     if false
     then st.var_count, List.rev st.instrs
