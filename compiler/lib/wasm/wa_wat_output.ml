@@ -56,8 +56,11 @@ let storage_type typ =
   | Value typ -> value_type typ
   | Packed typ -> packed_type typ
 
-let field_type { mut; typ } =
-  if mut then List [ Atom "mut"; storage_type typ ] else storage_type typ
+let mut_type f { mut; typ } = if mut then List [ Atom "mut"; f typ ] else f typ
+
+let field_type typ = mut_type storage_type typ
+
+let global_type typ = mut_type value_type typ
 
 let str_type typ =
   match typ with
@@ -388,8 +391,7 @@ let import f =
           ; List
               (match desc with
               | Fun typ -> Atom "func" :: index (S name) :: funct_type typ
-              | Global ty ->
-                  [ Atom "global"; index (S name); List [ Atom "mut"; value_type ty ] ])
+              | Global ty -> [ Atom "global"; index (S name); global_type ty ])
           ]
       ]
 
@@ -422,13 +424,8 @@ let field ctx f =
   match f with
   | Function { name; exported_name; typ; locals; body } ->
       [ funct ctx name exported_name typ locals body ]
-  | Global { name; typ } ->
-      [ List
-          (Atom "global"
-          :: index (S name)
-          :: List [ Atom "mut"; value_type typ ]
-          :: expression ctx (Const (I32 0l)))
-      ]
+  | Global { name; typ; init } ->
+      [ List (Atom "global" :: index (S name) :: global_type typ :: expression ctx init) ]
   | Tag { name; typ } ->
       [ List [ Atom "tag"; index (S name); List [ Atom "param"; value_type typ ] ] ]
   | Import _ -> []

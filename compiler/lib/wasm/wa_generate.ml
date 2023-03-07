@@ -884,9 +884,11 @@ let f
       (Var.Map.bindings !(ctx.constant_data))
   in
   let fields =
-    W.Global { name = "young_ptr"; typ = I32 }
-    :: Global { name = "young_limit"; typ = I32 }
-       (*    :: Tag { name = "ocaml_exception"; typ = I32 }*)
+    let declare_global name =
+      W.Global { name; typ = { mut = true; typ = I32 }; init = Const (I32 0l) }
+    in
+    declare_global "young_ptr"
+    :: declare_global "young_limit" (*    :: Tag { name = "ocaml_exception"; typ = I32 }*)
     :: (primitives @ functions @ (start_function :: constant_data))
   in
   (* Wa_wat_output.f fields;*)

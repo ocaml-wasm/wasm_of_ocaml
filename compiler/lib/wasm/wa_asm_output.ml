@@ -69,14 +69,46 @@ end = struct
   *)
 end
 
+module Feature : sig
+  type set
+
+  val make : unit -> set
+
+  val get : set -> string list
+
+  type t
+
+  val register : set -> string -> t
+
+  val require : t -> unit
+end = struct
+  type t = string * bool ref
+
+  type set = t list ref
+
+  let make () = ref []
+
+  let get l = !l |> List.filter ~f:(fun (_, b) -> !b) |> List.map ~f:fst
+
+  let register l name =
+    let f = name, ref false in
+    l := f :: !l;
+    f
+
+  let require (_, b) = b := true
+end
+
 module Output () = struct
   open PP
   open Wa_ast
 
-  type features = { (*mutable mutable_globals : bool;*)
-                    mutable multivalue : bool }
+  let features = Feature.make ()
 
-  let features = { (*mutable_globals = false; *) multivalue = false }
+  let mutable_globals = Feature.register features "mutable_globals"
+
+  let multivalue = Feature.register features "multivalue"
+
+  let exception_handling = Feature.register features "exception_handling"
 
   let value_type (t : value_type) =
     string
@@ -87,7 +119,7 @@ module Output () = struct
       | _ -> assert false (* Not supported *))
 
   let func_type { params; result } =
-    if List.length result > 1 then features.multivalue <- true;
+    if List.length result > 1 then Feature.require multivalue;
     string "("
     ^^ separate_map (string ", ") value_type params
     ^^ string ") -> ("
@@ -99,7 +131,7 @@ module Output () = struct
     | { params = []; result = [] } -> empty
     | { params = []; result = [ res ] } -> string " " ^^ value_type res
     | _ ->
-        features.multivalue <- true;
+        Feature.require multivalue;
         string " " ^^ func_type ty
 
   let type_prefix op =
@@ -175,6 +207,20 @@ module Output () = struct
     | I64 x -> i64 x
     | F64 x -> f64 x
 
+  let integer i = string (string_of_int i)
+
+  let integer32 i =
+    string
+      (if Poly.(i > -10000l && i < 10000l)
+      then Int32.to_string i
+      else Printf.sprintf "0x%lx" i)
+
+  let integer64 i =
+    string
+      (if Poly.(i > -10000L && i < 10000L)
+      then Int64.to_string i
+      else Printf.sprintf "0x%Lx" i)
+
   let symbol name offset =
     string
       (match name with
@@ -183,7 +229,7 @@ module Output () = struct
     ^^
     if offset = 0
     then empty
-    else (if offset < 0 then empty else string "+") ^^ string (string_of_int offset)
+    else (if offset < 0 then empty else string "+") ^^ integer offset
 
   let rec expression e =
     match e with
@@ -191,7 +237,7 @@ module Output () = struct
         line
           (type_prefix op
           ^^ string "const "
-          ^^ string (select Int32.to_string Int64.to_string string_of_float (*ZZZ*) op))
+          ^^ select integer32 integer64 (fun f -> string (string_of_float f (*ZZZ*))) op)
     | ConstSym (name, offset) ->
         line (type_prefix (I32 ()) ^^ string "const " ^^ symbol name offset)
     | UnOp (op, e') ->
@@ -207,17 +253,15 @@ module Output () = struct
              (type_prefix offset
              ^^ string "load "
              ^^ string (select Int32.to_string Int32.to_string Int32.to_string offset))
-    | LocalGet i -> line (string "local.get " ^^ string (string_of_int i))
-    | LocalTee (i, e') ->
-        expression e' ^^ line (string "local.tee " ^^ string (string_of_int i))
+    | LocalGet i -> line (string "local.get " ^^ integer i)
+    | LocalTee (i, e') -> expression e' ^^ line (string "local.tee " ^^ integer i)
     | GlobalGet nm -> line (string "global.get " ^^ string nm)
     | Call_indirect (typ, f, l) ->
         concat_map expression l
         ^^ expression f
         ^^ line (string "call_indirect " ^^ func_type typ)
     | Call (x, l) -> concat_map expression l ^^ line (string "call " ^^ symbol x 0)
-    | MemoryGrow (mem, e) ->
-        expression e ^^ line (string "memory.grow " ^^ string (string_of_int mem))
+    | MemoryGrow (mem, e) -> expression e ^^ line (string "memory.grow " ^^ integer mem)
     | Seq (l, e') -> concat_map instruction l ^^ expression e'
     | Pop -> empty
     | RefFunc _
@@ -244,8 +288,7 @@ module Output () = struct
              (type_prefix offset
              ^^ string "store "
              ^^ string (select Int32.to_string Int32.to_string Int32.to_string offset))
-    | LocalSet (i, e) ->
-        expression e ^^ line (string "local.set " ^^ string (string_of_int i))
+    | LocalSet (i, e) -> expression e ^^ line (string "local.set " ^^ integer i)
     | GlobalSet (nm, e) -> expression e ^^ line (string "global.set " ^^ string nm)
     | Loop (ty, l) ->
         line (string "loop" ^^ block_type ty)
@@ -263,6 +306,7 @@ module Output () = struct
         ^^ indent (concat_map instruction l2)
         ^^ line (string "end_if")
     | Try (ty, body, catches, catch_all) ->
+        Feature.require exception_handling;
         line (string "try" ^^ block_type ty)
         ^^ indent (concat_map instruction body)
         ^^ concat_map
@@ -277,14 +321,18 @@ module Output () = struct
         expression e
         ^^ line
              (string "br_table {"
-             ^^ separate_map (string ", ") (fun i -> string (string_of_int i)) (l @ [ i ])
+             ^^ separate_map (string ", ") integer (l @ [ i ])
              ^^ string "}")
     | Br (i, Some e) -> expression e ^^ instruction (Br (i, None))
-    | Br (i, None) -> line (string "br " ^^ string (string_of_int i))
+    | Br (i, None) -> line (string "br " ^^ integer i)
     | Return (Some e) -> expression e ^^ instruction (Return None)
     | Return None -> line (string "return")
-    | Throw (i, e) -> expression e ^^ line (string "throw " ^^ symbol (S i) 0)
-    | Rethrow i -> line (string "rethrow " ^^ string (string_of_int i))
+    | Throw (i, e) ->
+        Feature.require exception_handling;
+        expression e ^^ line (string "throw " ^^ symbol (S i) 0)
+    | Rethrow i ->
+        Feature.require exception_handling;
+        line (string "rethrow " ^^ integer i)
     | CallInstr (x, l) -> concat_map expression l ^^ line (string "call " ^^ symbol x 0)
     | Nop -> empty
     | Push e -> expression e
@@ -305,11 +353,10 @@ module Output () = struct
       (string ".section ." ^^ string kind ^^ string "." ^^ string name ^^ string ",\"\",@")
 
   let vector l =
-    line (string ".int8 " ^^ string (string_of_int (List.length l)))
-    ^^ concat_map (fun x -> x) l
+    line (string ".int8 " ^^ integer (List.length l)) ^^ concat_map (fun x -> x) l
 
   let len_string s =
-    line (string ".int8 " ^^ string (string_of_int (String.length s)))
+    line (string ".int8 " ^^ integer (String.length s))
     ^^ line (string ".ascii \"" ^^ string (escape_string s) ^^ string "\"")
 
   let producer_section =
@@ -336,16 +383,9 @@ module Output () = struct
     indent
       (section_header "custom_section" "target_features"
       ^^ vector
-           (let features =
-              let when_ b f = if b then [ f ] else [] in
-              List.concat
-                [ (*when_ features.mutable_globals "mutable-globals"
-                    ; *)
-                  when_ features.multivalue "multivalue"
-                ]
-            in
-            List.map ~f:(fun f -> line (string ".ascii \"+\"") ^^ len_string f) features)
-      )
+           (List.map
+              ~f:(fun f -> line (string ".ascii \"+\"") ^^ len_string f)
+              (Feature.get features)))
 
   let f fields =
     to_channel stdout
@@ -365,7 +405,11 @@ module Output () = struct
         ~f:(fun f ->
           match f with
           | Function _ | Import { desc = Fun _; _ } | Data _ | Tag _ | Type _ -> None
-          | Import { name; desc = Global typ; _ } | Global { name; typ } ->
+          | Import { name; desc = Global typ; _ } ->
+              if typ.mut then Feature.require mutable_globals;
+              Some (name, typ)
+          | Global { name; typ; init } ->
+              assert (Poly.equal init (Const (I32 0l)));
               Some (name, typ))
         fields
     in
@@ -374,14 +418,21 @@ module Output () = struct
         ~f:(fun f ->
           match f with
           | Function _ | Import _ | Data _ | Global _ | Type _ -> None
-          | Tag { name; typ } -> Some (name, typ))
+          | Tag { name; typ } ->
+              Feature.require exception_handling;
+              Some (name, typ))
         fields
     in
     let define_symbol name =
       line (string ".hidden " ^^ string name) ^^ line (string ".globl " ^^ string name)
     in
-    let declare_global name typ =
-      line (string ".globaltype " ^^ string name ^^ string ", " ^^ value_type typ)
+    let declare_global name { mut; typ } =
+      line
+        (string ".globaltype "
+        ^^ string name
+        ^^ string ", "
+        ^^ value_type typ
+        ^^ if mut then empty else string ", immutable")
     in
     let declare_tag name typ =
       line (string ".tagtype " ^^ string name ^^ string " " ^^ value_type typ)
@@ -414,30 +465,23 @@ module Output () = struct
                 (section_header (if read_only then "rodata" else "data") name
                 ^^ define_symbol name
                 ^^ line (string ".p2align 2")
-                ^^ line
-                     (string ".size "
-                     ^^ string name
-                     ^^ string ", "
-                     ^^ string (string_of_int size)))
+                ^^ line (string ".size " ^^ string name ^^ string ", " ^^ integer size))
               ^^ line (string name ^^ string ":")
               ^^ indent
                    (concat_map
                       (fun d ->
                         line
                           (match d with
-                          | DataI8 i ->
-                              string ".int8 0x" ^^ string (Printf.sprintf "%02x" i)
-                          | DataI32 i ->
-                              string ".int32 0x" ^^ string (Printf.sprintf "%lx" i)
-                          | DataI64 i ->
-                              string ".int64 0x" ^^ string (Printf.sprintf "%Lx" i)
+                          | DataI8 i -> string ".int8 " ^^ integer i
+                          | DataI32 i -> string ".int32 " ^^ integer32 i
+                          | DataI64 i -> string ".int64 " ^^ integer64 i
                           | DataBytes b ->
                               string ".ascii \""
                               ^^ string (escape_string b)
                               ^^ string "\""
                           | DataSym (name, offset) ->
                               string ".int32 " ^^ symbol name offset
-                          | DataSpace n -> string ".space " ^^ string (string_of_int n)))
+                          | DataSpace n -> string ".space " ^^ integer n))
                       contents)
           | Global { name; _ } | Tag { name; _ } ->
               indent (section_header "data" name ^^ define_symbol name)

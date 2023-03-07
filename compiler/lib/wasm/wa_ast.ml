@@ -25,10 +25,14 @@ type storage_type =
   | Value of value_type
   | Packed of packed_type
 
-type field_type =
+type 'typ mut_type =
   { mut : bool
-  ; typ : storage_type
+  ; typ : 'typ
   }
+
+type field_type = storage_type mut_type
+
+type global_type = value_type mut_type
 
 type func_type =
   { params : value_type list
@@ -156,7 +160,7 @@ and instruction =
 
 type import_desc =
   | Fun of func_type
-  | Global of value_type
+  | Global of global_type
 
 type data =
   | DataI8 of int
@@ -181,7 +185,8 @@ type module_field =
       }
   | Global of
       { name : string
-      ; typ : value_type
+      ; typ : global_type
+      ; init : expression
       }
   | Tag of
       { name : string
