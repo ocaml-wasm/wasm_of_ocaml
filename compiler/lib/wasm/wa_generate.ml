@@ -25,11 +25,9 @@ type ctx =
 
 type var =
   | Local of int
-  | Env of Code.Var.t * int
-  | Rec of Code.Var.t * int
-  | Const of W.expression
+  | Expr of W.expression t
 
-type state =
+and state =
   { var_count : int
   ; vars : var Var.Map.t
   ; instrs : W.instruction list
@@ -37,10 +35,10 @@ type state =
   ; constant_data : W.data list Var.Map.t ref
   }
 
+and 'a t = state -> 'a * state
+
 let empty_env constants constant_data =
   { var_count = 0; vars = Var.Map.empty; instrs = []; constants; constant_data }
-
-type 'a t = state -> 'a * state
 
 let ( let* ) (type a b) (e : a t) (f : a -> b t) : b t =
  fun st ->
@@ -56,7 +54,7 @@ let register_constant x e st =
 let var x st =
   try Var.Map.find x st.vars, st
   with Not_found -> (
-    try Const (Hashtbl.find st.constants x), st
+    try Expr (return (Hashtbl.find st.constants x)), st
     with Not_found ->
       Format.eprintf "ZZZ %a@." Var.print x;
       Local 0, st)
@@ -64,7 +62,7 @@ let var x st =
 let add_var x ({ var_count; vars; _ } as st) =
   match Var.Map.find_opt x vars with
   | Some (Local i) -> i, st
-  | Some (Rec _ | Env _ | Const _) -> assert false
+  | Some (Expr _) -> assert false
   | None ->
       let i = var_count in
       let vars = Var.Map.add x (Local i) vars in
@@ -157,17 +155,11 @@ let seq l e =
   let* e = e in
   return (W.Seq (instrs, e))
 
-let rec load x =
+let load x =
   let* x = var x in
   match x with
   | Local x -> return (W.LocalGet x)
-  | Env (x, offset) ->
-      let* x = load x in
-      return (W.Load (I32 (Int32.of_int (4 * offset)), x))
-  | Rec (x, offset) ->
-      let offset = 4 * offset in
-      Arith.(load x + const (Int32.of_int offset))
-  | Const e -> return e
+  | Expr e -> e
 
 let tee x e =
   let* e = e in
@@ -192,7 +184,7 @@ let assign x e =
   let* e = e in
   match x with
   | Local x -> instr (W.LocalSet (x, e))
-  | Env _ | Rec _ | Const _ -> assert false
+  | Expr _ -> assert false
 
 let drop e =
   let* e = e in
@@ -768,7 +760,14 @@ let translate_closure ctx name_opt toplevel_name params ((pc, _) as cont) acc =
           List.fold_left
             ~f:(fun (i, vars) (x, arity) ->
               ( (i + if arity > 1 then 4 else 3)
-              , if i = 0 then vars else Var.Map.add x (Rec (f, i)) vars ))
+              , if i = 0
+                then vars
+                else
+                  Var.Map.add
+                    x
+                    (let offset = 4 * i in
+                     Expr Arith.(load f + const (Int32.of_int offset)))
+                    vars ))
             ~init:(-funct_index, env.vars)
             info.functions
         in
@@ -781,7 +780,14 @@ let translate_closure ctx name_opt toplevel_name params ((pc, _) as cont) acc =
               info.free_variables
           in
           List.fold_left
-            ~f:(fun (i, vars) x -> i + 1, Var.Map.add x (Env (f, i)) vars)
+            ~f:(fun (i, vars) x ->
+              ( i + 1
+              , Var.Map.add
+                  x
+                  (Expr
+                     (let* f = load f in
+                      return (W.Load (I32 (Int32.of_int (4 * i)), f))))
+                  vars ))
             ~init:(offset, vars)
             free_variables
         in

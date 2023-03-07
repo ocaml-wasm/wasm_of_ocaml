@@ -13,8 +13,19 @@ type ctx =
 let rec scan_expression ctx e =
   match e with
   | Wa_ast.Const _ | ConstSym _ | GlobalGet _ | Pop | RefFunc _ -> ()
-  | UnOp (_, e') | Load (_, e') | MemoryGrow (_, e') -> scan_expression ctx e'
-  | BinOp (_, e', e'') ->
+  | UnOp (_, e')
+  | Load (_, e')
+  | MemoryGrow (_, e')
+  | I31New e'
+  | I31Get (_, e')
+  | ArrayLength e'
+  | StructGet (_, _, _, e')
+  | RefCast (_, e') -> scan_expression ctx e'
+  | BinOp (_, e', e'')
+  | ArrayNew (_, e', e'')
+  | ArrayNewData (_, _, e', e'')
+  | ArrayGet (_, _, e', e'')
+  | RefEq (e', e'') ->
       scan_expression ctx e';
       scan_expression ctx e''
   | LocalGet i -> ctx.last_use.(i) <- ctx.position
@@ -22,24 +33,27 @@ let rec scan_expression ctx e =
       scan_expression ctx e';
       ctx.position <- ctx.position + 1;
       ctx.last_use.(i) <- ctx.position
-  | Call_indirect (_, e', l) | Call_ref (_, e', l) ->
-      List.iter ~f:(fun e' -> scan_expression ctx e') l;
+  | Call_indirect (_, e', l) | Call_ref (_, e', l) | ArrayNewFixed (_, e', l) ->
+      scan_expressions ctx l;
       scan_expression ctx e'
-  | Call (_, l) -> List.iter ~f:(fun e' -> scan_expression ctx e') l
+  | Call (_, l) | StructNew (_, l) -> scan_expressions ctx l
   | Seq (l, e') ->
-      List.iter ~f:(fun i -> scan_instruction ctx i) l;
+      scan_instructions ctx l;
       scan_expression ctx e'
+
+and scan_expressions ctx l = List.iter ~f:(fun e -> scan_expression ctx e) l
 
 and scan_instruction ctx i =
   match i with
-  | Drop e
+  | Wa_ast.Drop e
   | GlobalSet (_, e)
   | Br (_, Some e)
   | Br_table (e, _, _)
   | Throw (_, e)
   | Return (Some e)
-  | Push e -> scan_expression ctx e
-  | Store (_, e, e') ->
+  | Push e
+  | Br_on_cast (_, _, e) -> scan_expression ctx e
+  | Store (_, e, e') | StructSet (_, _, _, e, e') ->
       scan_expression ctx e;
       scan_expression ctx e'
   | LocalSet (i, e) ->
@@ -55,10 +69,14 @@ and scan_instruction ctx i =
       scan_instructions ctx body;
       List.iter ~f:(fun (_, l) -> scan_instructions ctx l) catches;
       Option.iter ~f:(fun l -> scan_instructions ctx l) catch_all
-  | CallInstr (_, l) -> List.iter ~f:(fun e -> scan_expression ctx e) l
+  | CallInstr (_, l) -> scan_expressions ctx l
   | Br (_, None) | Return None | Rethrow _ | Nop -> ()
+  | ArraySet (_, _, e, e', e'') ->
+      scan_expression ctx e;
+      scan_expression ctx e';
+      scan_expression ctx e''
 
-and scan_instructions ctx l = List.iter ~f:(fun i' -> scan_instruction ctx i') l
+and scan_instructions ctx l = List.iter ~f:(fun i -> scan_instruction ctx i) l
 
 let assignment ctx v e =
   ctx.position <- ctx.position + 1;
@@ -112,23 +130,40 @@ let rec rewrite_expression ctx e =
       | LocalGet v'' when v' = v'' -> e'
       | _ -> LocalTee (v', e'))
   | Call_indirect (typ, e', l) ->
-      let l = List.map ~f:(fun e' -> rewrite_expression ctx e') l in
+      let l = rewrite_expressions ctx l in
       let e' = rewrite_expression ctx e' in
       Call_indirect (typ, e', l)
-  | Call (f, l) -> Call (f, List.map ~f:(fun e' -> rewrite_expression ctx e') l)
+  | Call (f, l) -> Call (f, rewrite_expressions ctx l)
   | MemoryGrow (m, e') -> MemoryGrow (m, rewrite_expression ctx e')
   | Seq (l, e') ->
-      let l = List.map ~f:(fun i -> rewrite_instruction ctx i) l in
+      let l = rewrite_instructions ctx l in
       let e' = rewrite_expression ctx e' in
       Seq (l, e')
   | Call_ref (typ, e', l) ->
-      let l = List.map ~f:(fun e' -> rewrite_expression ctx e') l in
+      let l = rewrite_expressions ctx l in
       let e' = rewrite_expression ctx e' in
       Call_ref (typ, e', l)
+  | I31New e' -> I31New (rewrite_expression ctx e')
+  | I31Get (s, e') -> I31Get (s, rewrite_expression ctx e')
+  | ArrayNew (symb, e', e'') ->
+      ArrayNew (symb, rewrite_expression ctx e', rewrite_expression ctx e'')
+  | ArrayNewFixed (symb, e', l) ->
+      ArrayNewFixed (symb, rewrite_expression ctx e', rewrite_expressions ctx l)
+  | ArrayNewData (symb, symb', e', e'') ->
+      ArrayNewData (symb, symb', rewrite_expression ctx e', rewrite_expression ctx e'')
+  | ArrayGet (s, symb, e', e'') ->
+      ArrayGet (s, symb, rewrite_expression ctx e', rewrite_expression ctx e'')
+  | ArrayLength e' -> ArrayLength (rewrite_expression ctx e')
+  | StructNew (symb, l) -> StructNew (symb, rewrite_expressions ctx l)
+  | StructGet (s, symb, i, e') -> StructGet (s, symb, i, rewrite_expression ctx e')
+  | RefCast (ty, e') -> RefCast (ty, rewrite_expression ctx e')
+  | RefEq (e', e'') -> RefEq (rewrite_expression ctx e', rewrite_expression ctx e'')
+
+and rewrite_expressions ctx l = List.map ~f:(fun e -> rewrite_expression ctx e) l
 
 and rewrite_instruction ctx i =
   match i with
-  | Drop e -> Drop (rewrite_expression ctx e)
+  | Wa_ast.Drop e -> Wa_ast.Drop (rewrite_expression ctx e)
   | Store (op, e, e') ->
       let e = rewrite_expression ctx e in
       let e' = rewrite_expression ctx e' in
@@ -160,9 +195,19 @@ and rewrite_instruction ctx i =
   | Throw (i, e) -> Throw (i, rewrite_expression ctx e)
   | CallInstr (f, l) -> CallInstr (f, List.map ~f:(fun e -> rewrite_expression ctx e) l)
   | Push e -> Push (rewrite_expression ctx e)
+  | ArraySet (s, symb, e, e', e'') ->
+      ArraySet
+        ( s
+        , symb
+        , rewrite_expression ctx e
+        , rewrite_expression ctx e'
+        , rewrite_expression ctx e'' )
+  | StructSet (s, symb, i, e, e') ->
+      StructSet (s, symb, i, rewrite_expression ctx e, rewrite_expression ctx e')
+  | Br_on_cast (i, ty, e) -> Br_on_cast (i, ty, rewrite_expression ctx e)
   | Br (_, None) | Return None | Rethrow _ | Nop -> i
 
-and rewrite_instructions ctx l = List.map ~f:(fun i' -> rewrite_instruction ctx i') l
+and rewrite_instructions ctx l = List.map ~f:(fun i -> rewrite_instruction ctx i) l
 
 let f ~param_count ~local_count instrs =
   let ctx =

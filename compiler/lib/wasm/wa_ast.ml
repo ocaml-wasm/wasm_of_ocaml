@@ -4,9 +4,15 @@ type symbol =
   | V of var
   | S of string
 
+type packed_type =
+  | I8
+  | I16
+
 type heap_type =
   | Func
   | Extern
+  | Eq
+  | I31
   | Type of symbol
 
 type value_type =
@@ -15,10 +21,24 @@ type value_type =
   | F64
   | Ref of heap_type
 
+type storage_type =
+  | Value of value_type
+  | Packed of packed_type
+
+type field_type =
+  { mut : bool
+  ; typ : storage_type
+  }
+
 type func_type =
   { params : value_type list
   ; result : value_type list
   }
+
+type str_type =
+  | Struct of field_type list
+  | Array of field_type
+  | Func of func_type
 
 type ('i32, 'i64, 'f64) op =
   | I32 of 'i32
@@ -97,6 +117,17 @@ type expression =
   | Pop
   | RefFunc of symbol
   | Call_ref of symbol * expression * expression list
+  | I31New of expression
+  | I31Get of signage * expression
+  | ArrayNew of symbol * expression * expression
+  | ArrayNewFixed of symbol * expression * expression list
+  | ArrayNewData of symbol * symbol * expression * expression
+  | ArrayGet of signage option * symbol * expression * expression
+  | ArrayLength of expression
+  | StructNew of symbol * expression list
+  | StructGet of signage option * symbol * int * expression
+  | RefCast of heap_type * expression
+  | RefEq of expression * expression
 
 and instruction =
   | Drop of expression
@@ -119,6 +150,9 @@ and instruction =
   | CallInstr of symbol * expression list
   | Nop
   | Push of expression
+  | ArraySet of signage option * symbol * expression * expression * expression
+  | StructSet of signage option * symbol * int * expression * expression
+  | Br_on_cast of int * heap_type * expression
 
 type import_desc =
   | Fun of func_type
@@ -159,5 +193,6 @@ type module_field =
       }
   | Type of
       { name : var
-      ; typ : func_type
+      ; typ : str_type
+      ; supertype : var option
       }

@@ -73,12 +73,10 @@ module Output () = struct
   open PP
   open Wa_ast
 
-  type features =
-    { mutable mutable_globals : bool
-    ; mutable multivalue : bool
-    }
+  type features = { (*mutable mutable_globals : bool;*)
+                    mutable multivalue : bool }
 
-  let features = { mutable_globals = false; multivalue = false }
+  let features = { (*mutable_globals = false; *) multivalue = false }
 
   let value_type (t : value_type) =
     string
@@ -222,7 +220,19 @@ module Output () = struct
         expression e ^^ line (string "memory.grow " ^^ string (string_of_int mem))
     | Seq (l, e') -> concat_map instruction l ^^ expression e'
     | Pop -> empty
-    | RefFunc _ | Call_ref _ -> assert false (* Not supported *)
+    | RefFunc _
+    | Call_ref _
+    | I31New _
+    | I31Get _
+    | ArrayNew _
+    | ArrayNewFixed _
+    | ArrayNewData _
+    | ArrayGet _
+    | ArrayLength _
+    | StructNew _
+    | StructGet _
+    | RefCast _
+    | RefEq _ -> assert false (* Not supported *)
 
   and instruction i =
     match i with
@@ -278,6 +288,7 @@ module Output () = struct
     | CallInstr (x, l) -> concat_map expression l ^^ line (string "call " ^^ symbol x 0)
     | Nop -> empty
     | Push e -> expression e
+    | ArraySet _ | StructSet _ | Br_on_cast _ -> assert false (* Not supported *)
 
   let escape_string s =
     let b = Buffer.create (String.length s + 2) in
@@ -328,8 +339,9 @@ module Output () = struct
            (let features =
               let when_ b f = if b then [ f ] else [] in
               List.concat
-                [ when_ features.mutable_globals "mutable-globals"
-                ; when_ features.multivalue "multivalue"
+                [ (*when_ features.mutable_globals "mutable-globals"
+                    ; *)
+                  when_ features.multivalue "multivalue"
                 ]
             in
             List.map ~f:(fun f -> line (string ".ascii \"+\"") ^^ len_string f) features)

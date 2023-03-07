@@ -23,10 +23,12 @@ let index (symb : symbol) =
     | S s -> s
     | V x -> Code.Var.to_string x)
 
-let heap_type ty =
+let heap_type (ty : heap_type) =
   match ty with
   | Func -> Atom "func"
   | Extern -> Atom "extern"
+  | Eq -> Atom "eq"
+  | I31 -> Atom "i31"
   | Type symb -> index symb
 
 let value_type (t : value_type) =
@@ -36,6 +38,11 @@ let value_type (t : value_type) =
   | F64 -> Atom "f64"
   | Ref ty -> List [ Atom "ref"; heap_type ty ]
 
+let packed_type t =
+  match t with
+  | I8 -> Atom "i8"
+  | I16 -> Atom "i16"
+
 let list ?(always = false) name f l =
   if (not always) && List.is_empty l then [] else [ List (Atom name :: f l) ]
 
@@ -43,6 +50,20 @@ let value_type_list name tl = list name (fun tl -> List.map ~f:value_type tl) tl
 
 let funct_type { params; result } =
   value_type_list "param" params @ value_type_list "result" result
+
+let storage_type typ =
+  match typ with
+  | Value typ -> value_type typ
+  | Packed typ -> packed_type typ
+
+let field_type { mut; typ } =
+  if mut then List [ Atom "mut"; storage_type typ ] else storage_type typ
+
+let str_type typ =
+  match typ with
+  | Func ty -> List (Atom "func" :: funct_type ty)
+  | Struct l -> List (Atom "struct" :: List.map ~f:field_type l)
+  | Array ty -> List [ Atom "array"; field_type ty ]
 
 let block_type = funct_type
 
@@ -202,6 +223,45 @@ let expression_or_instructions ctx =
             :: index symb
             :: List.concat (List.map ~f:expression (l @ [ e ])))
         ]
+    | I31New e -> [ List (Atom "i31.new" :: expression e) ]
+    | I31Get (s, e) -> [ List (Atom (signage "i31.get" s) :: expression e) ]
+    | ArrayNew (symb, e, e') ->
+        [ List (Atom "array.new" :: index symb :: (expression e @ expression e')) ]
+    | ArrayNewFixed (symb, e, l) ->
+        [ List
+            (Atom "array.new_fixed"
+            :: index symb
+            :: (expression e @ List.concat (List.map ~f:expression l)))
+        ]
+    | ArrayNewData (symb, symb', e, e') ->
+        [ List
+            (Atom "array.new_data"
+            :: index symb
+            :: index symb'
+            :: (expression e @ expression e'))
+        ]
+    | ArrayGet (None, symb, e, e') ->
+        [ List (Atom "array.get" :: index symb :: (expression e @ expression e')) ]
+    | ArrayGet (Some s, symb, e, e') ->
+        [ List
+            (Atom (signage "array.get" s) :: index symb :: (expression e @ expression e'))
+        ]
+    | ArrayLength e -> [ List (Atom "array.length" :: expression e) ]
+    | StructNew (symb, l) ->
+        [ List (Atom "struct.new" :: index symb :: List.concat (List.map ~f:expression l))
+        ]
+    | StructGet (None, symb, i, e) ->
+        [ List (Atom "struct.get" :: index symb :: Atom (string_of_int i) :: expression e)
+        ]
+    | StructGet (Some s, symb, i, e) ->
+        [ List
+            (Atom (signage "struct.get" s)
+            :: index symb
+            :: Atom (string_of_int i)
+            :: expression e)
+        ]
+    | RefCast (ty, e) -> [ List (Atom "ref.cast" :: heap_type ty :: expression e) ]
+    | RefEq (e, e') -> [ List (Atom "ref.eq" :: (expression e @ expression e')) ]
   and instruction i =
     match i with
     | Drop e -> [ List (Atom "drop" :: expression e) ]
@@ -273,6 +333,36 @@ let expression_or_instructions ctx =
         [ List (Atom "call" :: index f :: List.concat (List.map ~f:expression l)) ]
     | Nop -> []
     | Push e -> expression e
+    | ArraySet (None, symb, e, e', e'') ->
+        [ List
+            (Atom "array.set"
+            :: index symb
+            :: (expression e @ expression e' @ expression e''))
+        ]
+    | ArraySet (Some s, symb, e, e', e'') ->
+        [ List
+            (Atom (signage "array.set" s)
+            :: index symb
+            :: (expression e @ expression e' @ expression e''))
+        ]
+    | StructSet (None, symb, i, e, e') ->
+        [ List
+            (Atom "array.set"
+            :: index symb
+            :: Atom (string_of_int i)
+            :: (expression e @ expression e'))
+        ]
+    | StructSet (Some s, symb, i, e, e') ->
+        [ List
+            (Atom (signage "array.set" s)
+            :: index symb
+            :: Atom (string_of_int i)
+            :: (expression e @ expression e'))
+        ]
+    | Br_on_cast (i, ty, e) ->
+        [ List
+            (Atom "br_on_cast" :: Atom (string_of_int i) :: heap_type ty :: expression e)
+        ]
   and instructions l = List.concat (List.map ~f:instruction l) in
   expression, instructions
 
@@ -349,8 +439,15 @@ let field ctx f =
           :: (expression ctx (Const (I32 (Int32.of_int (lookup_symbol ctx (V name)))))
              @ [ Atom ("\"" ^ data_contents ctx contents ^ "\"") ]))
       ]
-  | Type { name; typ } ->
-      [ List [ Atom "type"; index (V name); List (Atom "func" :: funct_type typ) ] ]
+  | Type { name; typ; supertype = None } ->
+      [ List [ Atom "type"; index (V name); str_type typ ] ]
+  | Type { name; typ; supertype = Some supertype } ->
+      [ List
+          [ Atom "type"
+          ; index (V name)
+          ; List [ Atom "sub"; index (V supertype); str_type typ ]
+          ]
+      ]
 
 let data_size contents =
   List.fold_left

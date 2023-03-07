@@ -1,6 +1,3 @@
-ZZZ OKRA ZZZ
-
-=====
 
 - choose entry point
   linker
@@ -14,6 +11,8 @@ ZZZ OKRA ZZZ
 - target GC proposal as well
   ==> GC extensions
   ==> generate code
+
+- GC: immutable globals for storing constants
 
 - exceptions (if supported)
 
@@ -50,6 +49,10 @@ https://github.com/WebAssembly/function-references/blob/main/proposals/function-
 - issue: binaryen does not support block input parameters
   https://github.com/WebAssembly/binaryen/issues/5047
 
+- performance of casts:
+ --experimental-wasm-assume-ref-cast-succeeds
+ --experimental-wasm-skip-null-checks
+
 ==============================================
 
 GHC: https://gitlab.haskell.org/ghc/ghc/-/merge_requests/9204/diffs
@@ -64,6 +67,9 @@ clang -O3 --target=wasm32 --no-standard-libraries -Wl,--export-all -Wl,--no-entr
 
 - ABI
   https://github.com/WebAssembly/tool-conventions/
+
+dart:
+ https://github.com/dart-lang/sdk/blob/main/pkg/dart2wasm/lib/constants.dart
 
 ====================
 
@@ -82,8 +88,19 @@ ocaml value: (ref eq)
 integers: i31
 string : (ref (array (mut i8)))
 block : (ref (array (mut (ref eq))))
-closure : (ref (array (mut any)))   <- patch?
-===> f arity f' ...
+closure : (ref (struct ...))   <- patch?
+===> arity f f' ...
+
+closure
+-------
+  - struct: arity, unary function, full function, other fields
+  - need to be patched for recursive functions
+    ==> allocate each closure / build common env /
+        fill pointers from closures to common env /
+        store information about other functions when compiling the functions
+        (perform direct calls when possible)
+    constant closures ==> we can get the right closure from the env instead
+  - cast when entering a function (if the env is not empty)
 
 GC
 ==
@@ -93,12 +110,8 @@ https://github.com/WebAssembly/gc/blob/main/interpreter/syntax/ast.ml
 
 Change compilation strategy for branches: push arguments to the stack
 
-
 Tezos proposal:
-https://docs.google.com/document/d/1QDXMuixu0cv7ukwc-JgaiwBK4SssM4eIRpzlcKpGqt0. 
+https://docs.google.com/document/d/1QDXMuixu0cv7ukwc-JgaiwBK4SssM4eIRpzlcKpGqt0
 
 ========
 
-estimates in document
-okra
-js_of_ocaml
