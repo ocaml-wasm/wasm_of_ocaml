@@ -29,18 +29,12 @@ https://dfinity.org/grants/
 
 - check integer overflows (integers are 31 bits only...)
 
-- Constants
-  ==> statically allocated ==> int32/int64/floats
-
 - we need to keep track of ocaml int32 constants
 
 - Partial application / over application
   apply1 really fast
   apply2 fast through indirect function
   other cases slow
-
-- shall we use one table by function arity, to avoid runtime checks?
-https://github.com/WebAssembly/function-references/blob/main/proposals/function-references/Overview.md
 
 - Spilling
   Naive spilling for a start?
@@ -49,11 +43,12 @@ https://github.com/WebAssembly/function-references/blob/main/proposals/function-
 - specialize: divide by zero / modulus / check array bound
 
 - Rebuild call-graph
-  ==> unnecessary blocks / simplification of switch/if
+  ==> unnecessary blocks / simplification of br_table/if
 
 - local optimizations:
   avoid store followed by unique load
   inline non-mutable expressions
+  multiple cast on the same value
 
 - issue: binaryen does not support block input parameters
   https://github.com/WebAssembly/binaryen/issues/5047
@@ -64,7 +59,7 @@ https://github.com/WebAssembly/function-references/blob/main/proposals/function-
 
 - directly generate wasm binary?
 
-- GC: large constants
+- GC: large constants should be generated at runtime
 
 ==============================================
 
