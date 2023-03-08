@@ -104,11 +104,13 @@ module Output () = struct
 
   let features = Feature.make ()
 
-  let mutable_globals = Feature.register features "mutable_globals"
+  let mutable_globals = Feature.register features "mutable-globals"
 
   let multivalue = Feature.register features "multivalue"
 
-  let exception_handling = Feature.register features "exception_handling"
+  let exception_handling = Feature.register features "exception-handling"
+
+  let tail_call = Feature.register features "tail-call"
 
   let value_type (t : value_type) =
     string
@@ -255,7 +257,7 @@ module Output () = struct
              ^^ string (select Int32.to_string Int32.to_string Int32.to_string offset))
     | LocalGet i -> line (string "local.get " ^^ integer i)
     | LocalTee (i, e') -> expression e' ^^ line (string "local.tee " ^^ integer i)
-    | GlobalGet nm -> line (string "global.get " ^^ string nm)
+    | GlobalGet nm -> line (string "global.get " ^^ symbol nm 0)
     | Call_indirect (typ, f, l) ->
         concat_map expression l
         ^^ expression f
@@ -290,7 +292,7 @@ module Output () = struct
              ^^ string "store "
              ^^ string (select Int32.to_string Int32.to_string Int32.to_string offset))
     | LocalSet (i, e) -> expression e ^^ line (string "local.set " ^^ integer i)
-    | GlobalSet (nm, e) -> expression e ^^ line (string "global.set " ^^ string nm)
+    | GlobalSet (nm, e) -> expression e ^^ line (string "global.set " ^^ symbol nm 0)
     | Loop (ty, l) ->
         line (string "loop" ^^ block_type ty)
         ^^ indent (concat_map instruction l)
@@ -337,7 +339,16 @@ module Output () = struct
     | CallInstr (x, l) -> concat_map expression l ^^ line (string "call " ^^ symbol x 0)
     | Nop -> empty
     | Push e -> expression e
-    | ArraySet _ | StructSet _ | Br_on_cast _ -> assert false (* Not supported *)
+    | Return_call_indirect (typ, f, l) ->
+        Feature.require tail_call;
+        concat_map expression l
+        ^^ expression f
+        ^^ line (string "return_call_indirect " ^^ func_type typ)
+    | Return_call (x, l) ->
+        Feature.require tail_call;
+        concat_map expression l ^^ line (string "return_call " ^^ symbol x 0)
+    | ArraySet _ | StructSet _ | Br_on_cast _ | Return_call_ref _ ->
+        assert false (* Not supported *)
 
   let escape_string s =
     let b = Buffer.create (String.length s + 2) in
@@ -389,9 +400,14 @@ module Output () = struct
               (Feature.get features)))
 
   let f fields =
+    List.iter
+      ~f:(fun f ->
+        match f with
+        | Import { name; _ } -> Var_printer.add_reserved name
+        | Function _ | Data _ | Global _ | Tag _ | Type _ -> ())
+      fields;
     to_channel stdout
     @@
-    (*ZZZ Mark imports as reserved keywords / or use better local names *)
     let types =
       List.filter_map
         ~f:(fun f ->
@@ -408,7 +424,7 @@ module Output () = struct
           | Function _ | Import { desc = Fun _; _ } | Data _ | Tag _ | Type _ -> None
           | Import { name; desc = Global typ; _ } ->
               if typ.mut then Feature.require mutable_globals;
-              Some (name, typ)
+              Some ((S name : Wa_ast.symbol), typ)
           | Global { name; typ; init } ->
               assert (Poly.equal init (Const (I32 0l)));
               Some (name, typ))
@@ -430,13 +446,13 @@ module Output () = struct
     let declare_global name { mut; typ } =
       line
         (string ".globaltype "
-        ^^ string name
+        ^^ symbol name 0
         ^^ string ", "
         ^^ value_type typ
         ^^ if mut then empty else string ", immutable")
     in
     let declare_tag name typ =
-      line (string ".tagtype " ^^ string name ^^ string " " ^^ value_type typ)
+      line (string ".tagtype " ^^ symbol name 0 ^^ string " " ^^ value_type typ)
     in
     let declare_func_type name typ =
       line (string ".functype " ^^ string name ^^ string " " ^^ func_type typ)
@@ -446,7 +462,9 @@ module Output () = struct
         (fun f ->
           match f with
           | Function _ | Import _ | Type _ -> empty
-          | Data { name; read_only; contents } ->
+          | Data { name; read_only; active; contents } ->
+              assert active;
+              (* Not supported *)
               let name = Code.Var.to_string name in
               let size =
                 List.fold_left
@@ -485,6 +503,11 @@ module Output () = struct
                           | DataSpace n -> string ".space " ^^ integer n))
                       contents)
           | Global { name; _ } | Tag { name; _ } ->
+              let name =
+                match name with
+                | V name -> Code.Var.to_string name
+                | S name -> name
+              in
               indent (section_header "data" name ^^ define_symbol name)
               ^^ line (string name ^^ string ":"))
         fields

@@ -16,11 +16,6 @@ https://dfinity.org/grants/
   ==> GC extensions
   ==> generate code
 
-- GC: types (blocks, closure)
-
-- GC: constants
-  ==> use immutable globals (probably not for very large values / see dart)
-
 - GC: closures
 
 - optional tail recursion:
@@ -67,6 +62,10 @@ https://github.com/WebAssembly/function-references/blob/main/proposals/function-
  --experimental-wasm-assume-ref-cast-succeeds
  --experimental-wasm-skip-null-checks
 
+- directly generate wasm binary?
+
+- GC: large constants
+
 ==============================================
 
 GHC: https://gitlab.haskell.org/ghc/ghc/-/merge_requests/9204/diffs
@@ -94,6 +93,10 @@ clang-16  --no-standard-libraries --target=wasm32 hello.s ../tezos-kernel/_build
 
 clang-16 -mexception-handling
 wasm2wat --enable-exceptions  // --enable-all
+
+====================
+
+~/sources/binaryen/bin/wasm-opt --enable-reference-types --enable-gc
 
 ===========================
 

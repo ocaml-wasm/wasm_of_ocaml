@@ -18,7 +18,7 @@ module Memory = struct
           | (W.DataI32 _ | DataSym _) :: r -> get_data (offset - 4) r
           | (DataI8 _ | DataBytes _ | DataSpace _ | DataI64 _) :: _ -> assert false
         in
-        let* l = get_constant_data x in
+        let* _, l = get_data_segment x in
         let data = get_data (offset + offset') l in
         return data
     | _ -> return (W.Load (I32 (Int32.of_int offset), e))
@@ -44,9 +44,9 @@ module Memory = struct
     let size = (len + 1) * 4 in
     seq
       (let* v =
-         tee p Arith.(return (W.GlobalGet "young_ptr") - const (Int32.of_int size))
+         tee p Arith.(return (W.GlobalGet (S "young_ptr")) - const (Int32.of_int size))
        in
-       let* () = instr (W.GlobalSet ("young_ptr", v)) in
+       let* () = instr (W.GlobalSet (S "young_ptr", v)) in
        let* () = mem_store (load p) (Arith.const (header ~tag ~len ())) in
        snd
          (List.fold_right
@@ -93,7 +93,9 @@ module Value = struct
 
   let int_val i = Arith.(i asr const 1l)
 
-  let is_not_zero i = Arith.(i <> const 1l)
+  let check_is_not_zero i = Arith.(i <> const 1l)
+
+  let check_is_int i = Arith.(i land const 1l)
 
   let not b = Arith.(const 4l - b)
 
@@ -131,17 +133,16 @@ module Value = struct
 end
 
 module Constant = struct
-  let rec translate_rec constant_data c =
+  let rec translate_rec context c =
     match c with
     | Code.Int i -> W.DataI32 Int32.(add (add i i) 1l)
     | Tuple (tag, a, _) ->
         let h = Memory.header ~const:true ~tag ~len:(Array.length a) () in
         let name = Code.Var.fresh_n "block" in
         let block =
-          W.DataI32 h
-          :: List.map ~f:(fun c -> translate_rec constant_data c) (Array.to_list a)
+          W.DataI32 h :: List.map ~f:(fun c -> translate_rec context c) (Array.to_list a)
         in
-        constant_data := Code.Var.Map.add name block !constant_data;
+        context.data_segments <- Code.Var.Map.add name (true, block) context.data_segments;
         W.DataSym (V name, 4)
     | NativeString (Byte s | Utf (Utf8 s)) | String s ->
         let l = String.length s in
@@ -154,13 +155,14 @@ module Constant = struct
           :: DataBytes s
           :: (if extra = 0 then [ DataI8 0 ] else [ DataSpace extra; DataI8 extra ])
         in
-        constant_data := Code.Var.Map.add name string !constant_data;
+        context.data_segments <-
+          Code.Var.Map.add name (true, string) context.data_segments;
         W.DataSym (V name, 4)
     | Float f ->
         let h = Memory.header ~const:true ~tag:Obj.double_tag ~len:2 () in
         let name = Code.Var.fresh_n "float" in
         let block = [ W.DataI32 h; DataI64 (Int64.bits_of_float f) ] in
-        constant_data := Code.Var.Map.add name block !constant_data;
+        context.data_segments <- Code.Var.Map.add name (true, block) context.data_segments;
         W.DataSym (V name, 4)
     | Float_array l ->
         (*ZZZ Boxed array? *)
@@ -170,22 +172,36 @@ module Constant = struct
         in
         let name = Code.Var.fresh_n "float_array" in
         let block =
-          W.DataI32 h :: List.map ~f:(fun f -> translate_rec constant_data (Float f)) l
+          W.DataI32 h :: List.map ~f:(fun f -> translate_rec context (Float f)) l
         in
-        constant_data := Code.Var.Map.add name block !constant_data;
+        context.data_segments <- Code.Var.Map.add name (true, block) context.data_segments;
         W.DataSym (V name, 4)
     | Int64 i ->
         let h = Memory.header ~const:true ~tag:Obj.custom_tag ~len:3 () in
         let name = Code.Var.fresh_n "int64" in
         let block = [ W.DataI32 h; DataSym (S "caml_int64_ops", 0); DataI64 i ] in
-        constant_data := Code.Var.Map.add name block !constant_data;
+        context.data_segments <- Code.Var.Map.add name (true, block) context.data_segments;
         W.DataSym (V name, 4)
 
   let translate c =
-    let* constant_data = get_constant_data_table in
+    let* context = get_context in
     return
-      (match translate_rec constant_data c with
+      (match translate_rec context c with
       | W.DataSym (V name, offset) -> W.ConstSym (V name, offset)
       | W.DataI32 i -> W.Const (I32 i)
       | _ -> assert false)
 end
+
+let entry_point ~register_primitive =
+  let declare_global name =
+    register_global (S name) { mut = true; typ = I32 } (Const (I32 0l))
+  in
+  let* () = declare_global "young_ptr" in
+  let* () = declare_global "young_limit" in
+  register_primitive "__wasm_call_ctors" { W.params = []; result = [] };
+  let* () = instr (W.CallInstr (S "__wasm_call_ctors", [])) in
+  let* sz = Arith.const 3l in
+  let* high = Arith.((return (W.MemoryGrow (0, sz)) + const 3l) lsl const 16l) in
+  let* () = instr (W.GlobalSet (S "young_ptr", high)) in
+  let low = W.ConstSym (S "__heap_base", 0) in
+  instr (W.GlobalSet (S "young_limit", low))

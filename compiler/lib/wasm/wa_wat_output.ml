@@ -1,7 +1,7 @@
 open! Stdlib
 open Wa_ast
 
-let binaryen_compat = true
+let target = `Reference
 
 type sexp =
   | Atom of string
@@ -29,7 +29,7 @@ let heap_type (ty : heap_type) =
   | Extern -> Atom "extern"
   | Eq -> Atom "eq"
   | I31 -> Atom "i31"
-  | Type symb -> index symb
+  | Type symb -> index (V symb)
 
 let value_type (t : value_type) =
   match t with
@@ -65,7 +65,7 @@ let global_type typ = mut_type value_type typ
 let str_type typ =
   match typ with
   | Func ty -> List (Atom "func" :: funct_type ty)
-  | Struct l -> List (Atom "struct" :: List.map ~f:field_type l)
+  | Struct l -> List [ Atom "struct"; List (Atom "field" :: List.map ~f:field_type l) ]
   | Array ty -> List [ Atom "array"; field_type ty ]
 
 let block_type = funct_type
@@ -208,7 +208,7 @@ let expression_or_instructions ctx =
     | LocalGet i -> [ List [ Atom "local.get"; Atom (string_of_int i) ] ]
     | LocalTee (i, e') ->
         [ List (Atom "local.tee" :: Atom (string_of_int i) :: expression e') ]
-    | GlobalGet nm -> [ List [ Atom "global.get"; index (S nm) ] ]
+    | GlobalGet nm -> [ List [ Atom "global.get"; index nm ] ]
     | Call_indirect (typ, e, l) ->
         [ List
             ((Atom "call_indirect" :: funct_type typ)
@@ -229,46 +229,50 @@ let expression_or_instructions ctx =
     | I31New e -> [ List (Atom "i31.new" :: expression e) ]
     | I31Get (s, e) -> [ List (Atom (signage "i31.get" s) :: expression e) ]
     | ArrayNew (symb, e, e') ->
-        [ List (Atom "array.new" :: index symb :: (expression e @ expression e')) ]
-    | ArrayNewFixed (symb, i, l) ->
-        if binaryen_compat
-        then
-          [ List
-              (Atom "array.init_static"
-              :: index symb
-              :: List.concat (List.map ~f:expression l))
-          ]
-        else
-          [ List
-              (Atom "array.new_fixed"
-              :: index symb
-              :: Atom (string_of_int i)
-              :: List.concat (List.map ~f:expression l))
-          ]
+        [ List (Atom "array.new" :: index (V symb) :: (expression e @ expression e')) ]
+    | ArrayNewFixed (symb, l) ->
+        [ List
+            (Atom
+               (match target with
+               | `Binaryen -> "array.new_fixed"
+               | `Reference -> "array.new_canon_fixed")
+            :: index (V symb)
+            :: ((match target with
+                | `Binaryen -> []
+                | `Reference -> [ Atom (string_of_int (List.length l)) ])
+               @ List.concat (List.map ~f:expression l)))
+        ]
     | ArrayNewData (symb, symb', e, e') ->
         [ List
-            (Atom "array.new_data"
-            :: index symb
-            :: index symb'
+            (Atom
+               (match target with
+               | `Binaryen -> "array.new_data"
+               | `Reference -> "array.new_canon_data")
+            :: index (V symb)
+            :: index (V symb')
             :: (expression e @ expression e'))
         ]
     | ArrayGet (None, symb, e, e') ->
-        [ List (Atom "array.get" :: index symb :: (expression e @ expression e')) ]
+        [ List (Atom "array.get" :: index (V symb) :: (expression e @ expression e')) ]
     | ArrayGet (Some s, symb, e, e') ->
         [ List
-            (Atom (signage "array.get" s) :: index symb :: (expression e @ expression e'))
+            (Atom (signage "array.get" s)
+            :: index (V symb)
+            :: (expression e @ expression e'))
         ]
     | ArrayLength e -> [ List (Atom "array.length" :: expression e) ]
     | StructNew (symb, l) ->
-        [ List (Atom "struct.new" :: index symb :: List.concat (List.map ~f:expression l))
+        [ List
+            (Atom "struct.new" :: index (V symb) :: List.concat (List.map ~f:expression l))
         ]
     | StructGet (None, symb, i, e) ->
-        [ List (Atom "struct.get" :: index symb :: Atom (string_of_int i) :: expression e)
+        [ List
+            (Atom "struct.get" :: index (V symb) :: Atom (string_of_int i) :: expression e)
         ]
     | StructGet (Some s, symb, i, e) ->
         [ List
             (Atom (signage "struct.get" s)
-            :: index symb
+            :: index (V symb)
             :: Atom (string_of_int i)
             :: expression e)
         ]
@@ -286,11 +290,11 @@ let expression_or_instructions ctx =
             (Atom (type_prefix offset "store")
             :: (select offs offs offs offset @ expression e1 @ expression e2))
         ]
-    | LocalSet (i, Seq (l, e)) when binaryen_compat ->
+    | LocalSet (i, Seq (l, e)) when Poly.equal target `Binaryen ->
         instructions (l @ [ LocalSet (i, e) ])
     | LocalSet (i, e) ->
         [ List (Atom "local.set" :: Atom (string_of_int i) :: expression e) ]
-    | GlobalSet (nm, e) -> [ List (Atom "global.set" :: index (S nm) :: expression e) ]
+    | GlobalSet (nm, e) -> [ List (Atom "global.set" :: index nm :: expression e) ]
     | Loop (ty, l) -> [ List (Atom "loop" :: (block_type ty @ instructions l)) ]
     | Block (ty, l) -> [ List (Atom "block" :: (block_type ty @ instructions l)) ]
     | If (ty, e, l1, l2) ->
@@ -298,7 +302,7 @@ let expression_or_instructions ctx =
             (Atom "if"
             :: (block_type ty
                @ expression e
-               @ (if binaryen_compat && List.is_empty l1
+               @ (if Poly.equal target `Binaryen && List.is_empty l1
                  then [ List [ Atom "then"; Atom "nop" ] ]
                  else list ~always:true "then" instructions l1)
                @ list "else" instructions l2))
@@ -349,32 +353,45 @@ let expression_or_instructions ctx =
     | ArraySet (None, symb, e, e', e'') ->
         [ List
             (Atom "array.set"
-            :: index symb
+            :: index (V symb)
             :: (expression e @ expression e' @ expression e''))
         ]
     | ArraySet (Some s, symb, e, e', e'') ->
         [ List
             (Atom (signage "array.set" s)
-            :: index symb
+            :: index (V symb)
             :: (expression e @ expression e' @ expression e''))
         ]
     | StructSet (None, symb, i, e, e') ->
         [ List
             (Atom "array.set"
-            :: index symb
+            :: index (V symb)
             :: Atom (string_of_int i)
             :: (expression e @ expression e'))
         ]
     | StructSet (Some s, symb, i, e, e') ->
         [ List
             (Atom (signage "array.set" s)
-            :: index symb
+            :: index (V symb)
             :: Atom (string_of_int i)
             :: (expression e @ expression e'))
         ]
     | Br_on_cast (i, ty, e) ->
         [ List
             (Atom "br_on_cast" :: Atom (string_of_int i) :: heap_type ty :: expression e)
+        ]
+    | Return_call_indirect (typ, e, l) ->
+        [ List
+            ((Atom "return_call_indirect" :: funct_type typ)
+            @ List.concat (List.map ~f:expression (l @ [ e ])))
+        ]
+    | Return_call (f, l) ->
+        [ List (Atom "return_call" :: index f :: List.concat (List.map ~f:expression l)) ]
+    | Return_call_ref (symb, e, l) ->
+        [ List
+            (Atom "call_ref"
+            :: index symb
+            :: List.concat (List.map ~f:expression (l @ [ e ])))
         ]
   and instructions l = List.concat (List.map ~f:instruction l) in
   expression, instructions
@@ -435,15 +452,18 @@ let field ctx f =
   | Function { name; exported_name; typ; locals; body } ->
       [ funct ctx name exported_name typ locals body ]
   | Global { name; typ; init } ->
-      [ List (Atom "global" :: index (S name) :: global_type typ :: expression ctx init) ]
+      [ List (Atom "global" :: index name :: global_type typ :: expression ctx init) ]
   | Tag { name; typ } ->
-      [ List [ Atom "tag"; index (S name); List [ Atom "param"; value_type typ ] ] ]
+      [ List [ Atom "tag"; index name; List [ Atom "param"; value_type typ ] ] ]
   | Import _ -> []
-  | Data { name; contents; _ } ->
+  | Data { name; active; contents; _ } ->
       [ List
           (Atom "data"
           :: index (V name)
-          :: (expression ctx (Const (I32 (Int32.of_int (lookup_symbol ctx (V name)))))
+          :: ((if active
+              then
+                expression ctx (Const (I32 (Int32.of_int (lookup_symbol ctx (V name)))))
+              else [])
              @ [ Atom ("\"" ^ data_contents ctx contents ^ "\"") ]))
       ]
   | Type { name; typ; supertype = None } ->
@@ -475,9 +495,10 @@ let data_offsets fields =
   List.fold_left
     ~f:(fun (i, addresses) f ->
       match f with
-      | Data { name; contents; _ } ->
+      | Data { name; contents; active = true; _ } ->
           i + data_size contents, Code.Var.Map.add name i addresses
-      | Function _ | Global _ | Tag _ | Import _ | Type _ -> i, addresses)
+      | Function _ | Global _ | Tag _ | Import _ | Data { active = false; _ } | Type _ ->
+          i, addresses)
     ~init:(0, Code.Var.Map.empty)
     fields
 
@@ -511,5 +532,9 @@ let f fields =
     format_sexp
     (List
        (Atom "module"
-       :: List [ Atom "memory"; Atom (string_of_int ((heap_base + 0xffff) / 0x10000)) ]
-       :: (List.concat (List.map ~f:import fields) @ funct_table @ other_fields)))
+       :: (List.concat (List.map ~f:import fields)
+          @ [ List
+                [ Atom "memory"; Atom (string_of_int ((heap_base + 0xffff) / 0x10000)) ]
+            ]
+          @ funct_table
+          @ other_fields)))

@@ -13,6 +13,22 @@ https://github.com/llvm/llvm-project/issues/58438
 (* binaryen does not support block input parameters
    https://github.com/WebAssembly/binaryen/issues/5047 *)
 
+type context =
+  { constants : (Code.Var.t, W.expression) Hashtbl.t
+  ; mutable data_segments : (bool * W.data list) Var.Map.t
+  ; mutable constant_globals : Var.Set.t
+  ; mutable other_fields : W.module_field list
+  ; types : (string, Code.Var.t) Hashtbl.t
+  }
+
+let make_context () =
+  { constants = Hashtbl.create 128
+  ; data_segments = Var.Map.empty
+  ; constant_globals = Var.Set.empty
+  ; other_fields = []
+  ; types = Hashtbl.create 128
+  }
+
 type var =
   | Local of int
   | Expr of W.expression t
@@ -21,8 +37,7 @@ and state =
   { var_count : int
   ; vars : var Var.Map.t
   ; instrs : W.instruction list
-  ; constants : (Code.Var.t, W.expression) Hashtbl.t
-  ; constant_data : W.data list Var.Map.t ref
+  ; context : context
   }
 
 and 'a t = state -> 'a * state
@@ -36,18 +51,40 @@ let ( let* ) (type a b) (e : a t) (f : a -> b t) : b t =
 
 let return x st = x, st
 
-let get_constant_data x st = Var.Map.find x !(st.constant_data), st
+let register_data_segment x ~active v st =
+  st.context.data_segments <- Code.Var.Map.add x (active, v) st.context.data_segments;
+  (), st
 
-let get_constant_data_table st = st.constant_data, st
+let get_data_segment x st = Var.Map.find x st.context.data_segments, st
+
+let get_context st = st.context, st
 
 let register_constant x e st =
-  Hashtbl.add st.constants x e;
+  Hashtbl.add st.context.constants x e;
+  (), st
+
+let register_type nm ?(supertype = None) typ st =
+  let context = st.context in
+  ( (try Hashtbl.find context.types nm
+     with Not_found ->
+       let name = Var.fresh_n nm in
+       context.other_fields <- Type { name; typ; supertype } :: context.other_fields;
+       Hashtbl.add context.types nm name;
+       name)
+  , st )
+
+let register_global nm ?(constant = false) typ init st =
+  st.context.other_fields <- W.Global { name = nm; typ; init } :: st.context.other_fields;
+  (match nm with
+  | V nm when (not typ.mut) || constant ->
+      st.context.constant_globals <- Var.Set.add nm st.context.constant_globals
+  | _ -> ());
   (), st
 
 let var x st =
   try Var.Map.find x st.vars, st
   with Not_found -> (
-    try Expr (return (Hashtbl.find st.constants x)), st
+    try Expr (return (Hashtbl.find st.context.constants x)), st
     with Not_found ->
       Format.eprintf "ZZZ %a@." Var.print x;
       Local 0, st)
@@ -178,7 +215,15 @@ let tee x e =
 let store ?(always = false) x e =
   let* e = e in
   match e with
-  | (W.ConstSym _ | W.Const _) when not always -> register_constant x e
+  | (W.ConstSym _ | W.Const _ | W.I31New (W.Const _)) when not always ->
+      register_constant x e
+  | W.GlobalGet (V name) when not always ->
+      let* ctx = get_context in
+      if Var.Set.mem name ctx.constant_globals
+      then register_constant x e
+      else
+        let* i = add_var x in
+        instr (LocalSet (i, e))
   | _ ->
       let* i = add_var x in
       instr (LocalSet (i, e))
@@ -217,9 +262,7 @@ let if_ ty e l1 l2 =
   | W.UnOp (I32 Eqz, e') -> instr (If (ty, e', instrs2, instrs1))
   | _ -> instr (If (ty, e, instrs1, instrs2))
 
-let function_body ~constants ~constant_data ~body =
-  let st =
-    { var_count = 0; vars = Var.Map.empty; instrs = []; constants; constant_data }
-  in
+let function_body ~context ~body =
+  let st = { var_count = 0; vars = Var.Map.empty; instrs = []; context } in
   let (), st = body st in
   st.var_count, List.rev st.instrs

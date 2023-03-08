@@ -1,3 +1,13 @@
+type context =
+  { constants : (Code.Var.t, Wa_ast.expression) Hashtbl.t
+  ; mutable data_segments : (bool * Wa_ast.data list) Code.Var.Map.t
+  ; mutable constant_globals : Code.Var.Set.t
+  ; mutable other_fields : Wa_ast.module_field list
+  ; types : (string, Code.Var.t) Hashtbl.t
+  }
+
+val make_context : unit -> context
+
 type 'a t
 
 type expression = Wa_ast.expression t
@@ -64,16 +74,20 @@ val block : Wa_ast.func_type -> unit t -> unit t
 
 val if_ : Wa_ast.func_type -> expression -> unit t -> unit t -> unit t
 
-val get_constant_data : Code.Var.t -> Wa_ast.data list t
-
-val get_constant_data_table : Wa_ast.data list Code.Var.Map.t ref t
-
 val add_var : Wa_ast.var -> int t
 
 val define_var : Wa_ast.var -> expression -> unit t
 
-val function_body :
-     constants:(Wa_ast.var, Wa_ast.expression) Hashtbl.t
-  -> constant_data:Wa_ast.data list Code.Var.Map.t ref
-  -> body:unit t
-  -> int * Wa_ast.instruction list
+val register_type :
+  string -> ?supertype:Wa_ast.var option -> Wa_ast.str_type -> Wa_ast.var t
+
+val register_global :
+  Wa_ast.symbol -> ?constant:bool -> Wa_ast.global_type -> Wa_ast.expression -> unit t
+
+val register_data_segment : Code.Var.t -> active:bool -> Wa_ast.data list -> unit t
+
+val get_data_segment : Code.Var.t -> (bool * Wa_ast.data list) t
+
+val get_context : context t
+
+val function_body : context:context -> body:unit t -> int * Wa_ast.instruction list

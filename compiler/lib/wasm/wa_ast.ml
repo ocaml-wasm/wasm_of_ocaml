@@ -13,7 +13,7 @@ type heap_type =
   | Extern
   | Eq
   | I31
-  | Type of symbol
+  | Type of var
 
 type value_type =
   | I32
@@ -113,7 +113,7 @@ type expression =
   | Load of (memarg, memarg, memarg) op * expression
   | LocalGet of int
   | LocalTee of int * expression
-  | GlobalGet of string
+  | GlobalGet of symbol
   | Call_indirect of func_type * expression * expression list
   | Call of symbol * expression list
   | MemoryGrow of int * expression
@@ -123,13 +123,13 @@ type expression =
   | Call_ref of symbol * expression * expression list
   | I31New of expression
   | I31Get of signage * expression
-  | ArrayNew of symbol * expression * expression
-  | ArrayNewFixed of symbol * int * expression list
-  | ArrayNewData of symbol * symbol * expression * expression
-  | ArrayGet of signage option * symbol * expression * expression
+  | ArrayNew of var * expression * expression
+  | ArrayNewFixed of var * expression list
+  | ArrayNewData of var * var * expression * expression
+  | ArrayGet of signage option * var * expression * expression
   | ArrayLength of expression
-  | StructNew of symbol * expression list
-  | StructGet of signage option * symbol * int * expression
+  | StructNew of var * expression list
+  | StructGet of signage option * var * int * expression
   | RefCast of heap_type * expression
   | RefTest of heap_type * expression
   | RefEq of expression * expression
@@ -138,7 +138,7 @@ and instruction =
   | Drop of expression
   | Store of (memarg, memarg, memarg) op * expression * expression
   | LocalSet of int * expression
-  | GlobalSet of string * expression
+  | GlobalSet of symbol * expression
   | Loop of func_type * instruction list
   | Block of func_type * instruction list
   | If of func_type * expression * instruction list * instruction list
@@ -155,9 +155,12 @@ and instruction =
   | CallInstr of symbol * expression list
   | Nop
   | Push of expression
-  | ArraySet of signage option * symbol * expression * expression * expression
-  | StructSet of signage option * symbol * int * expression * expression
+  | ArraySet of signage option * var * expression * expression * expression
+  | StructSet of signage option * var * int * expression * expression
   | Br_on_cast of int * heap_type * expression
+  | Return_call_indirect of func_type * expression * expression list
+  | Return_call of symbol * expression list
+  | Return_call_ref of symbol * expression * expression list
 
 type import_desc =
   | Fun of func_type
@@ -181,16 +184,17 @@ type module_field =
       }
   | Data of
       { name : var
+      ; active : bool
       ; read_only : bool
       ; contents : data list
       }
   | Global of
-      { name : string
+      { name : symbol
       ; typ : global_type
       ; init : expression
       }
   | Tag of
-      { name : string
+      { name : symbol
       ; typ : value_type
       }
   | Import of

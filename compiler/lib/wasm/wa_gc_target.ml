@@ -7,15 +7,32 @@ type expression = Wa_ast.expression Wa_code_generation.t
 module Value = struct
   let value = W.Ref Eq
 
+  let block_type = register_type "block" (W.Array { mut = true; typ = Value value })
+
+  let string_type = register_type "string" (W.Array { mut = true; typ = Packed I8 })
+
+  let float_type = register_type "float" (W.Struct [ { mut = true; typ = Value F64 } ])
+
+  let int64_type = register_type "float" (W.Struct [ { mut = true; typ = Value I64 } ])
+
+  let closure_type =
+    register_type
+      "closure"
+      (W.Struct [ { mut = false; typ = Value I32 }; { mut = false; typ = Value value } ])
+
   let unit = return (W.I31New (Const (I32 0l)))
 
   let val_int = Arith.to_int31
 
   let int_val = Arith.of_int31
 
-  let is_not_zero i =
+  let check_is_not_zero i =
     let* i = i in
     return (W.UnOp (I32 Eqz, RefEq (i, W.I31New (Const (I32 0l)))))
+
+  let check_is_int i =
+    let* i = i in
+    return (W.RefTest (I31, i))
 
   let not = Arith.eqz
 
@@ -63,9 +80,7 @@ module Value = struct
 end
 
 module Memory = struct
-  let block : W.symbol = S "toto"
-
-  (*ZZZ Move*)
+  (*ZZZ Move?*)
   let expression_list f l =
     let rec loop acc l =
       match l with
@@ -85,15 +100,17 @@ module Memory = struct
           | `Expr e -> return e)
         l
     in
-    return
-      (W.ArrayNewFixed
-         (block, List.length l + 1, I31New (Const (I32 (Int32.of_int tag))) :: l))
+    let* ty = Value.block_type in
+    return (W.ArrayNewFixed (ty, I31New (Const (I32 (Int32.of_int tag))) :: l))
   (*ZZZ Float array?*)
 
-  let wasm_array_get e e' = return (W.ArrayGet (None, block, RefCast (Type block, e), e'))
+  let wasm_array_get e e' =
+    let* ty = Value.block_type in
+    return (W.ArrayGet (None, ty, RefCast (Type ty, e), e'))
 
   let wasm_array_set e e' e'' =
-    instr (W.ArraySet (None, block, RefCast (Type block, e), e', e''))
+    let* ty = Value.block_type in
+    instr (W.ArraySet (None, ty, RefCast (Type ty, e), e', e''))
 
   let tag e =
     let* e = e in
@@ -125,74 +142,70 @@ module Memory = struct
 
   let load_function_pointer ~arity closure =
     let* closure = closure in
+    let* ty = Value.closure_type in
     return
-      (W.StructGet
-         ( None
-         , S "closure"
-         , (if arity = 1 then 1 else 2)
-         , RefCast (Type (S "closure"), closure) ))
+      (W.StructGet (None, ty, (if arity = 1 then 1 else 2), RefCast (Type ty, closure)))
 
   let header ?const:_ ~tag:_ ~len:_ () = 0l (*ZZZ*)
 end
 
 module Constant = struct
-  open Wa_core_target (*ZZZ*)
-
-  let rec translate_rec constant_data c =
+  let rec translate_rec c =
     match c with
-    | Code.Int i -> W.DataI32 Int32.(add (add i i) 1l)
+    | Code.Int i -> return (W.I31New (Const (I32 i))) (*ZZZ 32 bit integers *)
     | Tuple (tag, a, _) ->
-        let h = Memory.header ~const:true ~tag ~len:(Array.length a) () in
-        let name = Code.Var.fresh_n "block" in
-        let block =
-          W.DataI32 h
-          :: List.map ~f:(fun c -> translate_rec constant_data c) (Array.to_list a)
+        let* ty = Value.block_type in
+        let* l =
+          Array.fold_left
+            ~f:(fun prev c ->
+              let* acc = prev in
+              let* c = translate_rec c in
+              return (c :: acc))
+            ~init:(return [])
+            a
         in
-        constant_data := Code.Var.Map.add name block !constant_data;
-        W.DataSym (V name, 4)
+        return (W.ArrayNewFixed (ty, I31New (Const (I32 (Int32.of_int tag))) :: l))
     | NativeString (Byte s | Utf (Utf8 s)) | String s ->
-        let l = String.length s in
-        let len = (l + 4) / 4 in
-        let h = Memory.header ~const:true ~tag:Obj.string_tag ~len () in
-        let name = Code.Var.fresh_n "str" in
-        let extra = (4 * len) - l - 1 in
-        let string =
-          W.DataI32 h
-          :: DataBytes s
-          :: (if extra = 0 then [ DataI8 0 ] else [ DataSpace extra; DataI8 extra ])
+        let* ty = Value.string_type in
+        (*ZZZ Use this for long strings
+          let name = Code.Var.fresh_n "string" in
+          let* () = register_data_segment name [ DataBytes s ] in
+          return
+            (W.ArrayNewData
+               (ty, name, Const (I32 0l), Const (I32 (Int32.of_int (String.length s)))))
+        *)
+        let l =
+          String.fold_right
+            ~f:(fun c r -> W.Const (I32 (Int32.of_int (Char.code c))) :: r)
+            s
+            ~init:[]
         in
-        constant_data := Code.Var.Map.add name string !constant_data;
-        W.DataSym (V name, 4)
+        return (W.ArrayNewFixed (ty, l))
     | Float f ->
-        let h = Memory.header ~const:true ~tag:Obj.double_tag ~len:2 () in
-        let name = Code.Var.fresh_n "float" in
-        let block = [ W.DataI32 h; DataI64 (Int64.bits_of_float f) ] in
-        constant_data := Code.Var.Map.add name block !constant_data;
-        W.DataSym (V name, 4)
+        let* ty = Value.float_type in
+        return (W.StructNew (ty, [ Const (F64 f) ]))
     | Float_array l ->
-        (*ZZZ Boxed array? *)
         let l = Array.to_list l in
-        let h =
-          Memory.header ~const:true ~tag:Obj.double_array_tag ~len:(List.length l) ()
-        in
-        let name = Code.Var.fresh_n "float_array" in
-        let block =
-          W.DataI32 h :: List.map ~f:(fun f -> translate_rec constant_data (Float f)) l
-        in
-        constant_data := Code.Var.Map.add name block !constant_data;
-        W.DataSym (V name, 4)
+        let* bl_ty = Value.block_type in
+        let* ty = Value.float_type in
+        (*ZZZ Boxed array? *)
+        return
+          (W.ArrayNewFixed
+             ( bl_ty
+             , I31New (Const (I32 (Int32.of_int Obj.double_array_tag)))
+               :: List.map ~f:(fun f -> W.StructNew (ty, [ Const (F64 f) ])) l ))
     | Int64 i ->
-        let h = Memory.header ~const:true ~tag:Obj.custom_tag ~len:3 () in
-        let name = Code.Var.fresh_n "int64" in
-        let block = [ W.DataI32 h; DataSym (S "caml_int64_ops", 0); DataI64 i ] in
-        constant_data := Code.Var.Map.add name block !constant_data;
-        W.DataSym (V name, 4)
+        let* ty = Value.int64_type in
+        return (W.StructNew (ty, [ Const (I64 i) ]))
 
   let translate c =
-    let* constant_data = get_constant_data_table in
-    return
-      (match translate_rec constant_data c with
-      | W.DataSym (V name, offset) -> W.ConstSym (V name, offset)
-      | W.DataI32 i -> W.I31New (Const (I32 i))
-      | _ -> assert false)
+    let* c = translate_rec c in
+    match c with
+    | W.I31New _ -> return c
+    | _ ->
+        let name = Code.Var.fresh_n "const" in
+        let* () = register_global (V name) { mut = false; typ = Value.value } c in
+        return (W.GlobalGet (V name))
 end
+
+let entry_point ~register_primitive:_ = return ()

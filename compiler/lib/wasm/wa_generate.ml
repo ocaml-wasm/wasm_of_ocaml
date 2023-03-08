@@ -25,10 +25,9 @@ let transl_prim_arg x =
 type ctx =
   { live : int array
   ; blocks : block Addr.Map.t
-  ; constants : (Code.Var.t, W.expression) Hashtbl.t
   ; closures : Wa_closure_conversion.closure Var.Map.t
   ; mutable primitives : W.func_type StringMap.t
-  ; constant_data : W.data list Var.Map.t ref
+  ; global_context : Wa_code_generation.context
   }
 
 let function_offset_in_closure info f =
@@ -52,7 +51,7 @@ let closure_stats =
   fun (ctx : ctx) info ->
     let free_variables =
       List.filter
-        ~f:(fun x -> not (Hashtbl.mem ctx.constants x))
+        ~f:(fun x -> not (Hashtbl.mem ctx.global_context.constants x))
         info.Wa_closure_conversion.free_variables
     in
     if true && not (List.is_empty free_variables)
@@ -122,10 +121,12 @@ let rec translate_expr ctx x e =
         in
         closure_stats ctx info;
         let free_variables =
-          List.filter ~f:(fun x -> not (Hashtbl.mem ctx.constants x)) info.free_variables
+          List.filter
+            ~f:(fun x -> not (Hashtbl.mem ctx.global_context.constants x))
+            info.free_variables
         in
         if List.is_empty free_variables
-        then (
+        then
           let l =
             List.rev_map
               ~f:(fun e ->
@@ -139,8 +140,8 @@ let rec translate_expr ctx x e =
             Memory.header ~const:true ~tag:Obj.closure_tag ~len:(List.length l) ()
           in
           let name = Var.fresh_n "closure" in
-          ctx.constant_data := Var.Map.add name (W.DataI32 h :: l) !(ctx.constant_data);
-          return (W.ConstSym (V name, 4)))
+          let* () = register_data_segment name ~active:true (W.DataI32 h :: l) in
+          return (W.ConstSym (V name, 4))
         else
           Memory.allocate
             ~tag:Obj.closure_tag
@@ -335,7 +336,7 @@ let translate_function ctx name_opt toplevel_name params ((pc, _) as cont) acc =
         | Cond (x, cont1, cont2) ->
             if_
               { params = []; result = result_typ }
-              (Value.is_not_zero (load x))
+              (Value.check_is_not_zero (load x))
               (translate_branch result_typ fall_through pc cont1 (`If :: context))
               (translate_branch result_typ fall_through pc cont2 (`If :: context))
         | Stop -> (
@@ -358,9 +359,10 @@ let translate_function ctx name_opt toplevel_name params ((pc, _) as cont) acc =
             | [||], _ -> br_table (Memory.tag (load x)) a2 context
             | _, [||] -> br_table (load x) a1 context
             | _ ->
+                (*ZZZ Use Br_on_cast *)
                 if_
                   { params = []; result = result_typ }
-                  Arith.(load x land const 1l)
+                  (Value.check_is_int (load x))
                   (br_table (load x) a1 context)
                   (br_table (Memory.tag (load x)) a2 context))
         | Raise (x, _) ->
@@ -417,7 +419,9 @@ let translate_function ctx name_opt toplevel_name params ((pc, _) as cont) acc =
     | Some f ->
         let info = Var.Map.find f ctx.closures in
         let funct_index = function_offset_in_closure info f in
-        let* _ = add_var (if Hashtbl.mem ctx.constants f then Var.fresh () else f) in
+        let* _ =
+          add_var (if Hashtbl.mem ctx.global_context.constants f then Var.fresh () else f)
+        in
         let* () =
           snd
             (List.fold_left
@@ -437,7 +441,9 @@ let translate_function ctx name_opt toplevel_name params ((pc, _) as cont) acc =
         let start_env = closure_start_env info in
         let offset = start_env - funct_index in
         let free_variables =
-          List.filter ~f:(fun x -> not (Hashtbl.mem ctx.constants x)) info.free_variables
+          List.filter
+            ~f:(fun x -> not (Hashtbl.mem ctx.global_context.constants x))
+            info.free_variables
         in
         snd
           (List.fold_left
@@ -457,8 +463,7 @@ let translate_function ctx name_opt toplevel_name params ((pc, _) as cont) acc =
 *)
   let local_count, body =
     function_body
-      ~constants:ctx.constants
-      ~constant_data:ctx.constant_data
+      ~context:ctx.global_context
       ~body:
         (let* () = build_initial_env in
          translate_branch [ Value.value ] `Return (-1) cont [])
@@ -486,25 +491,15 @@ let translate_function ctx name_opt toplevel_name params ((pc, _) as cont) acc =
   :: acc
 
 let entry_point ctx toplevel_fun entry_name =
-  (*ZZZ run ctors? *)
-  let typ = { W.params = []; result = [] } in
   let body =
-    register_primitive ctx "__wasm_call_ctors" typ;
-    let* () = instr (W.CallInstr (S "__wasm_call_ctors", [])) in
-    let* sz = Arith.const 3l in
-    let* high = Arith.((return (W.MemoryGrow (0, sz)) + const 3l) lsl const 16l) in
-    let* () = instr (W.GlobalSet ("young_ptr", high)) in
-    let low = W.ConstSym (S "__heap_base", 0) in
-    let* () = instr (W.GlobalSet ("young_limit", low)) in
+    let* () = entry_point ~register_primitive:(register_primitive ctx) in
     drop (return (W.Call (V toplevel_fun, [])))
   in
-  let _, body =
-    function_body ~constants:ctx.constants ~constant_data:ctx.constant_data ~body
-  in
+  let _, body = function_body ~context:ctx.global_context ~body in
   W.Function
     { name = Var.fresh_n "entry_point"
     ; exported_name = Some entry_name
-    ; typ
+    ; typ = { W.params = []; result = [] }
     ; locals = []
     ; body
     }
@@ -524,10 +519,9 @@ let f
   let ctx =
     { live = live_vars
     ; blocks = p.blocks
-    ; constants = Hashtbl.create 128
     ; closures
     ; primitives = StringMap.empty
-    ; constant_data = ref Var.Map.empty
+    ; global_context = make_context ()
     }
   in
   let toplevel_name = Var.fresh_n "toplevel" in
@@ -546,16 +540,15 @@ let f
   in
   let constant_data =
     List.map
-      ~f:(fun (name, contents) -> W.Data { name; read_only = true; contents })
-      (Var.Map.bindings !(ctx.constant_data))
+      ~f:(fun (name, (active, contents)) ->
+        W.Data { name; read_only = true; active; contents })
+      (Var.Map.bindings ctx.global_context.data_segments)
   in
   let fields =
-    let declare_global name =
-      W.Global { name; typ = { mut = true; typ = I32 }; init = Const (I32 0l) }
-    in
-    declare_global "young_ptr"
-    :: declare_global "young_limit" (*    :: Tag { name = "ocaml_exception"; typ = I32 }*)
-    :: (primitives @ functions @ (start_function :: constant_data))
+    (*    :: Tag { name = "ocaml_exception"; typ = I32 }*)
+    List.rev_append
+      ctx.global_context.other_fields
+      (primitives @ functions @ (start_function :: constant_data))
   in
   Wa_wat_output.f fields
 (*  Wa_asm_output.f fields*)

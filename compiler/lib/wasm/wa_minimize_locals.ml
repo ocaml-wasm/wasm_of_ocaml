@@ -37,7 +37,7 @@ let rec scan_expression ctx e =
   | Call_indirect (_, e', l) | Call_ref (_, e', l) ->
       scan_expressions ctx l;
       scan_expression ctx e'
-  | Call (_, l) | ArrayNewFixed (_, _, l) | StructNew (_, l) -> scan_expressions ctx l
+  | Call (_, l) | ArrayNewFixed (_, l) | StructNew (_, l) -> scan_expressions ctx l
   | Seq (l, e') ->
       scan_instructions ctx l;
       scan_expression ctx e'
@@ -70,12 +70,15 @@ and scan_instruction ctx i =
       scan_instructions ctx body;
       List.iter ~f:(fun (_, l) -> scan_instructions ctx l) catches;
       Option.iter ~f:(fun l -> scan_instructions ctx l) catch_all
-  | CallInstr (_, l) -> scan_expressions ctx l
+  | CallInstr (_, l) | Return_call (_, l) -> scan_expressions ctx l
   | Br (_, None) | Return None | Rethrow _ | Nop -> ()
   | ArraySet (_, _, e, e', e'') ->
       scan_expression ctx e;
       scan_expression ctx e';
       scan_expression ctx e''
+  | Return_call_indirect (_, e', l) | Return_call_ref (_, e', l) ->
+      scan_expressions ctx l;
+      scan_expression ctx e'
 
 and scan_instructions ctx l = List.iter ~f:(fun i -> scan_instruction ctx i) l
 
@@ -148,7 +151,7 @@ let rec rewrite_expression ctx e =
   | I31Get (s, e') -> I31Get (s, rewrite_expression ctx e')
   | ArrayNew (symb, e', e'') ->
       ArrayNew (symb, rewrite_expression ctx e', rewrite_expression ctx e'')
-  | ArrayNewFixed (symb, i, l) -> ArrayNewFixed (symb, i, rewrite_expressions ctx l)
+  | ArrayNewFixed (symb, l) -> ArrayNewFixed (symb, rewrite_expressions ctx l)
   | ArrayNewData (symb, symb', e', e'') ->
       ArrayNewData (symb, symb', rewrite_expression ctx e', rewrite_expression ctx e'')
   | ArrayGet (s, symb, e', e'') ->
@@ -207,6 +210,15 @@ and rewrite_instruction ctx i =
       StructSet (s, symb, i, rewrite_expression ctx e, rewrite_expression ctx e')
   | Br_on_cast (i, ty, e) -> Br_on_cast (i, ty, rewrite_expression ctx e)
   | Br (_, None) | Return None | Rethrow _ | Nop -> i
+  | Return_call_indirect (typ, e', l) ->
+      let l = rewrite_expressions ctx l in
+      let e' = rewrite_expression ctx e' in
+      Return_call_indirect (typ, e', l)
+  | Return_call (f, l) -> Return_call (f, rewrite_expressions ctx l)
+  | Return_call_ref (typ, e', l) ->
+      let l = rewrite_expressions ctx l in
+      let e' = rewrite_expression ctx e' in
+      Return_call_ref (typ, e', l)
 
 and rewrite_instructions ctx l = List.map ~f:(fun i -> rewrite_instruction ctx i) l
 

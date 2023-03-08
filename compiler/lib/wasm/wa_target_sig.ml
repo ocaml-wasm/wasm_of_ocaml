@@ -31,7 +31,10 @@ module type S = sig
 
     val int_val : expression -> expression
 
-    val is_not_zero : expression -> expression
+    val check_is_not_zero : expression -> expression
+    (** Returns an int32 value *)
+
+    val check_is_int : expression -> expression
     (** Returns an int32 value *)
 
     val not : expression -> expression
@@ -72,4 +75,7 @@ module type S = sig
   module Constant : sig
     val translate : Code.constant -> expression
   end
+
+  val entry_point :
+    register_primitive:(string -> Wa_ast.func_type -> unit) -> unit Wa_code_generation.t
 end
