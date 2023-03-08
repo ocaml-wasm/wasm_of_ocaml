@@ -124,13 +124,14 @@ type expression =
   | I31New of expression
   | I31Get of signage * expression
   | ArrayNew of symbol * expression * expression
-  | ArrayNewFixed of symbol * expression * expression list
+  | ArrayNewFixed of symbol * int * expression list
   | ArrayNewData of symbol * symbol * expression * expression
   | ArrayGet of signage option * symbol * expression * expression
   | ArrayLength of expression
   | StructNew of symbol * expression list
   | StructGet of signage option * symbol * int * expression
   | RefCast of heap_type * expression
+  | RefTest of heap_type * expression
   | RefEq of expression * expression
 
 and instruction =

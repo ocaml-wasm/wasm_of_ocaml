@@ -20,7 +20,8 @@ let rec scan_expression ctx e =
   | I31Get (_, e')
   | ArrayLength e'
   | StructGet (_, _, _, e')
-  | RefCast (_, e') -> scan_expression ctx e'
+  | RefCast (_, e')
+  | RefTest (_, e') -> scan_expression ctx e'
   | BinOp (_, e', e'')
   | ArrayNew (_, e', e'')
   | ArrayNewData (_, _, e', e'')
@@ -33,10 +34,10 @@ let rec scan_expression ctx e =
       scan_expression ctx e';
       ctx.position <- ctx.position + 1;
       ctx.last_use.(i) <- ctx.position
-  | Call_indirect (_, e', l) | Call_ref (_, e', l) | ArrayNewFixed (_, e', l) ->
+  | Call_indirect (_, e', l) | Call_ref (_, e', l) ->
       scan_expressions ctx l;
       scan_expression ctx e'
-  | Call (_, l) | StructNew (_, l) -> scan_expressions ctx l
+  | Call (_, l) | ArrayNewFixed (_, _, l) | StructNew (_, l) -> scan_expressions ctx l
   | Seq (l, e') ->
       scan_instructions ctx l;
       scan_expression ctx e'
@@ -147,8 +148,7 @@ let rec rewrite_expression ctx e =
   | I31Get (s, e') -> I31Get (s, rewrite_expression ctx e')
   | ArrayNew (symb, e', e'') ->
       ArrayNew (symb, rewrite_expression ctx e', rewrite_expression ctx e'')
-  | ArrayNewFixed (symb, e', l) ->
-      ArrayNewFixed (symb, rewrite_expression ctx e', rewrite_expressions ctx l)
+  | ArrayNewFixed (symb, i, l) -> ArrayNewFixed (symb, i, rewrite_expressions ctx l)
   | ArrayNewData (symb, symb', e', e'') ->
       ArrayNewData (symb, symb', rewrite_expression ctx e', rewrite_expression ctx e'')
   | ArrayGet (s, symb, e', e'') ->
@@ -157,6 +157,7 @@ let rec rewrite_expression ctx e =
   | StructNew (symb, l) -> StructNew (symb, rewrite_expressions ctx l)
   | StructGet (s, symb, i, e') -> StructGet (s, symb, i, rewrite_expression ctx e')
   | RefCast (ty, e') -> RefCast (ty, rewrite_expression ctx e')
+  | RefTest (ty, e') -> RefTest (ty, rewrite_expression ctx e')
   | RefEq (e', e'') -> RefEq (rewrite_expression ctx e', rewrite_expression ctx e'')
 
 and rewrite_expressions ctx l = List.map ~f:(fun e -> rewrite_expression ctx e) l

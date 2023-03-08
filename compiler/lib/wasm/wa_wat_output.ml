@@ -230,12 +230,21 @@ let expression_or_instructions ctx =
     | I31Get (s, e) -> [ List (Atom (signage "i31.get" s) :: expression e) ]
     | ArrayNew (symb, e, e') ->
         [ List (Atom "array.new" :: index symb :: (expression e @ expression e')) ]
-    | ArrayNewFixed (symb, e, l) ->
-        [ List
-            (Atom "array.new_fixed"
-            :: index symb
-            :: (expression e @ List.concat (List.map ~f:expression l)))
-        ]
+    | ArrayNewFixed (symb, i, l) ->
+        if binaryen_compat
+        then
+          [ List
+              (Atom "array.init_static"
+              :: index symb
+              :: List.concat (List.map ~f:expression l))
+          ]
+        else
+          [ List
+              (Atom "array.new_fixed"
+              :: index symb
+              :: Atom (string_of_int i)
+              :: List.concat (List.map ~f:expression l))
+          ]
     | ArrayNewData (symb, symb', e, e') ->
         [ List
             (Atom "array.new_data"
@@ -264,6 +273,7 @@ let expression_or_instructions ctx =
             :: expression e)
         ]
     | RefCast (ty, e) -> [ List (Atom "ref.cast" :: heap_type ty :: expression e) ]
+    | RefTest (ty, e) -> [ List (Atom "ref.test" :: heap_type ty :: expression e) ]
     | RefEq (e, e') -> [ List (Atom "ref.eq" :: (expression e @ expression e')) ]
   and instruction i =
     match i with

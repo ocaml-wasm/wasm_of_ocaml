@@ -1,4 +1,8 @@
 
+https://dfinity.org/grants/
+
+========
+
 - choose entry point
   linker
   ==> wasm_of_ocaml hello.bc smart_rollup_core.wasm runtime.wasm \
@@ -12,7 +16,17 @@
   ==> GC extensions
   ==> generate code
 
-- GC: immutable globals for storing constants
+- GC: types (blocks, closure)
+
+- GC: constants
+  ==> use immutable globals (probably not for very large values / see dart)
+
+- GC: closures
+
+- optional tail recursion:
+  detect the following:
+    x = f(...)
+    return x
 
 - exceptions (if supported)
 
@@ -77,7 +91,6 @@ BUILD PROCESS
 
 dune exec -- js_of_ocaml ~/tezos-kernel/_build/default/src/hello.bc --pretty > hello.s
 clang-16  --no-standard-libraries --target=wasm32 hello.s ../tezos-kernel/_build/default/src/smart_rollup_core/smart_rollup_core.wasm ../tezos-kernel/_build/default/src/runtime/runtime.wasm  -Wl,--no-entry -Wa,--no-type-check -o kernel.wasm
-
 
 clang-16 -mexception-handling
 wasm2wat --enable-exceptions  // --enable-all

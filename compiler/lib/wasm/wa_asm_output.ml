@@ -276,6 +276,7 @@ module Output () = struct
     | StructNew _
     | StructGet _
     | RefCast _
+    | RefTest _
     | RefEq _ -> assert false (* Not supported *)
 
   and instruction i =
