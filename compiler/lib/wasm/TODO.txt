@@ -16,14 +16,10 @@ https://dfinity.org/grants/
 
 - remove unused local.tee
 
-- target GC proposal as well
-  ==> generate code
-
-  (func $apply1 (param (ref eq) (ref eq)) (result (ref eq)) (local.get 0))
-
-- more efficient handling of types
+- more efficient handling of type definitions
 
 - local with a special type for env?
+  (more generally, no longer use a generic type for locals)
 
 - optimization pass:
   use tee to nest expressions (optimized away later on)
@@ -145,3 +141,6 @@ https://docs.google.com/document/d/1QDXMuixu0cv7ukwc-JgaiwBK4SssM4eIRpzlcKpGqt0
 
 dune exec -- js_of_ocaml --no-inline --pretty ~/tezos-noop-kernel/_build/default/src/hello.bc > /tmp/hello.wast
 dune exec -- js_of_ocaml --no-inline --pretty ~/sources/tezos/_build/default/src/proto_alpha/bin_baker/main_baker_alpha.bc > /tmp/hello.wast
+
+~/sources/binaryen/bin/wasm-opt --all-features -Oz /tmp/hello.wast -S -o -  | less
+~/sources/wasm-gc-proposal/interpreter/wasm -d /tmp/hello.wast -o /tmp/hello.wat
