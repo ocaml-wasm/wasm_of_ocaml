@@ -279,7 +279,8 @@ module Output () = struct
     | StructGet _
     | RefCast _
     | RefTest _
-    | RefEq _ -> assert false (* Not supported *)
+    | RefEq _
+    | RefNull -> assert false (* Not supported *)
 
   and instruction i =
     match i with

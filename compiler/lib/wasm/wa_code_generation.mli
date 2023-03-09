@@ -62,7 +62,7 @@ module Arith : sig
   val eqz : expression -> expression
 end
 
-val cast : Wa_ast.heap_type -> expression -> expression
+val cast : ?nullable:bool -> Wa_ast.heap_type -> expression -> expression
 
 val load : Wa_ast.var -> expression
 

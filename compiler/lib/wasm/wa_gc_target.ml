@@ -5,7 +5,7 @@ open Wa_code_generation
 type expression = Wa_ast.expression Wa_code_generation.t
 
 module Value = struct
-  let value = W.Ref Eq
+  let value = W.Ref { nullable = false; typ = Eq }
 
   let block_type = register_type "block" (W.Array { mut = true; typ = Value value })
 
@@ -28,7 +28,7 @@ module Value = struct
       "closure"
       (W.Struct
          [ { mut = false; typ = Value I32 }
-         ; { mut = false; typ = Value (Ref (Type fun_ty)) }
+         ; { mut = false; typ = Value (Ref { nullable = false; typ = Type fun_ty }) }
          ])
 
   let closure_type arity =
@@ -43,8 +43,8 @@ module Value = struct
         ~supertype:cl_typ
         (W.Struct
            [ { mut = false; typ = Value I32 }
-           ; { mut = false; typ = Value (Ref (Type fun_ty)) }
-           ; { mut = false; typ = Value (Ref (Type fun_ty')) }
+           ; { mut = false; typ = Value (Ref { nullable = false; typ = Type fun_ty }) }
+           ; { mut = false; typ = Value (Ref { nullable = false; typ = Type fun_ty' }) }
            ])
 
   let env_type ~arity n =
@@ -58,21 +58,27 @@ module Value = struct
          ((if arity = 1
           then
             [ { W.mut = false; typ = W.Value I32 }
-            ; { mut = false; typ = Value (Ref (Type fun_ty')) }
+            ; { mut = false; typ = Value (Ref { nullable = false; typ = Type fun_ty' }) }
             ]
           else
             [ { mut = false; typ = Value I32 }
-            ; { mut = false; typ = Value (Ref (Type fun_ty)) }
-            ; { mut = false; typ = Value (Ref (Type fun_ty')) }
+            ; { mut = false; typ = Value (Ref { nullable = false; typ = Type fun_ty }) }
+            ; { mut = false; typ = Value (Ref { nullable = false; typ = Type fun_ty' }) }
             ])
-         @ List.init ~f:(fun _ -> { W.mut = false; typ = W.Value (Ref Eq) }) ~len:n))
+         @ List.init
+             ~f:(fun _ ->
+               { W.mut = false; typ = W.Value (Ref { nullable = false; typ = Eq }) })
+             ~len:n))
 
   let rec_env_type ~function_count ~free_variable_count =
     register_type
       (Printf.sprintf "rec_env_%d_%d" function_count free_variable_count)
       (W.Struct
          (List.init
-            ~f:(fun i -> { W.mut = i < function_count; typ = W.Value (Ref Eq) })
+            ~f:(fun i ->
+              { W.mut = i < function_count
+              ; typ = W.Value (Ref { nullable = false; typ = Eq })
+              })
             ~len:(function_count + free_variable_count)))
 
   let rec_closure_type ~arity ~function_count ~free_variable_count =
@@ -87,14 +93,17 @@ module Value = struct
          ((if arity = 1
           then
             [ { W.mut = false; typ = W.Value I32 }
-            ; { mut = false; typ = Value (Ref (Type fun_ty')) }
+            ; { mut = false; typ = Value (Ref { nullable = false; typ = Type fun_ty' }) }
             ]
           else
             [ { mut = false; typ = Value I32 }
-            ; { mut = false; typ = Value (Ref (Type fun_ty)) }
-            ; { mut = false; typ = Value (Ref (Type fun_ty')) }
+            ; { mut = false; typ = Value (Ref { nullable = false; typ = Type fun_ty }) }
+            ; { mut = false; typ = Value (Ref { nullable = false; typ = Type fun_ty' }) }
             ])
-         @ [ { W.mut = false; typ = W.Value (Ref (Type env_ty)) } ]))
+         @ [ { W.mut = false
+             ; typ = W.Value (Ref { nullable = false; typ = Type env_ty })
+             }
+           ]))
 
   let unit = return (W.I31New (Const (I32 0l)))
 
@@ -108,7 +117,7 @@ module Value = struct
 
   let check_is_int i =
     let* i = i in
-    return (W.RefTest (I31, i))
+    return (W.RefTest ({ nullable = false; typ = I31 }, i))
 
   let not = Arith.eqz
 
@@ -132,7 +141,7 @@ module Value = struct
 
   let is_int i =
     let* i = i in
-    val_int (return (W.RefTest (I31, i)))
+    val_int (return (W.RefTest ({ nullable = false; typ = I31 }, i)))
 
   let int_add = binop Arith.( + )
 
@@ -182,7 +191,7 @@ module Memory = struct
 
   let wasm_cast ty e =
     let* e = e in
-    return (W.RefCast (Type ty, e))
+    return (W.RefCast ({ nullable = false; typ = Type ty }, e))
 
   let wasm_struct_get ty e i =
     let* e = e in
@@ -350,7 +359,6 @@ module Closure = struct
       | (g, _) :: _ as functions ->
           let function_count = List.length functions in
           let* env_typ = Value.rec_env_type ~function_count ~free_variable_count in
-          Format.eprintf "AAA %s %s@." (Code.Var.to_string f) (Code.Var.to_string g);
           let env =
             if Code.Var.equal f g
             then
@@ -362,8 +370,7 @@ module Closure = struct
                 (return
                    (W.StructNew
                       ( env_typ
-                      , (*ZZZ Shall we store null instead?*)
-                        List.init ~len:function_count ~f:(fun _ ->
+                      , List.init ~len:function_count ~f:(fun _ ->
                             W.I31New (W.Const (I32 0l)))
                         @ l )))
             else

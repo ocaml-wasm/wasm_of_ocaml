@@ -12,9 +12,7 @@ https://dfinity.org/grants/
 
 =======
 
-- wasm: support recursive types and nullable types
-
-- remove unused local.tee
+- remove unused local.tee (in Wa_minimize_locals)
 
 - more efficient handling of type definitions
 

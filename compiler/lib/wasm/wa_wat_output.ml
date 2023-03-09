@@ -31,12 +31,16 @@ let heap_type (ty : heap_type) =
   | I31 -> Atom "i31"
   | Type symb -> index (V symb)
 
+let ref_type { nullable; typ } =
+  let r = [ heap_type typ ] in
+  if nullable then Atom "null" :: r else r
+
 let value_type (t : value_type) =
   match t with
   | I32 -> Atom "i32"
   | I64 -> Atom "i64"
   | F64 -> Atom "f64"
-  | Ref ty -> List [ Atom "ref"; heap_type ty ]
+  | Ref ty -> List (Atom "ref" :: ref_type ty)
 
 let packed_type t =
   match t with
@@ -295,9 +299,10 @@ let expression_or_instructions ctx in_function =
             :: Atom (string_of_int i)
             :: expression e)
         ]
-    | RefCast (ty, e) -> [ List (Atom "ref.cast" :: heap_type ty :: expression e) ]
-    | RefTest (ty, e) -> [ List (Atom "ref.test" :: heap_type ty :: expression e) ]
+    | RefCast (ty, e) -> [ List (Atom "ref.cast" :: (ref_type ty @ expression e)) ]
+    | RefTest (ty, e) -> [ List (Atom "ref.test" :: (ref_type ty @ expression e)) ]
     | RefEq (e, e') -> [ List (Atom "ref.eq" :: (expression e @ expression e')) ]
+    | RefNull -> [ Atom "ref.null" ]
   and instruction i =
     match i with
     | Drop e -> [ List (Atom "drop" :: expression e) ]
@@ -466,6 +471,30 @@ let data_contents ctx contents =
     contents;
   escape_string (Buffer.contents b)
 
+let type_field { name; typ; supertype; final } =
+  match target with
+  | `Binaryen ->
+      List
+        (Atom "type"
+        :: index (V name)
+        :: str_type typ
+        ::
+        (match supertype with
+        | Some supertype -> [ List [ Atom "extend"; index (V supertype) ] ]
+        | None -> []))
+  | `Reference ->
+      List
+        [ Atom "type"
+        ; index (V name)
+        ; List
+            (Atom "sub"
+            :: ((if final then [ Atom "final" ] else [])
+               @ (match supertype with
+                 | Some supertype -> [ index (V supertype) ]
+                 | None -> [])
+               @ [ str_type typ ]))
+        ]
+
 let field ctx f =
   match f with
   | Function { name; exported_name; typ; locals; body } ->
@@ -485,31 +514,8 @@ let field ctx f =
               else [])
              @ [ Atom ("\"" ^ data_contents ctx contents ^ "\"") ]))
       ]
-  | Type { name; typ; supertype; final } -> (
-      match target with
-      | `Binaryen ->
-          [ List
-              (Atom "type"
-              :: index (V name)
-              :: str_type typ
-              ::
-              (match supertype with
-              | Some supertype -> [ List [ Atom "extend"; index (V supertype) ] ]
-              | None -> []))
-          ]
-      | `Reference ->
-          [ List
-              [ Atom "type"
-              ; index (V name)
-              ; List
-                  (Atom "sub"
-                  :: ((if final then [ Atom "final" ] else [])
-                     @ (match supertype with
-                       | Some supertype -> [ index (V supertype) ]
-                       | None -> [])
-                     @ [ str_type typ ]))
-              ]
-          ])
+  | Type [ t ] -> [ type_field t ]
+  | Type l -> [ List (Atom "rec" :: List.map ~f:type_field l) ]
 
 let data_size contents =
   List.fold_left

@@ -15,11 +15,16 @@ type heap_type =
   | I31
   | Type of var
 
+type ref_type =
+  { nullable : bool
+  ; typ : heap_type
+  }
+
 type value_type =
   | I32
   | I64
   | F64
-  | Ref of heap_type
+  | Ref of ref_type
 
 type storage_type =
   | Value of value_type
@@ -130,9 +135,10 @@ type expression =
   | ArrayLength of expression
   | StructNew of var * expression list
   | StructGet of signage option * var * int * expression
-  | RefCast of heap_type * expression
-  | RefTest of heap_type * expression
+  | RefCast of ref_type * expression
+  | RefTest of ref_type * expression
   | RefEq of expression * expression
+  | RefNull
 
 and instruction =
   | Drop of expression
@@ -174,6 +180,13 @@ type data =
   | DataSym of symbol * int
   | DataSpace of int
 
+type type_field =
+  { name : var
+  ; typ : str_type
+  ; supertype : var option
+  ; final : bool
+  }
+
 type module_field =
   | Function of
       { name : var
@@ -201,9 +214,4 @@ type module_field =
       { name : string
       ; desc : import_desc
       }
-  | Type of
-      { name : var
-      ; typ : str_type
-      ; supertype : var option
-      ; final : bool
-      }
+  | Type of type_field list

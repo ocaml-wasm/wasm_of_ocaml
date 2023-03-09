@@ -77,7 +77,7 @@ let register_type nm ?supertype ?(final = false) typ st =
      with Not_found ->
        let name = Var.fresh_n nm in
        context.other_fields <-
-         Type { name; typ; supertype; final } :: context.other_fields;
+         Type [ { name; typ; supertype; final } ] :: context.other_fields;
        Hashtbl.add context.types nm name;
        name)
   , st )
@@ -149,11 +149,11 @@ let blk l st =
   let (), st = l { st with instrs = [] } in
   List.rev st.instrs, { st with instrs }
 
-let cast ty e =
+let cast ?(nullable = false) typ e =
   let* e = e in
-  match ty, e with
+  match typ, e with
   | W.I31, W.I31New _ -> return e
-  | _ -> return (W.RefCast (ty, e))
+  | _ -> return (W.RefCast ({ W.nullable; typ }, e))
 
 module Arith = struct
   let binary op e e' =
