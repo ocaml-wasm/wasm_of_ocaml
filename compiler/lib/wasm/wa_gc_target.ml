@@ -211,14 +211,14 @@ module Memory = struct
     let* e' = e' in
     instr (W.StructSet (None, ty, i, e, e'))
 
-  let wasm_array_get e e' =
-    let* ty = Value.block_type in
+  let wasm_array_get ?(ty = Value.block_type) e e' =
+    let* ty = ty in
     let* e = wasm_cast ty e in
     let* e' = e' in
     return (W.ArrayGet (None, ty, e, e'))
 
-  let wasm_array_set e e' e'' =
-    let* ty = Value.block_type in
+  let wasm_array_set ?(ty = Value.block_type) e e' e'' =
+    let* ty = ty in
     let* e = wasm_cast ty e in
     let* e' = e' in
     let* e'' = e'' in
@@ -233,6 +233,10 @@ module Memory = struct
   let array_get e e' = wasm_array_get e Arith.(Value.int_val e' + const 1l)
 
   let array_set e e' e'' = wasm_array_set e Arith.(Value.int_val e' + const 1l) e''
+
+  let bytes_get e e' = wasm_array_get ~ty:Value.string_type e (Value.int_val e')
+
+  let bytes_set e e' e'' = wasm_array_set ~ty:Value.string_type e (Value.int_val e') e''
 
   let field e idx = wasm_array_get e (Arith.const (Int32.of_int (idx + 1)))
 

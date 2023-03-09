@@ -20,6 +20,10 @@ module type S = sig
 
     val array_set : expression -> expression -> expression -> unit Wa_code_generation.t
 
+    val bytes_get : expression -> expression -> expression
+
+    val bytes_set : expression -> expression -> expression -> unit Wa_code_generation.t
+
     val block_length : expression -> expression
   end
 

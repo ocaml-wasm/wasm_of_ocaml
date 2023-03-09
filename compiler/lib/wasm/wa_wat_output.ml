@@ -171,7 +171,7 @@ type ctx =
 
 let reference_function ctx (f : symbol) =
   match f with
-  | S _ -> assert false
+  | S _ -> prerr_endline "ZZZZZZZZZZZZZZZZZ"
   | V f -> ctx.function_refs <- Code.Var.Set.add f ctx.function_refs
 
 let lookup_symbol ctx (symb : symbol) =
@@ -219,6 +219,14 @@ let expression_or_instructions ctx in_function =
         in
         [ List
             ((Atom (type_prefix offset "load") :: select offs offs offs offset)
+            @ expression e')
+        ]
+    | Load8 (s, offset, e') ->
+        let offs i =
+          if Int32.equal i 0l then [] else [ Atom (Printf.sprintf "offset=%ld" i) ]
+        in
+        [ List
+            ((Atom (type_prefix offset (signage "load" s)) :: select offs offs offs offset)
             @ expression e')
         ]
     | LocalGet i -> [ List [ Atom "local.get"; Atom (string_of_int i) ] ]
@@ -312,6 +320,14 @@ let expression_or_instructions ctx in_function =
         in
         [ List
             (Atom (type_prefix offset "store")
+            :: (select offs offs offs offset @ expression e1 @ expression e2))
+        ]
+    | Store8 (s, offset, e1, e2) ->
+        let offs i =
+          if Int32.equal i 0l then [] else [ Atom (Printf.sprintf "offset=%ld" i) ]
+        in
+        [ List
+            (Atom (type_prefix offset (signage "store" s))
             :: (select offs offs offs offset @ expression e1 @ expression e2))
         ]
     | LocalSet (i, Seq (l, e)) when Poly.equal target `Binaryen ->

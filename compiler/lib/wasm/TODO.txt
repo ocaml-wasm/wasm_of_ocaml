@@ -72,13 +72,12 @@ https://dfinity.org/grants/
 - how can we avoid some casts. see what ocaml does for floats
   shall we typecheck the program?
 
+- keep initial globals but remove entries?
+
 ==============================================
 
 GHC: https://gitlab.haskell.org/ghc/ghc/-/merge_requests/9204/diffs
      https://gitlab.haskell.org/ghc/ghc-wasm-meta
-
-https://depth-first.com/articles/2019/10/16/compiling-c-to-webassembly-and-running-it-without-emscripten/
-clang -O3 --target=wasm32 --no-standard-libraries -Wl,--export-all -Wl,--no-entry -S foo.c
 
 - C stubs to access the host functions
   https://reviews.llvm.org/D42520
@@ -100,40 +99,14 @@ clang-16  --no-standard-libraries --target=wasm32 /tmp/hello.s ../tezos-noop-ker
 clang-16 -mexception-handling
 wasm2wat --enable-exceptions  // --enable-all
 
-====================
-
-~/sources/binaryen/bin/wasm-opt --enable-reference-types --enable-gc
-
 ===========================
 
-ocaml value: (ref eq)
-integers: i31
-string : (ref (array (mut i8)))
-block : (ref (array (mut (ref eq))))
-closure : (ref (struct ...))   <- patch?
-===> arity f f' ...
+GC documents
+============
 
-closure
--------
-  - struct: arity, unary function, full function, other fields
-  - need to be patched for recursive functions
-    ==> allocate each closure / build common env /
-        fill pointers from closures to common env /
-        store information about other functions when compiling the functions
-        (perform direct calls when possible)
-    constant closures ==> we can get the right closure from the env instead
-  - cast when entering a function (if the env is not empty)
-
-GC
-==
 https://docs.google.com/document/d/1DklC3qVuOdLHSXB5UXghM_syCh-4cMinQ50ICiXnK3Q/edit#
 https://github.com/WebAssembly/binaryen/blob/main/scripts/gen-s-parser.py
 https://github.com/WebAssembly/gc/blob/main/interpreter/syntax/ast.ml
-
-Change compilation strategy for branches: push arguments to the stack
-
-Tezos proposal:
-https://docs.google.com/document/d/1QDXMuixu0cv7ukwc-JgaiwBK4SssM4eIRpzlcKpGqt0
 
 ========
 
@@ -142,3 +115,14 @@ dune exec -- js_of_ocaml --no-inline --pretty ~/sources/tezos/_build/default/src
 
 ~/sources/binaryen/bin/wasm-opt --all-features -Oz /tmp/hello.wast -S -o -  | less
 ~/sources/wasm-gc-proposal/interpreter/wasm -d /tmp/hello.wast -o /tmp/hello.wat
+
+================
+
+
+
+let call_n_m f x1 ... xn = ????
+
+
+
+
+let call_n_1 env x = f (env @ x)

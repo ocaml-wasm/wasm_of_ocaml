@@ -116,6 +116,7 @@ type expression =
   | UnOp of (int_un_op, int_un_op, float_un_op) op * expression
   | BinOp of (int_bin_op, int_bin_op, float_bin_op) op * expression * expression
   | Load of (memarg, memarg, memarg) op * expression
+  | Load8 of signage * (memarg, memarg, memarg) op * expression
   | LocalGet of int
   | LocalTee of int * expression
   | GlobalGet of symbol
@@ -143,6 +144,7 @@ type expression =
 and instruction =
   | Drop of expression
   | Store of (memarg, memarg, memarg) op * expression * expression
+  | Store8 of signage * (memarg, memarg, memarg) op * expression * expression
   | LocalSet of int * expression
   | GlobalSet of symbol * expression
   | Loop of func_type * instruction list

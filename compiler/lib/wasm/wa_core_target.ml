@@ -77,6 +77,15 @@ module Memory = struct
 
   let array_set e e' e'' = mem_store Arith.(e + ((e' - const 1l) lsl const 1l)) e''
 
+  let bytes_get e e' =
+    let* addr = Arith.(e + e' - const 1l) in
+    return (W.Load8 (U, I32 (Int32.of_int 0), addr))
+
+  let bytes_set e e' e'' =
+    let* addr = Arith.(e + e' - const 1l) in
+    let* e'' = e'' in
+    instr (W.Store8 (U, I32 (Int32.of_int 0), addr, e''))
+
   let field e idx = mem_load ~offset:(4 * idx) e
 
   let set_field e idx e' = mem_store ~offset:(4 * idx) e e'

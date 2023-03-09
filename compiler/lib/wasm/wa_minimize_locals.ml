@@ -15,6 +15,7 @@ let rec scan_expression ctx e =
   | Wa_ast.Const _ | ConstSym _ | GlobalGet _ | Pop | RefFunc _ | RefNull -> ()
   | UnOp (_, e')
   | Load (_, e')
+  | Load8 (_, _, e')
   | MemoryGrow (_, e')
   | I31New e'
   | I31Get (_, e')
@@ -55,7 +56,7 @@ and scan_instruction ctx i =
   | Push e
   | Br_on_cast (_, _, e)
   | Br_on_cast_fail (_, _, e) -> scan_expression ctx e
-  | Store (_, e, e') | StructSet (_, _, _, e, e') ->
+  | Store (_, e, e') | Store8 (_, _, e, e') | StructSet (_, _, _, e, e') ->
       scan_expression ctx e;
       scan_expression ctx e'
   | LocalSet (i, e) ->
@@ -122,6 +123,7 @@ let rec rewrite_expression ctx e =
       let e'' = rewrite_expression ctx e'' in
       BinOp (op, e', e'')
   | Load (op, e') -> Load (op, rewrite_expression ctx e')
+  | Load8 (s, op, e') -> Load8 (s, op, rewrite_expression ctx e')
   | LocalGet v ->
       let v' = ctx.mapping.(v) in
       assert (v' <> -1);
@@ -173,6 +175,10 @@ and rewrite_instruction ctx i =
       let e = rewrite_expression ctx e in
       let e' = rewrite_expression ctx e' in
       Store (op, e, e')
+  | Store8 (s, op, e, e') ->
+      let e = rewrite_expression ctx e in
+      let e' = rewrite_expression ctx e' in
+      Store8 (s, op, e, e')
   | LocalSet (v, e) -> (
       let e = rewrite_expression ctx e in
       let v' = assignment ctx v e in

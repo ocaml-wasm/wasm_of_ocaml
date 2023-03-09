@@ -61,7 +61,9 @@ module Generate (Target : Wa_target_sig.S) = struct
               else
                 match kind, funct with
                 | `Index, W.ConstSym (g, 0) | `Ref _, W.RefFunc g ->
-                    return (W.Call (g, List.rev (closure :: acc)))
+                    (* Functions with constant closures ignore their
+                       environment *)
+                    return (W.Call (g, List.rev (W.I31New (Const (I32 0l)) :: acc)))
                 | `Index, _ ->
                     return
                       (W.Call_indirect
@@ -84,6 +86,9 @@ module Generate (Target : Wa_target_sig.S) = struct
         | Extern "caml_array_unsafe_get", [ x; y ] -> Memory.array_get x y
         | Extern "caml_array_unsafe_set", [ x; y; z ] ->
             seq (Memory.array_set x y z) Value.unit
+        | Extern "caml_string_unsafe_get", [ x; y ] -> Memory.bytes_get x y
+        | Extern "caml_string_unsafe_set", [ x; y; z ] ->
+            seq (Memory.bytes_set x y z) Value.unit
         | Extern "%int_add", [ x; y ] -> Value.int_add x y
         | Extern "%int_sub", [ x; y ] -> Value.int_sub x y
         | Extern "%int_mul", [ x; y ] -> Value.int_mul x y

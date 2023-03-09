@@ -255,6 +255,13 @@ module Output () = struct
              (type_prefix offset
              ^^ string "load "
              ^^ string (select Int32.to_string Int32.to_string Int32.to_string offset))
+    | Load8 (s, offset, e') ->
+        expression e'
+        ^^ line
+             (type_prefix offset
+             ^^ string (signage "load8" s)
+             ^^ string " "
+             ^^ string (select Int32.to_string Int32.to_string Int32.to_string offset))
     | LocalGet i -> line (string "local.get " ^^ integer i)
     | LocalTee (i, e') -> expression e' ^^ line (string "local.tee " ^^ integer i)
     | GlobalGet nm -> line (string "global.get " ^^ symbol nm 0)
@@ -291,6 +298,14 @@ module Output () = struct
         ^^ line
              (type_prefix offset
              ^^ string "store "
+             ^^ string (select Int32.to_string Int32.to_string Int32.to_string offset))
+    | Store8 (s, offset, e, e') ->
+        expression e
+        ^^ expression e'
+        ^^ line
+             (type_prefix offset
+             ^^ string (signage "store" s)
+             ^^ string " "
              ^^ string (select Int32.to_string Int32.to_string Int32.to_string offset))
     | LocalSet (i, e) -> expression e ^^ line (string "local.set " ^^ integer i)
     | GlobalSet (nm, e) -> expression e ^^ line (string "global.set " ^^ symbol nm 0)
