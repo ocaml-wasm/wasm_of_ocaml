@@ -6,6 +6,8 @@ type context =
   ; mutable constant_globals : constant_global Code.Var.Map.t
   ; mutable other_fields : Wa_ast.module_field list
   ; types : (string, Code.Var.t) Hashtbl.t
+  ; mutable closure_envs : Code.Var.t Code.Var.Map.t
+        (** GC: mapping of recursive functions to their shared environment *)
   }
 
 val make_context : unit -> context
@@ -97,5 +99,11 @@ val register_data_segment : Code.Var.t -> active:bool -> Wa_ast.data list -> uni
 val get_data_segment : Code.Var.t -> (bool * Wa_ast.data list) t
 
 val get_context : context t
+
+val set_closure_env : Code.Var.t -> Code.Var.t -> unit t
+
+val get_closure_env : Code.Var.t -> Code.Var.t t
+
+val is_closure : Code.Var.t -> bool t
 
 val function_body : context:context -> body:unit t -> int * Wa_ast.instruction list

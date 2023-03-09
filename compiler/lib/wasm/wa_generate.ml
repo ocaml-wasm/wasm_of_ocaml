@@ -55,14 +55,19 @@ module Generate (Target : Wa_target_sig.S) = struct
               let funct = Var.fresh () in
               let* closure = tee funct (load f) in
               let* kind, funct = Memory.load_function_pointer ~arity (load funct) in
-              match kind, funct with
-              | `Index, W.ConstSym (g, 0) | `Ref _, W.RefFunc g ->
-                  return (W.Call (g, List.rev (closure :: acc)))
-              | `Index, _ ->
-                  return
-                    (W.Call_indirect
-                       (func_type (arity + 1), funct, List.rev (closure :: acc)))
-              | `Ref ty, _ -> return (W.Call_ref (ty, funct, List.rev (closure :: acc))))
+              let* b = is_closure f in
+              if b
+              then return (W.Call (V f, List.rev (closure :: acc)))
+              else
+                match kind, funct with
+                | `Index, W.ConstSym (g, 0) | `Ref _, W.RefFunc g ->
+                    return (W.Call (g, List.rev (closure :: acc)))
+                | `Index, _ ->
+                    return
+                      (W.Call_indirect
+                         (func_type (arity + 1), funct, List.rev (closure :: acc)))
+                | `Ref ty, _ -> return (W.Call_ref (ty, funct, List.rev (closure :: acc)))
+              )
           | x :: r ->
               let* x = load x in
               loop (x :: acc) r

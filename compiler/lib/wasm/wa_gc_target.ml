@@ -55,7 +55,7 @@ module Value = struct
       (Printf.sprintf "env_%d_%d" arity n)
       ~supertype:cl_typ
       (W.Struct
-         ((if n = 1
+         ((if arity = 1
           then
             [ { W.mut = false; typ = W.Value I32 }
             ; { mut = false; typ = Value (Ref (Type fun_ty')) }
@@ -66,6 +66,35 @@ module Value = struct
             ; { mut = false; typ = Value (Ref (Type fun_ty')) }
             ])
          @ List.init ~f:(fun _ -> { W.mut = false; typ = W.Value (Ref Eq) }) ~len:n))
+
+  let rec_env_type ~function_count ~free_variable_count =
+    register_type
+      (Printf.sprintf "rec_env_%d_%d" function_count free_variable_count)
+      (W.Struct
+         (List.init
+            ~f:(fun i -> { W.mut = i < function_count; typ = W.Value (Ref Eq) })
+            ~len:(function_count + free_variable_count)))
+
+  let rec_closure_type ~arity ~function_count ~free_variable_count =
+    let* cl_typ = closure_type arity in
+    let* fun_ty = function_type 1 in
+    let* fun_ty' = function_type arity in
+    let* env_ty = rec_env_type ~function_count ~free_variable_count in
+    register_type
+      (Printf.sprintf "closure_rec_%d_%d_%d" arity function_count free_variable_count)
+      ~supertype:cl_typ
+      (W.Struct
+         ((if arity = 1
+          then
+            [ { W.mut = false; typ = W.Value I32 }
+            ; { mut = false; typ = Value (Ref (Type fun_ty')) }
+            ]
+          else
+            [ { mut = false; typ = Value I32 }
+            ; { mut = false; typ = Value (Ref (Type fun_ty)) }
+            ; { mut = false; typ = Value (Ref (Type fun_ty')) }
+            ])
+         @ [ { W.mut = false; typ = W.Value (Ref (Type env_ty)) } ]))
 
   let unit = return (W.I31New (Const (I32 0l)))
 
@@ -168,6 +197,11 @@ module Memory = struct
         | _ -> return (W.StructGet (None, ty, i, e)))
     | _ -> return (W.StructGet (None, ty, i, e))
 
+  let wasm_struct_set ty e i e' =
+    let* e = e in
+    let* e' = e' in
+    instr (W.StructSet (None, ty, i, e, e'))
+
   let wasm_array_get e e' =
     let* ty = Value.block_type in
     let* e = wasm_cast ty e in
@@ -253,12 +287,13 @@ module Constant = struct
 
   let translate c =
     let* c = translate_rec c in
-    match c with
-    | W.I31New _ -> return c
-    | _ ->
-        let name = Code.Var.fresh_n "const" in
-        let* () = register_global (V name) { mut = false; typ = Value.value } c in
-        return (W.GlobalGet (V name))
+    let* b = is_small_constant c in
+    if b
+    then return c
+    else
+      let name = Code.Var.fresh_n "const" in
+      let* () = register_global (V name) { mut = false; typ = Value.value } c in
+      return (W.GlobalGet (V name))
 end
 
 module Closure = struct
@@ -266,6 +301,12 @@ module Closure = struct
     List.filter
       ~f:(fun x -> not (Hashtbl.mem context.constants x))
       info.Wa_closure_conversion.free_variables
+
+  let rec is_last_fun l f =
+    match l with
+    | [] -> false
+    | [ (g, _) ] -> Code.Var.equal f g
+    | _ :: r -> is_last_fun r f
 
   let translate ~context ~closures f =
     let info = Code.Var.Map.find f closures in
@@ -289,9 +330,11 @@ module Closure = struct
       in
       return (W.GlobalGet (V name))
     else
+      let free_variable_count = List.length free_variables in
       match info.Wa_closure_conversion.functions with
+      | [] -> assert false
       | [ _ ] ->
-          let* typ = Value.env_type ~arity (List.length free_variables) in
+          let* typ = Value.env_type ~arity free_variable_count in
           let* l = expression_list load free_variables in
           return
             (W.StructNew
@@ -304,7 +347,62 @@ module Closure = struct
                    ; RefFunc (V f)
                    ])
                  @ l ))
-      | _ -> assert false
+      | (g, _) :: _ as functions ->
+          let function_count = List.length functions in
+          let* env_typ = Value.rec_env_type ~function_count ~free_variable_count in
+          Format.eprintf "AAA %s %s@." (Code.Var.to_string f) (Code.Var.to_string g);
+          let env =
+            if Code.Var.equal f g
+            then
+              let env = Code.Var.fresh () in
+              let* () = set_closure_env f env in
+              let* l = expression_list load free_variables in
+              tee
+                env
+                (return
+                   (W.StructNew
+                      ( env_typ
+                      , (*ZZZ Shall we store null instead?*)
+                        List.init ~len:function_count ~f:(fun _ ->
+                            W.I31New (W.Const (I32 0l)))
+                        @ l )))
+            else
+              let* env = get_closure_env g in
+              let* () = set_closure_env f env in
+              load env
+          in
+          let* typ = Value.rec_closure_type ~arity ~function_count ~free_variable_count in
+          let res =
+            let* env = (*ZZZ remove *) Memory.wasm_cast env_typ env in
+            return
+              (W.StructNew
+                 ( typ
+                 , (if arity = 1
+                   then [ W.Const (I32 1l); RefFunc (V f) ]
+                   else
+                     [ Const (I32 (Int32.of_int arity))
+                     ; RefFunc (S "apply1")
+                     ; RefFunc (V f)
+                     ])
+                   @ [ env ] ))
+          in
+          if is_last_fun functions f
+          then
+            seq
+              (snd
+                 (List.fold_left
+                    ~f:(fun (i, prev) (g, _) ->
+                      ( i + 1
+                      , let* () = prev in
+                        Memory.wasm_struct_set
+                          env_typ
+                          (Memory.wasm_cast env_typ env)
+                          i
+                          (if Code.Var.equal f g then tee f res else load g) ))
+                    ~init:(0, return ())
+                    functions))
+              (load f)
+          else res
 
   let bind_environment ~context ~closures f =
     if Hashtbl.mem context.constants f
@@ -315,12 +413,14 @@ module Closure = struct
     else
       let info = Code.Var.Map.find f closures in
       let free_variables = get_free_variables ~context info in
+      let free_variable_count = List.length free_variables in
       let arity = List.assoc f info.functions in
       let offset = if arity = 1 then 2 else 3 in
-      let* typ = Value.env_type ~arity (List.length free_variables) in
       match info.Wa_closure_conversion.functions with
       | [ _ ] ->
+          let* typ = Value.env_type ~arity free_variable_count in
           let* _ = add_var f in
+          (*ZZZ Store env with right type in local variable? *)
           snd
             (List.fold_left
                ~f:(fun (i, prev) x ->
@@ -329,7 +429,25 @@ module Closure = struct
                    define_var x Memory.(wasm_struct_get typ (wasm_cast typ (load f)) i) ))
                ~init:(offset, return ())
                free_variables)
-      | _ -> assert false
+      | functions ->
+          let function_count = List.length functions in
+          let* typ = Value.rec_closure_type ~arity ~function_count ~free_variable_count in
+          let* _ = add_var f in
+          let env = Code.Var.fresh_n "env" in
+          let* () =
+            store env Memory.(wasm_struct_get typ (wasm_cast typ (load f)) offset)
+          in
+          let* typ = Value.rec_env_type ~function_count ~free_variable_count in
+          snd
+            (List.fold_left
+               ~f:(fun (i, prev) x ->
+                 ( i + 1
+                 , let* () = prev in
+                   (*ZZZ Avoid cast? *)
+                   define_var x Memory.(wasm_struct_get typ (wasm_cast typ (load env)) i)
+                 ))
+               ~init:(0, return ())
+               (List.map ~f:fst functions @ free_variables))
 end
 
 let entry_point ~register_primitive:_ = return ()

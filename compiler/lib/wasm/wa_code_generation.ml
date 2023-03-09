@@ -19,11 +19,13 @@ type constant_global =
   }
 
 type context =
-  { constants : (Code.Var.t, W.expression) Hashtbl.t
+  { constants : (Var.t, W.expression) Hashtbl.t
   ; mutable data_segments : (bool * W.data list) Var.Map.t
   ; mutable constant_globals : constant_global Var.Map.t
   ; mutable other_fields : W.module_field list
-  ; types : (string, Code.Var.t) Hashtbl.t
+  ; types : (string, Var.t) Hashtbl.t
+  ; mutable closure_envs : Var.t Var.Map.t
+        (** GC: mapping of recursive functions to their shared environment *)
   }
 
 let make_context () =
@@ -32,6 +34,7 @@ let make_context () =
   ; constant_globals = Var.Map.empty
   ; other_fields = []
   ; types = Hashtbl.create 128
+  ; closure_envs = Var.Map.empty
   }
 
 type var =
@@ -57,7 +60,7 @@ let ( let* ) (type a b) (e : a t) (f : a -> b t) : b t =
 let return x st = x, st
 
 let register_data_segment x ~active v st =
-  st.context.data_segments <- Code.Var.Map.add x (active, v) st.context.data_segments;
+  st.context.data_segments <- Var.Map.add x (active, v) st.context.data_segments;
   (), st
 
 let get_data_segment x st = Var.Map.find x st.context.data_segments, st
@@ -109,6 +112,14 @@ let get_global (name : Wa_ast.symbol) =
         (match Var.Map.find_opt name ctx.constant_globals with
         | Some { init; _ } -> init
         | _ -> None)
+
+let set_closure_env f env st =
+  st.context.closure_envs <- Var.Map.add f env st.context.closure_envs;
+  (), st
+
+let get_closure_env f st = Var.Map.find f st.context.closure_envs, st
+
+let is_closure f st = Var.Map.mem f st.context.closure_envs, st
 
 let var x st =
   try Var.Map.find x st.vars, st
@@ -256,14 +267,19 @@ let tee x e =
     let* i = add_var x in
     return (W.LocalTee (i, e))
 
-let store ?(always = false) x e =
+let rec store ?(always = false) x e =
   let* e = e in
-  let* b = is_small_constant e in
-  if b && not always
-  then register_constant x e
-  else
-    let* i = add_var x in
-    instr (LocalSet (i, e))
+  match e with
+  | W.Seq (l, e') ->
+      let* () = instrs l in
+      store ~always x (return e')
+  | _ ->
+      let* b = is_small_constant e in
+      if b && not always
+      then register_constant x e
+      else
+        let* i = add_var x in
+        instr (LocalSet (i, e))
 
 let assign x e =
   let* x = var x in

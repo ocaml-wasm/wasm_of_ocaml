@@ -12,18 +12,24 @@ https://dfinity.org/grants/
 
 =======
 
+- wasm: support recursive types and nullable types
+
+- remove unused local.tee
+
 - target GC proposal as well
   ==> generate code
 
   (func $apply1 (param (ref eq) (ref eq)) (result (ref eq)) (local.get 0))
 
-- GC: closures
-  let env =  ...
-  let f0 = ...
-  let fn = ...
-  env[0] = f0
-  ....
-  env[n] = fn
+- more efficient handling of types
+
+- local with a special type for env?
+
+- optimization pass:
+  use tee to nest expressions (optimized away later on)
+  mutator (call / array/struct.set) flush mutable
+  other expressions can float until they are used
+  flush at end of blocks
 
 - optional tail recursion:
   detect the following:
@@ -68,6 +74,9 @@ https://dfinity.org/grants/
 - directly generate wasm binary?
 
 - GC: large constants should be generated at runtime
+
+- how can we avoid some casts. see what ocaml does for floats
+  shall we typecheck the program?
 
 ==============================================
 
@@ -134,3 +143,5 @@ https://docs.google.com/document/d/1QDXMuixu0cv7ukwc-JgaiwBK4SssM4eIRpzlcKpGqt0
 
 ========
 
+dune exec -- js_of_ocaml --no-inline --pretty ~/tezos-noop-kernel/_build/default/src/hello.bc > /tmp/hello.wast
+dune exec -- js_of_ocaml --no-inline --pretty ~/sources/tezos/_build/default/src/proto_alpha/bin_baker/main_baker_alpha.bc > /tmp/hello.wast

@@ -383,14 +383,14 @@ let expression_or_instructions ctx in_function =
         ]
     | StructSet (None, symb, i, e, e') ->
         [ List
-            (Atom "array.set"
+            (Atom "struct.set"
             :: index (V symb)
             :: Atom (string_of_int i)
             :: (expression e @ expression e'))
         ]
     | StructSet (Some s, symb, i, e, e') ->
         [ List
-            (Atom (signage "array.set" s)
+            (Atom (signage "struct.set" s)
             :: index (V symb)
             :: Atom (string_of_int i)
             :: (expression e @ expression e'))
