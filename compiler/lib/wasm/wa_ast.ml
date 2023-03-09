@@ -120,7 +120,7 @@ type expression =
   | Seq of instruction list * expression
   | Pop
   | RefFunc of symbol
-  | Call_ref of symbol * expression * expression list
+  | Call_ref of var * expression * expression list
   | I31New of expression
   | I31Get of signage * expression
   | ArrayNew of var * expression * expression
@@ -205,4 +205,5 @@ type module_field =
       { name : var
       ; typ : str_type
       ; supertype : var option
+      ; final : bool
       }

@@ -13,10 +13,15 @@ https://github.com/llvm/llvm-project/issues/58438
 (* binaryen does not support block input parameters
    https://github.com/WebAssembly/binaryen/issues/5047 *)
 
+type constant_global =
+  { init : W.expression option
+  ; constant : bool
+  }
+
 type context =
   { constants : (Code.Var.t, W.expression) Hashtbl.t
   ; mutable data_segments : (bool * W.data list) Var.Map.t
-  ; mutable constant_globals : Var.Set.t
+  ; mutable constant_globals : constant_global Var.Map.t
   ; mutable other_fields : W.module_field list
   ; types : (string, Code.Var.t) Hashtbl.t
   }
@@ -24,7 +29,7 @@ type context =
 let make_context () =
   { constants = Hashtbl.create 128
   ; data_segments = Var.Map.empty
-  ; constant_globals = Var.Set.empty
+  ; constant_globals = Var.Map.empty
   ; other_fields = []
   ; types = Hashtbl.create 128
   }
@@ -63,23 +68,47 @@ let register_constant x e st =
   Hashtbl.add st.context.constants x e;
   (), st
 
-let register_type nm ?(supertype = None) typ st =
+let register_type nm ?supertype ?(final = false) typ st =
   let context = st.context in
   ( (try Hashtbl.find context.types nm
      with Not_found ->
        let name = Var.fresh_n nm in
-       context.other_fields <- Type { name; typ; supertype } :: context.other_fields;
+       context.other_fields <-
+         Type { name; typ; supertype; final } :: context.other_fields;
        Hashtbl.add context.types nm name;
        name)
   , st )
 
-let register_global nm ?(constant = false) typ init st =
-  st.context.other_fields <- W.Global { name = nm; typ; init } :: st.context.other_fields;
-  (match nm with
-  | V nm when (not typ.mut) || constant ->
-      st.context.constant_globals <- Var.Set.add nm st.context.constant_globals
-  | _ -> ());
+let register_global name ?(constant = false) typ init st =
+  st.context.other_fields <- W.Global { name; typ; init } :: st.context.other_fields;
+  (match name with
+  | S _ -> ()
+  | V nm ->
+      st.context.constant_globals <-
+        Var.Map.add
+          nm
+          { init = (if not typ.mut then Some init else None)
+          ; constant = (not typ.mut) || constant
+          }
+          st.context.constant_globals);
   (), st
+
+let global_is_constant name =
+  let* ctx = get_context in
+  return
+    (match Var.Map.find_opt name ctx.constant_globals with
+    | Some { constant = true; _ } -> true
+    | _ -> false)
+
+let get_global (name : Wa_ast.symbol) =
+  match name with
+  | S _ -> return None
+  | V name ->
+      let* ctx = get_context in
+      return
+        (match Var.Map.find_opt name ctx.constant_globals with
+        | Some { init; _ } -> init
+        | _ -> None)
 
 let var x st =
   try Var.Map.find x st.vars, st
@@ -108,6 +137,12 @@ let blk l st =
   let instrs = st.instrs in
   let (), st = l { st with instrs = [] } in
   List.rev st.instrs, { st with instrs }
+
+let cast ty e =
+  let* e = e in
+  match ty, e with
+  | W.I31, W.I31New _ -> return e
+  | _ -> return (W.RefCast (ty, e))
 
 module Arith = struct
   let binary op e e' =
@@ -187,14 +222,22 @@ module Arith = struct
 
   let to_int31 n =
     let* n = n in
-    return (W.I31New n)
+    match n with
+    | W.I31Get (S, n') -> return n'
+    | _ -> return (W.I31New n)
 
   let of_int31 n =
     let* n = n in
     match n with
-    | W.I31New n' -> return n'
+    | W.I31New (Const (I32 _) as c) -> return c (*ZZZ Overflow *)
     | _ -> return (W.I31Get (S, n))
 end
+
+let is_small_constant e =
+  match e with
+  | W.ConstSym _ | W.Const _ | W.I31New (W.Const _) | W.RefFunc _ -> return true
+  | W.GlobalGet (V name) -> global_is_constant name
+  | _ -> return false
 
 let load x =
   let* x = var x in
@@ -204,29 +247,23 @@ let load x =
 
 let tee x e =
   let* e = e in
-  match e with
-  | W.ConstSym _ ->
-      let* () = register_constant x e in
-      return e
-  | _ ->
-      let* i = add_var x in
-      return (W.LocalTee (i, e))
+  let* b = is_small_constant e in
+  if b
+  then
+    let* () = register_constant x e in
+    return e
+  else
+    let* i = add_var x in
+    return (W.LocalTee (i, e))
 
 let store ?(always = false) x e =
   let* e = e in
-  match e with
-  | (W.ConstSym _ | W.Const _ | W.I31New (W.Const _)) when not always ->
-      register_constant x e
-  | W.GlobalGet (V name) when not always ->
-      let* ctx = get_context in
-      if Var.Set.mem name ctx.constant_globals
-      then register_constant x e
-      else
-        let* i = add_var x in
-        instr (LocalSet (i, e))
-  | _ ->
-      let* i = add_var x in
-      instr (LocalSet (i, e))
+  let* b = is_small_constant e in
+  if b && not always
+  then register_constant x e
+  else
+    let* i = add_var x in
+    instr (LocalSet (i, e))
 
 let assign x e =
   let* x = var x in

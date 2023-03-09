@@ -5,7 +5,10 @@ module type S = sig
     val allocate :
       tag:int -> [ `Expr of Wa_ast.expression | `Var of Wa_ast.var ] list -> expression
 
-    val load_function_pointer : arity:int -> expression -> expression
+    val load_function_pointer :
+         arity:int
+      -> expression
+      -> ([ `Index | `Ref of Wa_ast.var ] * Wa_ast.expression) Wa_code_generation.t
 
     val tag : expression -> expression
 
@@ -18,8 +21,6 @@ module type S = sig
     val array_set : expression -> expression -> expression -> unit Wa_code_generation.t
 
     val block_length : expression -> expression
-
-    val header : ?const:bool -> tag:int -> len:int -> unit -> int32 (*ZZZ *)
   end
 
   module Value : sig
@@ -74,6 +75,20 @@ module type S = sig
 
   module Constant : sig
     val translate : Code.constant -> expression
+  end
+
+  module Closure : sig
+    val translate :
+         context:Wa_code_generation.context
+      -> closures:Wa_closure_conversion.closure Code.Var.Map.t
+      -> Code.Var.t
+      -> expression
+
+    val bind_environment :
+         context:Wa_code_generation.context
+      -> closures:Wa_closure_conversion.closure Code.Var.Map.t
+      -> Code.Var.t
+      -> unit Wa_code_generation.t
   end
 
   val entry_point :

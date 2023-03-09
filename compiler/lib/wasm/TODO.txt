@@ -13,10 +13,17 @@ https://dfinity.org/grants/
 =======
 
 - target GC proposal as well
-  ==> GC extensions
   ==> generate code
 
+  (func $apply1 (param (ref eq) (ref eq)) (result (ref eq)) (local.get 0))
+
 - GC: closures
+  let env =  ...
+  let f0 = ...
+  let fn = ...
+  env[0] = f0
+  ....
+  env[n] = fn
 
 - optional tail recursion:
   detect the following:
@@ -24,6 +31,7 @@ https://dfinity.org/grants/
     return x
 
 - exceptions (if supported)
+  ==> update Wa_structure
 
 - partial application
 

@@ -225,8 +225,8 @@ and rewrite_instructions ctx l = List.map ~f:(fun i -> rewrite_instruction ctx i
 let f ~param_count ~local_count instrs =
   let ctx =
     { position = 0
-    ; last_use = Array.make local_count (-1)
-    ; mapping = Array.make local_count (-1)
+    ; last_use = Array.make (max param_count local_count) (-1)
+    ; mapping = Array.make (max param_count local_count) (-1)
     ; largest_used = param_count - 1
     ; free_variables = IntSet.empty
     }

@@ -1,7 +1,7 @@
 open! Stdlib
 open Wa_ast
 
-let target = `Reference
+let target = `Binaryen (*`Reference*)
 
 type sexp =
   | Atom of string
@@ -65,7 +65,13 @@ let global_type typ = mut_type value_type typ
 let str_type typ =
   match typ with
   | Func ty -> List (Atom "func" :: funct_type ty)
-  | Struct l -> List [ Atom "struct"; List (Atom "field" :: List.map ~f:field_type l) ]
+  | Struct l -> (
+      match target with
+      | `Binaryen ->
+          List
+            (Atom "struct" :: List.map ~f:(fun f -> List [ Atom "field"; field_type f ]) l)
+      | `Reference ->
+          List [ Atom "struct"; List (Atom "field" :: List.map ~f:field_type l) ])
   | Array ty -> List [ Atom "array"; field_type ty ]
 
 let block_type = funct_type
@@ -155,8 +161,14 @@ type ctx =
   { addresses : int Code.Var.Map.t
   ; constants : int StringMap.t
   ; mutable functions : int Code.Var.Map.t
+  ; mutable function_refs : Code.Var.Set.t
   ; mutable function_count : int
   }
+
+let reference_function ctx (f : symbol) =
+  match f with
+  | S _ -> assert false
+  | V f -> ctx.function_refs <- Code.Var.Set.add f ctx.function_refs
 
 let lookup_symbol ctx (symb : symbol) =
   match symb with
@@ -175,7 +187,7 @@ let lookup_symbol ctx (symb : symbol) =
           ctx.function_count <- ctx.function_count + 1;
           i))
 
-let expression_or_instructions ctx =
+let expression_or_instructions ctx in_function =
   let rec expression e =
     match e with
     | Const op ->
@@ -219,11 +231,13 @@ let expression_or_instructions ctx =
     | MemoryGrow (_, e) -> [ List (Atom "memory.grow" :: expression e) ]
     | Seq (l, e) -> instructions l @ expression e
     | Pop -> []
-    | RefFunc symb -> [ List [ Atom "ref.func"; index symb ] ]
+    | RefFunc symb ->
+        if in_function then reference_function ctx symb;
+        [ List [ Atom "ref.func"; index symb ] ]
     | Call_ref (symb, e, l) ->
         [ List
             (Atom "call_ref"
-            :: index symb
+            :: index (V symb)
             :: List.concat (List.map ~f:expression (l @ [ e ])))
         ]
     | I31New e -> [ List (Atom "i31.new" :: expression e) ]
@@ -263,7 +277,12 @@ let expression_or_instructions ctx =
     | ArrayLength e -> [ List (Atom "array.length" :: expression e) ]
     | StructNew (symb, l) ->
         [ List
-            (Atom "struct.new" :: index (V symb) :: List.concat (List.map ~f:expression l))
+            (Atom
+               (match target with
+               | `Binaryen -> "struct.new"
+               | `Reference -> "struct.new_canon")
+            :: index (V symb)
+            :: List.concat (List.map ~f:expression l))
         ]
     | StructGet (None, symb, i, e) ->
         [ List
@@ -396,9 +415,9 @@ let expression_or_instructions ctx =
   and instructions l = List.concat (List.map ~f:instruction l) in
   expression, instructions
 
-let expression ctx = fst (expression_or_instructions ctx)
+let expression ctx = fst (expression_or_instructions ctx false)
 
-let instructions ctx = snd (expression_or_instructions ctx)
+let instructions ctx = snd (expression_or_instructions ctx true)
 
 let funct ctx name exported_name typ locals body =
   List
@@ -466,15 +485,31 @@ let field ctx f =
               else [])
              @ [ Atom ("\"" ^ data_contents ctx contents ^ "\"") ]))
       ]
-  | Type { name; typ; supertype = None } ->
-      [ List [ Atom "type"; index (V name); str_type typ ] ]
-  | Type { name; typ; supertype = Some supertype } ->
-      [ List
-          [ Atom "type"
-          ; index (V name)
-          ; List [ Atom "sub"; index (V supertype); str_type typ ]
+  | Type { name; typ; supertype; final } -> (
+      match target with
+      | `Binaryen ->
+          [ List
+              (Atom "type"
+              :: index (V name)
+              :: str_type typ
+              ::
+              (match supertype with
+              | Some supertype -> [ List [ Atom "extend"; index (V supertype) ] ]
+              | None -> []))
           ]
-      ]
+      | `Reference ->
+          [ List
+              [ Atom "type"
+              ; index (V name)
+              ; List
+                  (Atom "sub"
+                  :: ((if final then [ Atom "final" ] else [])
+                     @ (match supertype with
+                       | Some supertype -> [ index (V supertype) ]
+                       | None -> [])
+                     @ [ str_type typ ]))
+              ]
+          ])
 
 let data_size contents =
   List.fold_left
@@ -507,6 +542,7 @@ let f fields =
   let ctx =
     { addresses
     ; functions = Code.Var.Map.empty
+    ; function_refs = Code.Var.Set.empty
     ; function_count = 0
     ; constants = StringMap.singleton "__heap_base" heap_base
     }
@@ -520,12 +556,32 @@ let f fields =
            ~cmp:(fun (_, i) (_, j) -> compare i j)
            (Code.Var.Map.bindings ctx.functions))
     in
-    [ List
-        [ Atom "table"
-        ; Atom "funcref"
-        ; List (Atom "elem" :: List.map ~f:(fun f -> index (V f)) functions)
-        ]
-    ]
+    if List.is_empty functions
+    then []
+    else
+      [ List
+          [ Atom "table"
+          ; Atom "funcref"
+          ; List (Atom "elem" :: List.map ~f:(fun f -> index (V f)) functions)
+          ]
+      ]
+  in
+  let funct_decl =
+    let functions =
+      Code.Var.Set.elements
+        (Code.Var.Set.filter
+           (fun f -> not (Code.Var.Map.mem f ctx.functions))
+           ctx.function_refs)
+    in
+    if List.is_empty functions
+    then []
+    else
+      [ List
+          (Atom "elem"
+          :: Atom "declare"
+          :: Atom "func"
+          :: List.map ~f:(fun f -> index (V f)) functions)
+      ]
   in
   Format.printf
     "%a@."
@@ -537,4 +593,5 @@ let f fields =
                 [ Atom "memory"; Atom (string_of_int ((heap_base + 0xffff) / 0x10000)) ]
             ]
           @ funct_table
+          @ funct_decl
           @ other_fields)))

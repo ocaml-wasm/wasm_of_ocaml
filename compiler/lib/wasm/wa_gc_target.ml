@@ -15,16 +15,63 @@ module Value = struct
 
   let int64_type = register_type "float" (W.Struct [ { mut = true; typ = Value I64 } ])
 
-  let closure_type =
+  let function_type n =
+    register_type
+      (Printf.sprintf "function_%d" n)
+      ~final:true
+      (W.Func
+         { W.params = List.init ~len:(n + 1) ~f:(fun _ -> value); result = [ value ] })
+
+  let closure_type_1 =
+    let* fun_ty = function_type 1 in
     register_type
       "closure"
-      (W.Struct [ { mut = false; typ = Value I32 }; { mut = false; typ = Value value } ])
+      (W.Struct
+         [ { mut = false; typ = Value I32 }
+         ; { mut = false; typ = Value (Ref (Type fun_ty)) }
+         ])
+
+  let closure_type arity =
+    if arity = 1
+    then closure_type_1
+    else
+      let* cl_typ = closure_type_1 in
+      let* fun_ty = function_type 1 in
+      let* fun_ty' = function_type arity in
+      register_type
+        (Printf.sprintf "closure_%d" arity)
+        ~supertype:cl_typ
+        (W.Struct
+           [ { mut = false; typ = Value I32 }
+           ; { mut = false; typ = Value (Ref (Type fun_ty)) }
+           ; { mut = false; typ = Value (Ref (Type fun_ty')) }
+           ])
+
+  let env_type ~arity n =
+    let* cl_typ = closure_type arity in
+    let* fun_ty = function_type 1 in
+    let* fun_ty' = function_type arity in
+    register_type
+      (Printf.sprintf "env_%d_%d" arity n)
+      ~supertype:cl_typ
+      (W.Struct
+         ((if n = 1
+          then
+            [ { W.mut = false; typ = W.Value I32 }
+            ; { mut = false; typ = Value (Ref (Type fun_ty')) }
+            ]
+          else
+            [ { mut = false; typ = Value I32 }
+            ; { mut = false; typ = Value (Ref (Type fun_ty)) }
+            ; { mut = false; typ = Value (Ref (Type fun_ty')) }
+            ])
+         @ List.init ~f:(fun _ -> { W.mut = false; typ = W.Value (Ref Eq) }) ~len:n))
 
   let unit = return (W.I31New (Const (I32 0l)))
 
   let val_int = Arith.to_int31
 
-  let int_val = Arith.of_int31
+  let int_val i = Arith.of_int31 (cast I31 i)
 
   let check_is_not_zero i =
     let* i = i in
@@ -79,18 +126,18 @@ module Value = struct
   let int_asr = binop Arith.( asr )
 end
 
-module Memory = struct
-  (*ZZZ Move?*)
-  let expression_list f l =
-    let rec loop acc l =
-      match l with
-      | [] -> return (List.rev acc)
-      | x :: r ->
-          let* x = f x in
-          loop (x :: acc) r
-    in
-    loop [] l
+(*ZZZ Move?*)
+let expression_list f l =
+  let rec loop acc l =
+    match l with
+    | [] -> return (List.rev acc)
+    | x :: r ->
+        let* x = f x in
+        loop (x :: acc) r
+  in
+  loop [] l
 
+module Memory = struct
   let allocate ~tag l =
     let* l =
       expression_list
@@ -104,49 +151,55 @@ module Memory = struct
     return (W.ArrayNewFixed (ty, I31New (Const (I32 (Int32.of_int tag))) :: l))
   (*ZZZ Float array?*)
 
+  let wasm_cast ty e =
+    let* e = e in
+    return (W.RefCast (Type ty, e))
+
+  let wasm_struct_get ty e i =
+    let* e = e in
+    match e with
+    | W.RefCast (_, GlobalGet nm) -> (
+        let* init = get_global nm in
+        match init with
+        | Some (W.StructNew (_, l)) ->
+            let e = List.nth l i in
+            let* b = is_small_constant e in
+            if b then return e else return (W.StructGet (None, ty, i, e))
+        | _ -> return (W.StructGet (None, ty, i, e)))
+    | _ -> return (W.StructGet (None, ty, i, e))
+
   let wasm_array_get e e' =
     let* ty = Value.block_type in
-    return (W.ArrayGet (None, ty, RefCast (Type ty, e), e'))
+    let* e = wasm_cast ty e in
+    let* e' = e' in
+    return (W.ArrayGet (None, ty, e, e'))
 
   let wasm_array_set e e' e'' =
     let* ty = Value.block_type in
-    instr (W.ArraySet (None, ty, RefCast (Type ty, e), e', e''))
+    let* e = wasm_cast ty e in
+    let* e' = e' in
+    let* e'' = e'' in
+    instr (W.ArraySet (None, ty, e, e', e''))
 
-  let tag e =
-    let* e = e in
-    wasm_array_get e (Const (I32 0l))
+  let tag e = wasm_array_get e (Arith.const 0l)
 
   let block_length e =
     let* e = e in
     Value.int_val (return (W.ArrayLength e))
 
-  let array_get e e' =
-    let* e = e in
-    let* offset = Arith.(Value.int_val e' + const 1l) in
-    wasm_array_get e offset
+  let array_get e e' = wasm_array_get e Arith.(Value.int_val e' + const 1l)
 
-  let array_set e e' e'' =
-    let* e = e in
-    let* offset = Arith.(Value.int_val e' + const 1l) in
-    let* e'' = e'' in
-    wasm_array_set e offset e''
+  let array_set e e' e'' = wasm_array_set e Arith.(Value.int_val e' + const 1l) e''
 
-  let field e idx =
-    let* e = e in
-    wasm_array_get e (W.Const (I32 (Int32.of_int (idx + 1))))
+  let field e idx = wasm_array_get e (Arith.const (Int32.of_int (idx + 1)))
 
-  let set_field e idx e' =
-    let* e = e in
-    let* e' = e' in
-    wasm_array_set e (W.Const (I32 (Int32.of_int (idx + 1)))) e'
+  let set_field e idx e' = wasm_array_set e (Arith.const (Int32.of_int (idx + 1))) e'
 
   let load_function_pointer ~arity closure =
-    let* closure = closure in
-    let* ty = Value.closure_type in
-    return
-      (W.StructGet (None, ty, (if arity = 1 then 1 else 2), RefCast (Type ty, closure)))
-
-  let header ?const:_ ~tag:_ ~len:_ () = 0l (*ZZZ*)
+    let* ty = Value.closure_type arity in
+    let* fun_ty = Value.function_type arity in
+    let* e = wasm_struct_get ty (wasm_cast ty closure) (if arity = 1 then 1 else 2) in
+    return (`Ref fun_ty, e)
 end
 
 module Constant = struct
@@ -206,6 +259,77 @@ module Constant = struct
         let name = Code.Var.fresh_n "const" in
         let* () = register_global (V name) { mut = false; typ = Value.value } c in
         return (W.GlobalGet (V name))
+end
+
+module Closure = struct
+  let get_free_variables ~context info =
+    List.filter
+      ~f:(fun x -> not (Hashtbl.mem context.constants x))
+      info.Wa_closure_conversion.free_variables
+
+  let translate ~context ~closures f =
+    let info = Code.Var.Map.find f closures in
+    let free_variables = get_free_variables ~context info in
+    let arity = List.assoc f info.functions in
+    if List.is_empty free_variables
+    then
+      let* typ = Value.closure_type arity in
+      let name = Code.Var.fresh_n "closure" in
+      let* () =
+        register_global
+          (V name)
+          { mut = false; typ = Value.value }
+          (W.StructNew
+             ( typ
+             , if arity = 1
+               then [ Const (I32 1l); RefFunc (V f) ]
+               else
+                 [ Const (I32 (Int32.of_int arity)); RefFunc (S "apply1"); RefFunc (V f) ]
+             ))
+      in
+      return (W.GlobalGet (V name))
+    else
+      match info.Wa_closure_conversion.functions with
+      | [ _ ] ->
+          let* typ = Value.env_type ~arity (List.length free_variables) in
+          let* l = expression_list load free_variables in
+          return
+            (W.StructNew
+               ( typ
+               , (if arity = 1
+                 then [ W.Const (I32 1l); RefFunc (V f) ]
+                 else
+                   [ Const (I32 (Int32.of_int arity))
+                   ; RefFunc (S "apply1")
+                   ; RefFunc (V f)
+                   ])
+                 @ l ))
+      | _ -> assert false
+
+  let bind_environment ~context ~closures f =
+    if Hashtbl.mem context.constants f
+    then
+      (* The closures are all constants and the environment is empty. *)
+      (* let* _ = add_var (Code.Var.fresh ()) in *)
+      return ()
+    else
+      let info = Code.Var.Map.find f closures in
+      let free_variables = get_free_variables ~context info in
+      let arity = List.assoc f info.functions in
+      let offset = if arity = 1 then 2 else 3 in
+      let* typ = Value.env_type ~arity (List.length free_variables) in
+      match info.Wa_closure_conversion.functions with
+      | [ _ ] ->
+          let* _ = add_var f in
+          snd
+            (List.fold_left
+               ~f:(fun (i, prev) x ->
+                 ( i + 1
+                 , let* () = prev in
+                   define_var x Memory.(wasm_struct_get typ (wasm_cast typ (load f)) i) ))
+               ~init:(offset, return ())
+               free_variables)
+      | _ -> assert false
 end
 
 let entry_point ~register_primitive:_ = return ()

@@ -36,40 +36,6 @@ module Generate (Target : Wa_target_sig.S) = struct
     ; global_context : Wa_code_generation.context
     }
 
-  let function_offset_in_closure info f =
-    let rec index i l =
-      match l with
-      | [] -> assert false
-      | (g, arity) :: r ->
-          if Var.equal f g then i else index (i + if arity > 1 then 4 else 3) r
-    in
-    index 0 info.Wa_closure_conversion.functions
-
-  let closure_start_env info =
-    List.fold_left
-      ~f:(fun i (_, arity) -> i + if arity > 1 then 4 else 3)
-      ~init:(-1)
-      info.Wa_closure_conversion.functions
-
-  let closure_stats =
-    let s = ref 0 in
-    let n = ref 0 in
-    fun (ctx : ctx) info ->
-      let free_variables =
-        List.filter
-          ~f:(fun x -> not (Hashtbl.mem ctx.global_context.constants x))
-          info.Wa_closure_conversion.free_variables
-      in
-      if true && not (List.is_empty free_variables)
-      then
-        (incr n;
-         s := !s + List.length free_variables;
-         Format.eprintf
-           "OOO %d %f %s@."
-           (List.length free_variables)
-           (float !s /. float !n))
-          (Var.to_string (fst (List.hd info.functions)))
-
   let register_primitive ctx nm typ =
     (*ZZZ check type*)
     if not (StringMap.mem nm ctx.primitives)
@@ -88,13 +54,15 @@ module Generate (Target : Wa_target_sig.S) = struct
               let arity = List.length args in
               let funct = Var.fresh () in
               let* closure = tee funct (load f) in
-              let* funct = Memory.load_function_pointer ~arity (load funct) in
-              match funct with
-              | W.ConstSym (g, 0) -> return (W.Call (g, List.rev (closure :: acc)))
-              | _ ->
+              let* kind, funct = Memory.load_function_pointer ~arity (load funct) in
+              match kind, funct with
+              | `Index, W.ConstSym (g, 0) | `Ref _, W.RefFunc g ->
+                  return (W.Call (g, List.rev (closure :: acc)))
+              | `Index, _ ->
                   return
                     (W.Call_indirect
-                       (func_type (arity + 1), funct, List.rev (closure :: acc))))
+                       (func_type (arity + 1), funct, List.rev (closure :: acc)))
+              | `Ref ty, _ -> return (W.Call_ref (ty, funct, List.rev (closure :: acc))))
           | x :: r ->
               let* x = load x in
               loop (x :: acc) r
@@ -103,62 +71,7 @@ module Generate (Target : Wa_target_sig.S) = struct
     | Block (tag, a, _) ->
         Memory.allocate ~tag (List.map ~f:(fun x -> `Var x) (Array.to_list a))
     | Field (x, n) -> Memory.field (load x) n
-    | Closure (_args, ((_pc, _) as _cont)) ->
-        let info = Var.Map.find x ctx.closures in
-        let f, _ = List.hd info.functions in
-        if Var.equal x f
-        then (
-          let start_env = closure_start_env info in
-          let _, start =
-            List.fold_left
-              ~f:(fun (i, start) (f, arity) ->
-                let start =
-                  if i = 0
-                  then start
-                  else W.Const (I32 (Memory.header ~tag:Obj.infix_tag ~len:i ())) :: start
-                in
-                let clos_info =
-                  Int32.(
-                    add
-                      (shift_left (of_int arity) 24)
-                      (of_int (((start_env - i) lsl 1) + 1)))
-                in
-                let start = W.Const (I32 clos_info) :: W.ConstSym (V f, 0) :: start in
-                if arity > 1 then i + 4, W.ConstSym (V f, 0) :: start else i + 3, start)
-              ~init:(0, [])
-              info.functions
-          in
-          closure_stats ctx info;
-          let free_variables =
-            List.filter
-              ~f:(fun x -> not (Hashtbl.mem ctx.global_context.constants x))
-              info.free_variables
-          in
-          if List.is_empty free_variables
-          then
-            let l =
-              List.rev_map
-                ~f:(fun e ->
-                  match e with
-                  | W.Const (I32 i) -> W.DataI32 i
-                  | ConstSym (sym, offset) -> DataSym (sym, offset)
-                  | _ -> assert false)
-                start
-            in
-            let h =
-              Memory.header ~const:true ~tag:Obj.closure_tag ~len:(List.length l) ()
-            in
-            let name = Var.fresh_n "closure" in
-            let* () = register_data_segment name ~active:true (W.DataI32 h :: l) in
-            return (W.ConstSym (V name, 4))
-          else
-            Memory.allocate
-              ~tag:Obj.closure_tag
-              (List.rev_map ~f:(fun e -> `Expr e) start
-              @ List.map ~f:(fun x -> `Var x) free_variables))
-        else
-          let offset = Int32.of_int (4 * function_offset_in_closure info x) in
-          Arith.(load f + const offset)
+    | Closure _ -> Closure.translate ~context:ctx.global_context ~closures:ctx.closures x
     | Constant c -> Constant.translate c
     | Prim (p, l) -> (
         let l = List.map ~f:transl_prim_arg l in
@@ -382,7 +295,7 @@ module Generate (Target : Wa_target_sig.S) = struct
               if_
                 { params = []; result = result_typ }
                 (Arith.const 0l)
-                (let* () = store ~always:true x (Arith.const 1l) in
+                (let* () = store ~always:true x Value.unit in
                  translate_branch result_typ fall_through pc cont' (`Then :: context))
                 (translate_branch result_typ fall_through pc cont (`Else :: context))
               (*ZZZ*)
@@ -426,46 +339,7 @@ module Generate (Target : Wa_target_sig.S) = struct
       let* () = bind_parameters in
       match name_opt with
       | Some f ->
-          let info = Var.Map.find f ctx.closures in
-          let funct_index = function_offset_in_closure info f in
-          let* _ =
-            add_var
-              (if Hashtbl.mem ctx.global_context.constants f then Var.fresh () else f)
-          in
-          let* () =
-            snd
-              (List.fold_left
-                 ~f:(fun (i, prev) (x, arity) ->
-                   ( (i + if arity > 1 then 4 else 3)
-                   , let* () = prev in
-                     if i = 0
-                     then return ()
-                     else
-                       define_var
-                         x
-                         (let offset = 4 * i in
-                          Arith.(load f + const (Int32.of_int offset))) ))
-                 ~init:(-funct_index, return ())
-                 info.functions)
-          in
-          let start_env = closure_start_env info in
-          let offset = start_env - funct_index in
-          let free_variables =
-            List.filter
-              ~f:(fun x -> not (Hashtbl.mem ctx.global_context.constants x))
-              info.free_variables
-          in
-          snd
-            (List.fold_left
-               ~f:(fun (i, prev) x ->
-                 ( i + 1
-                 , let* () = prev in
-                   define_var
-                     x
-                     (let* f = load f in
-                      return (W.Load (I32 (Int32.of_int (4 * i)), f))) ))
-               ~init:(offset, return ())
-               free_variables)
+          Closure.bind_environment ~context:ctx.global_context ~closures:ctx.closures f
       | None -> return ()
     in
     (*
