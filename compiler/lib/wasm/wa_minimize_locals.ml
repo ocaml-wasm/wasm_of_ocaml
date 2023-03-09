@@ -53,7 +53,8 @@ and scan_instruction ctx i =
   | Throw (_, e)
   | Return (Some e)
   | Push e
-  | Br_on_cast (_, _, e) -> scan_expression ctx e
+  | Br_on_cast (_, _, e)
+  | Br_on_cast_fail (_, _, e) -> scan_expression ctx e
   | Store (_, e, e') | StructSet (_, _, _, e, e') ->
       scan_expression ctx e;
       scan_expression ctx e'
@@ -209,6 +210,7 @@ and rewrite_instruction ctx i =
   | StructSet (s, symb, i, e, e') ->
       StructSet (s, symb, i, rewrite_expression ctx e, rewrite_expression ctx e')
   | Br_on_cast (i, ty, e) -> Br_on_cast (i, ty, rewrite_expression ctx e)
+  | Br_on_cast_fail (i, ty, e) -> Br_on_cast_fail (i, ty, rewrite_expression ctx e)
   | Br (_, None) | Return None | Rethrow _ | Nop -> i
   | Return_call_indirect (typ, e', l) ->
       let l = rewrite_expressions ctx l in

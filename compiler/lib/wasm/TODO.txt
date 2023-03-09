@@ -94,8 +94,8 @@ dart:
 
 BUILD PROCESS
 
-dune exec -- js_of_ocaml ~/tezos-kernel/_build/default/src/hello.bc --pretty > hello.s
-clang-16  --no-standard-libraries --target=wasm32 hello.s ../tezos-kernel/_build/default/src/smart_rollup_core/smart_rollup_core.wasm ../tezos-kernel/_build/default/src/runtime/runtime.wasm  -Wl,--no-entry -Wa,--no-type-check -o kernel.wasm
+dune exec -- js_of_ocaml --no-inline --pretty ~/tezos-noop-kernel/_build/default/src/hello.bc > /tmp/hello.s
+clang-16  --no-standard-libraries --target=wasm32 /tmp/hello.s ../tezos-noop-kernel/_build/default/src/smart_rollup_core/smart_rollup_core.wasm ../tezos-noop-kernel/_build/default/src/runtime/runtime.wasm  -Wl,--no-entry -Wa,--no-type-check -o kernel.wasm
 
 clang-16 -mexception-handling
 wasm2wat --enable-exceptions  // --enable-all

@@ -233,6 +233,7 @@ module Closure = struct
   let translate ~context ~closures x =
     let info = Code.Var.Map.find x closures in
     let f, _ = List.hd info.Wa_closure_conversion.functions in
+    let* () = set_closure_env x x in
     if Code.Var.equal x f
     then (
       let start_env = closure_env_start info in
