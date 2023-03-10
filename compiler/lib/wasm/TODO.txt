@@ -12,9 +12,36 @@ https://dfinity.org/grants/
 
 =======
 
-- remove unused local.tee (in Wa_minimize_locals)
+- Partial application / over application
+  apply1 really fast
+  apply2 fast through indirect function
+  other cases slow
 
 - more efficient handling of type definitions
+
+- exceptions (if supported)
+  ==> update Wa_structure
+
+=======
+
+Simple improvements
+===================
+
+- remove unused local.tee (in Wa_minimize_locals)
+
+- Rebuild call-graph
+  ==> unnecessary blocks / simplification of br_table/if
+
+- GC: large constants should be generated at runtime
+
+- how can we avoid some casts. see what ocaml does for floats
+  shall we typecheck the program?
+
+=======
+
+
+Optimization phases
+===================
 
 - local with a special type for env?
   (more generally, no longer use a generic type for locals)
@@ -30,19 +57,15 @@ https://dfinity.org/grants/
     x = f(...)
     return x
 
-- exceptions (if supported)
-  ==> update Wa_structure
+- local optimizations:
+  avoid store followed by unique load
+  inline non-mutable expressions
+  multiple cast on the same value
 
-- partial application
+=======
 
-- check integer overflows (integers are 31 bits only...)
-
-- we need to keep track of ocaml int32 constants
-
-- Partial application / over application
-  apply1 really fast
-  apply2 fast through indirect function
-  other cases slow
+Accurate compilation
+====================
 
 - Spilling
   Naive spilling for a start?
@@ -50,13 +73,19 @@ https://dfinity.org/grants/
 
 - specialize: divide by zero / modulus / check array bound
 
-- Rebuild call-graph
-  ==> unnecessary blocks / simplification of br_table/if
+========
 
-- local optimizations:
-  avoid store followed by unique load
-  inline non-mutable expressions
-  multiple cast on the same value
+Js_of_ocaml changes
+===================
+
+- check integer overflows (integers are 31 bits only...)
+
+- we need to keep track of ocaml int32 constants
+
+=========
+
+Remarks
+=======
 
 - issue: binaryen does not support block input parameters
   https://github.com/WebAssembly/binaryen/issues/5047
@@ -65,16 +94,20 @@ https://dfinity.org/grants/
  --experimental-wasm-assume-ref-cast-succeeds
  --experimental-wasm-skip-null-checks
 
+- we have a problem with large number of variable during the
+  initialization phase, which could be an issue for the GC
+  ==> keep initial globals but remove entries?
+
+==================
+
+Possible improvements
+=====================
+
 - directly generate wasm binary?
 
-- GC: large constants should be generated at runtime
-
-- how can we avoid some casts. see what ocaml does for floats
-  shall we typecheck the program?
-
-- keep initial globals but remove entries?
-
 ==============================================
+
+DOCS
 
 GHC: https://gitlab.haskell.org/ghc/ghc/-/merge_requests/9204/diffs
      https://gitlab.haskell.org/ghc/ghc-wasm-meta
@@ -99,10 +132,16 @@ clang-16  --no-standard-libraries --target=wasm32 /tmp/hello.s ../tezos-noop-ker
 clang-16 -mexception-handling
 wasm2wat --enable-exceptions  // --enable-all
 
+dune exec -- js_of_ocaml --no-inline --pretty ~/tezos-noop-kernel/_build/default/src/hello.bc > /tmp/hello.wast
+dune exec -- js_of_ocaml --no-inline --pretty ~/sources/tezos/_build/default/src/proto_alpha/bin_baker/main_baker_alpha.bc > /tmp/hello.wast
+
+~/sources/binaryen/bin/wasm-opt --all-features -Oz /tmp/hello.wast -S -o -  | less
+~/sources/wasm-gc-proposal/interpreter/wasm -d /tmp/hello.wast -o /tmp/hello.wat
+
 ===========================
 
-GC documents
-============
+GC proposal
+===========
 
 https://docs.google.com/document/d/1DklC3qVuOdLHSXB5UXghM_syCh-4cMinQ50ICiXnK3Q/edit#
 https://github.com/WebAssembly/binaryen/blob/main/scripts/gen-s-parser.py
@@ -110,13 +149,8 @@ https://github.com/WebAssembly/gc/blob/main/interpreter/syntax/ast.ml
 
 ========
 
-dune exec -- js_of_ocaml --no-inline --pretty ~/tezos-noop-kernel/_build/default/src/hello.bc > /tmp/hello.wast
-dune exec -- js_of_ocaml --no-inline --pretty ~/sources/tezos/_build/default/src/proto_alpha/bin_baker/main_baker_alpha.bc > /tmp/hello.wast
-
-~/sources/binaryen/bin/wasm-opt --all-features -Oz /tmp/hello.wast -S -o -  | less
-~/sources/wasm-gc-proposal/interpreter/wasm -d /tmp/hello.wast -o /tmp/hello.wat
-
-================
+Curryfication
+=============
 
 https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.134.9317&rep=rep1&type=pdf
 
