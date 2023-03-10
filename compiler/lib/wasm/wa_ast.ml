@@ -165,8 +165,8 @@ and instruction =
   | Push of expression
   | ArraySet of signage option * var * expression * expression * expression
   | StructSet of signage option * var * int * expression * expression
-  | Br_on_cast of int * heap_type * expression
-  | Br_on_cast_fail of int * heap_type * expression
+  | Br_on_cast of int * ref_type * expression
+  | Br_on_cast_fail of int * ref_type * expression
   | Return_call_indirect of func_type * expression * expression list
   | Return_call of symbol * expression list
   | Return_call_ref of symbol * expression * expression list

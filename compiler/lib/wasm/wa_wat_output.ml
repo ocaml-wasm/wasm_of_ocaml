@@ -418,14 +418,13 @@ let expression_or_instructions ctx in_function =
         ]
     | Br_on_cast (i, ty, e) ->
         [ List
-            (Atom "br_on_cast" :: Atom (string_of_int i) :: heap_type ty :: expression e)
+            (Atom "br_on_cast" :: Atom (string_of_int i) :: (ref_type ty @ expression e))
         ]
     | Br_on_cast_fail (i, ty, e) ->
         [ List
             (Atom "br_on_cast_fail"
             :: Atom (string_of_int i)
-            :: heap_type ty
-            :: expression e)
+            :: (ref_type ty @ expression e))
         ]
     | Return_call_indirect (typ, e, l) ->
         [ List

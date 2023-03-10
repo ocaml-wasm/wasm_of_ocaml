@@ -118,11 +118,21 @@ dune exec -- js_of_ocaml --no-inline --pretty ~/sources/tezos/_build/default/src
 
 ================
 
+https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.134.9317&rep=rep1&type=pdf
 
+- Each closure can hold several pointers (by copying the parent closure)
+   caml_curry_n_1
+- Curry function to perform a full apply when 3 arguments or less
+   caml_curry_app_n_1
+   caml_curry_app_n_2
+   caml_curry_app_n_3
+- Optimize caml_apply_n when overapplying or underapplying only a little
+  Overapply:
+    (f x1 ... xn') xn
+    caml_apply2 (f x1 ... xn'') xn' xn
+  Underapply:
+    (fun x -> apply f x1 x2 ... xn x)
+    (fun x y -> apply f x1 x2 ... xn x y)
 
-let call_n_m f x1 ... xn = ????
-
-
-
-
-let call_n_1 env x = f (env @ x)
+    caml_apply_full_n_1
+    caml_apply_full_n_2
