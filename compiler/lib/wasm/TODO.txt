@@ -3,15 +3,6 @@ https://dfinity.org/grants/
 
 ========
 
-- choose entry point
-  linker
-  ==> wasm_of_ocaml hello.bc smart_rollup_core.wasm runtime.wasm \
-                 --entry kernel_run
-      ==> hello.s (for debugging)
-      ==> hello.wasm
-
-=======
-
 - Partial application / over application
   apply1 really fast
   apply2 fast through indirect function
@@ -22,12 +13,12 @@ https://dfinity.org/grants/
 - exceptions (if supported)
   ==> update Wa_structure
 
+- remove unused local.tee (in Wa_minimize_locals)
+
 =======
 
 Simple improvements
 ===================
-
-- remove unused local.tee (in Wa_minimize_locals)
 
 - Rebuild call-graph
   ==> unnecessary blocks / simplification of br_table/if
@@ -37,8 +28,15 @@ Simple improvements
 - how can we avoid some casts. see what ocaml does for floats
   shall we typecheck the program?
 
-=======
+- wasm_of_ocaml specific binary: options + linking
+  choose entry point
+  linker
+  ==> wasm_of_ocaml hello.bc smart_rollup_core.wasm runtime.wasm \
+                 --entry kernel_run
+      ==> hello.s (for debugging)
+      ==> hello.wasm
 
+=======
 
 Optimization phases
 ===================
