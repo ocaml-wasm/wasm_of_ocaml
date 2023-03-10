@@ -22,7 +22,9 @@ let rec scan_expression ctx e =
   | ArrayLength e'
   | StructGet (_, _, _, e')
   | RefCast (_, e')
-  | RefTest (_, e') -> scan_expression ctx e'
+  | RefTest (_, e')
+  | ExternInternalize e'
+  | ExternExternalize e' -> scan_expression ctx e'
   | BinOp (_, e', e'')
   | ArrayNew (_, e', e'')
   | ArrayNewData (_, _, e', e'')
@@ -165,6 +167,8 @@ let rec rewrite_expression ctx e =
   | RefCast (ty, e') -> RefCast (ty, rewrite_expression ctx e')
   | RefTest (ty, e') -> RefTest (ty, rewrite_expression ctx e')
   | RefEq (e', e'') -> RefEq (rewrite_expression ctx e', rewrite_expression ctx e'')
+  | ExternInternalize e' -> ExternInternalize (rewrite_expression ctx e')
+  | ExternExternalize e' -> ExternExternalize (rewrite_expression ctx e')
 
 and rewrite_expressions ctx l = List.map ~f:(fun e -> rewrite_expression ctx e) l
 

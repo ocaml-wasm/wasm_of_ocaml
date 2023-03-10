@@ -140,6 +140,8 @@ type expression =
   | RefTest of ref_type * expression
   | RefEq of expression * expression
   | RefNull
+  | ExternInternalize of expression
+  | ExternExternalize of expression
 
 and instruction =
   | Drop of expression

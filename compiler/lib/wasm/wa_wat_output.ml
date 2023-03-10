@@ -311,6 +311,8 @@ let expression_or_instructions ctx in_function =
     | RefTest (ty, e) -> [ List (Atom "ref.test" :: (ref_type ty @ expression e)) ]
     | RefEq (e, e') -> [ List (Atom "ref.eq" :: (expression e @ expression e')) ]
     | RefNull -> [ Atom "ref.null" ]
+    | ExternInternalize e -> [ List (Atom "extern.internalize" :: expression e) ]
+    | ExternExternalize e -> [ List (Atom "extern.externalize" :: expression e) ]
   and instruction i =
     match i with
     | Drop e -> [ List (Atom "drop" :: expression e) ]

@@ -287,7 +287,9 @@ module Output () = struct
     | RefCast _
     | RefTest _
     | RefEq _
-    | RefNull -> assert false (* Not supported *)
+    | RefNull
+    | ExternExternalize _
+    | ExternInternalize _ -> assert false (* Not supported *)
 
   and instruction i =
     match i with
