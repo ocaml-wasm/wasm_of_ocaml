@@ -55,6 +55,11 @@ let value_type_list name tl = list name (fun tl -> List.map ~f:value_type tl) tl
 let funct_type { params; result } =
   value_type_list "param" params @ value_type_list "result" result
 
+let type_use ty =
+  match ty with
+  | Typ x -> [ index (V x) ]
+  | Decl ty -> funct_type ty
+
 let storage_type typ =
   match typ with
   | Value typ -> value_type typ
@@ -235,14 +240,17 @@ let expression_or_instructions ctx in_function =
     | GlobalGet nm -> [ List [ Atom "global.get"; index nm ] ]
     | Call_indirect (typ, e, l) ->
         [ List
-            ((Atom "call_indirect" :: funct_type typ)
+            ((Atom "call_indirect" :: type_use typ)
             @ List.concat (List.map ~f:expression (l @ [ e ])))
         ]
     | Call (f, l) ->
         [ List (Atom "call" :: index f :: List.concat (List.map ~f:expression l)) ]
     | MemoryGrow (_, e) -> [ List (Atom "memory.grow" :: expression e) ]
     | Seq (l, e) -> instructions l @ expression e
-    | Pop -> []
+    | Pop ty -> (
+        match target with
+        | `Binaryen -> [ List [ Atom "pop"; value_type ty ] ]
+        | `Reference -> [])
     | RefFunc symb ->
         if in_function then reference_function ctx symb;
         [ List [ Atom "ref.func"; index symb ] ]
@@ -430,7 +438,7 @@ let expression_or_instructions ctx in_function =
         ]
     | Return_call_indirect (typ, e, l) ->
         [ List
-            ((Atom "return_call_indirect" :: funct_type typ)
+            ((Atom "return_call_indirect" :: type_use typ)
             @ List.concat (List.map ~f:expression (l @ [ e ])))
         ]
     | Return_call (f, l) ->
@@ -451,7 +459,7 @@ let instructions ctx = snd (expression_or_instructions ctx true)
 let funct ctx name exported_name typ locals body =
   List
     ((Atom "func" :: index (V name) :: export exported_name)
-    @ funct_type typ
+    @ type_use typ
     @ value_type_list "local" locals
     @ instructions ctx body)
 
@@ -465,7 +473,7 @@ let import f =
           ; quoted_name name
           ; List
               (match desc with
-              | Fun typ -> Atom "func" :: index (S name) :: funct_type typ
+              | Fun typ -> Atom "func" :: index (S name) :: type_use typ
               | Global ty -> [ Atom "global"; index (S name); global_type ty ])
           ]
       ]

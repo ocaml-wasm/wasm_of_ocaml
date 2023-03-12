@@ -110,6 +110,10 @@ type float_bin_op =
 
 type memarg = int32
 
+type type_use =
+  | Typ of var
+  | Decl of func_type
+
 type expression =
   | Const of (int32, int64, float) op
   | ConstSym of symbol * int
@@ -120,11 +124,11 @@ type expression =
   | LocalGet of int
   | LocalTee of int * expression
   | GlobalGet of symbol
-  | Call_indirect of func_type * expression * expression list
+  | Call_indirect of type_use * expression * expression list
   | Call of symbol * expression list
   | MemoryGrow of int * expression
   | Seq of instruction list * expression
-  | Pop
+  | Pop of value_type
   | RefFunc of symbol
   | Call_ref of var * expression * expression list
   | I31New of expression
@@ -169,12 +173,12 @@ and instruction =
   | StructSet of signage option * var * int * expression * expression
   | Br_on_cast of int * ref_type * expression
   | Br_on_cast_fail of int * ref_type * expression
-  | Return_call_indirect of func_type * expression * expression list
+  | Return_call_indirect of type_use * expression * expression list
   | Return_call of symbol * expression list
   | Return_call_ref of symbol * expression * expression list
 
 type import_desc =
-  | Fun of func_type
+  | Fun of type_use
   | Global of global_type
 
 type data =
@@ -196,7 +200,7 @@ type module_field =
   | Function of
       { name : var
       ; exported_name : string option
-      ; typ : func_type
+      ; typ : type_use
       ; locals : value_type list
       ; body : instruction list
       }

@@ -12,7 +12,7 @@ type ctx =
 
 let rec scan_expression ctx e =
   match e with
-  | Wa_ast.Const _ | ConstSym _ | GlobalGet _ | Pop | RefFunc _ | RefNull -> ()
+  | Wa_ast.Const _ | ConstSym _ | GlobalGet _ | Pop _ | RefFunc _ | RefNull -> ()
   | UnOp (_, e')
   | Load (_, e')
   | Load8 (_, _, e')
@@ -118,7 +118,7 @@ let assignment ctx v e =
 
 let rec rewrite_expression ctx e =
   match e with
-  | Wa_ast.Const _ | ConstSym _ | GlobalGet _ | Pop | RefFunc _ | RefNull -> e
+  | Wa_ast.Const _ | ConstSym _ | GlobalGet _ | Pop _ | RefFunc _ | RefNull -> e
   | UnOp (op, e') -> UnOp (op, rewrite_expression ctx e')
   | BinOp (op, e', e'') ->
       let e' = rewrite_expression ctx e' in

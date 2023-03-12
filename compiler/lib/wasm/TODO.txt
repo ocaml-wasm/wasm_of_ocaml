@@ -168,3 +168,8 @@ https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.134.9317&rep=rep1&type
 
     caml_apply_full_n_1
     caml_apply_full_n_2
+
+
+
+
+caml_curry_n_m = fun x env -> (1, caml_curry_m+1, x, env)

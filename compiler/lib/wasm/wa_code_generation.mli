@@ -8,6 +8,7 @@ type context =
   ; types : (string, Code.Var.t) Hashtbl.t
   ; mutable closure_envs : Code.Var.t Code.Var.Map.t
         (** GC: mapping of recursive functions to their shared environment *)
+  ; mutable use_exceptions : bool
   }
 
 val make_context : unit -> context
@@ -80,6 +81,8 @@ val block : Wa_ast.func_type -> unit t -> unit t
 
 val if_ : Wa_ast.func_type -> expression -> unit t -> unit t -> unit t
 
+val try_ : Wa_ast.func_type -> unit t -> string -> unit t -> unit t
+
 val add_var : Wa_ast.var -> int t
 
 val define_var : Wa_ast.var -> expression -> unit t
@@ -105,5 +108,7 @@ val set_closure_env : Code.Var.t -> Code.Var.t -> unit t
 val get_closure_env : Code.Var.t -> Code.Var.t t
 
 val is_closure : Code.Var.t -> bool t
+
+val use_exceptions : unit t
 
 val function_body : context:context -> body:unit t -> int * Wa_ast.instruction list

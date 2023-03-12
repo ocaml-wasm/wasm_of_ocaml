@@ -26,6 +26,7 @@ type context =
   ; types : (string, Var.t) Hashtbl.t
   ; mutable closure_envs : Var.t Var.Map.t
         (** GC: mapping of recursive functions to their shared environment *)
+  ; mutable use_exceptions : bool
   }
 
 let make_context () =
@@ -35,6 +36,7 @@ let make_context () =
   ; other_fields = []
   ; types = Hashtbl.create 128
   ; closure_envs = Var.Map.empty
+  ; use_exceptions = false
   }
 
 type var =
@@ -314,6 +316,15 @@ let if_ ty e l1 l2 =
   match e with
   | W.UnOp (I32 Eqz, e') -> instr (If (ty, e', instrs2, instrs1))
   | _ -> instr (If (ty, e, instrs1, instrs2))
+
+let try_ ty body exception_name handler =
+  let* body = blk body in
+  let* handler = blk handler in
+  instr (Try (ty, body, [ exception_name, handler ], None))
+
+let use_exceptions st =
+  st.context.use_exceptions <- true;
+  (), st
 
 let function_body ~context ~body =
   let st = { var_count = 0; vars = Var.Map.empty; instrs = []; context } in

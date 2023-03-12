@@ -16,8 +16,6 @@ let target = `GC (*`Core*)
    https://github.com/WebAssembly/binaryen/issues/5047 *)
 let enable_multivalue = false
 
-let enable_exceptions = false
-
 open Wa_code_generation
 
 module Generate (Target : Wa_target_sig.S) = struct
@@ -67,7 +65,7 @@ module Generate (Target : Wa_target_sig.S) = struct
                 | `Index, _ ->
                     return
                       (W.Call_indirect
-                         (func_type (arity + 1), funct, List.rev (closure :: acc)))
+                         (Decl (func_type (arity + 1)), funct, List.rev (closure :: acc)))
                 | `Ref ty, _ -> return (W.Call_ref (ty, funct, List.rev (closure :: acc)))
               )
           | x :: r ->
@@ -188,6 +186,8 @@ module Generate (Target : Wa_target_sig.S) = struct
         store ~always:true y (load x))
       ~init:(return ())
 
+  let exception_name = "ocaml_exception"
+
   let translate_function ctx name_opt toplevel_name params ((pc, _) as cont) acc =
     let g = Wa_structure.build_graph ctx.blocks pc in
     let idom = Wa_structure.dominator_tree g in
@@ -252,7 +252,7 @@ module Generate (Target : Wa_target_sig.S) = struct
                 block.params
                 ~f:(fun continuation x ->
                   (*ZZZ Check order *)
-                  let* () = store x (return W.Pop) in
+                  let* () = store x (return (W.Pop Value.value)) in
                   continuation)
                 ~init:(return ())
             else return ()
@@ -298,17 +298,17 @@ module Generate (Target : Wa_target_sig.S) = struct
                     (br_table (load x) a1 context)
                     (br_table (Memory.tag (load x)) a2 context))
           | Raise (x, _) ->
+              let* () = use_exceptions in
               let* e = load x in
-              instr (Br (List.length context, Some e))
-              (*ZZZ*)
+              instr (Throw (exception_name, e))
           | Pushtrap (cont, x, cont', _) ->
-              if_
+              let* () = use_exceptions in
+              try_
                 { params = []; result = result_typ }
-                (Arith.const 0l)
-                (let* () = store ~always:true x Value.unit in
-                 translate_branch result_typ fall_through pc cont' (`Then :: context))
-                (translate_branch result_typ fall_through pc cont (`Else :: context))
-              (*ZZZ*)
+                (translate_branch result_typ fall_through pc cont (`Try :: context))
+                exception_name
+                (let* () = store ~always:true x (return (W.Pop Value.value)) in
+                 translate_branch result_typ fall_through pc cont' (`Catch :: context))
           | Poptrap cont ->
               translate_branch result_typ fall_through pc cont context (*ZZZ*))
     and translate_branch result_typ fall_through src (dst, args) context =
@@ -378,7 +378,7 @@ module Generate (Target : Wa_target_sig.S) = struct
           | None -> toplevel_name
           | Some x -> x)
       ; exported_name = None
-      ; typ = func_type param_count
+      ; typ = Decl (func_type param_count)
       ; locals = List.init ~len:(local_count - param_count) ~f:(fun _ -> Value.value)
       ; body
       }
@@ -393,7 +393,7 @@ module Generate (Target : Wa_target_sig.S) = struct
     W.Function
       { name = Var.fresh_n "entry_point"
       ; exported_name = Some entry_name
-      ; typ = { W.params = []; result = [] }
+      ; typ = Decl { W.params = []; result = [] }
       ; locals = []
       ; body
       }
@@ -430,7 +430,7 @@ module Generate (Target : Wa_target_sig.S) = struct
     in
     let primitives =
       List.map
-        ~f:(fun (name, ty) -> W.Import { name; desc = Fun ty })
+        ~f:(fun (name, ty) -> W.Import { name; desc = Fun (Decl ty) })
         (StringMap.bindings ctx.primitives)
     in
     let constant_data =
@@ -444,8 +444,8 @@ module Generate (Target : Wa_target_sig.S) = struct
         ctx.global_context.other_fields
         (primitives @ functions @ (start_function :: constant_data))
     in
-    if enable_exceptions
-    then W.Tag { name = S "ocaml_exception"; typ = I32 } :: fields
+    if ctx.global_context.use_exceptions
+    then W.Tag { name = S exception_name; typ = Value.value } :: fields
     else fields
 end
 

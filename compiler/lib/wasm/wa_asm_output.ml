@@ -128,6 +128,11 @@ module Output () = struct
     ^^ separate_map (string ", ") value_type result
     ^^ string ")"
 
+  let type_use ty =
+    match ty with
+    | Typ _ -> assert false (* Not supported *)
+    | Decl ty -> func_type ty
+
   let block_type ty =
     match ty with
     | { params = []; result = [] } -> empty
@@ -268,11 +273,11 @@ module Output () = struct
     | Call_indirect (typ, f, l) ->
         concat_map expression l
         ^^ expression f
-        ^^ line (string "call_indirect " ^^ func_type typ)
+        ^^ line (string "call_indirect " ^^ type_use typ)
     | Call (x, l) -> concat_map expression l ^^ line (string "call " ^^ symbol x 0)
     | MemoryGrow (mem, e) -> expression e ^^ line (string "memory.grow " ^^ integer mem)
     | Seq (l, e') -> concat_map instruction l ^^ expression e'
-    | Pop -> empty
+    | Pop _ -> empty
     | RefFunc _
     | Call_ref _
     | I31New _
@@ -361,7 +366,7 @@ module Output () = struct
         Feature.require tail_call;
         concat_map expression l
         ^^ expression f
-        ^^ line (string "return_call_indirect " ^^ func_type typ)
+        ^^ line (string "return_call_indirect " ^^ type_use typ)
     | Return_call (x, l) ->
         Feature.require tail_call;
         concat_map expression l ^^ line (string "return_call " ^^ symbol x 0)
@@ -473,7 +478,7 @@ module Output () = struct
       line (string ".tagtype " ^^ symbol name 0 ^^ string " " ^^ value_type typ)
     in
     let declare_func_type name typ =
-      line (string ".functype " ^^ string name ^^ string " " ^^ func_type typ)
+      line (string ".functype " ^^ string name ^^ string " " ^^ type_use typ)
     in
     let data_sections =
       concat_map
