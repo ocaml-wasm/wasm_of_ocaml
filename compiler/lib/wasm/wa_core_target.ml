@@ -93,6 +93,8 @@ module Memory = struct
   let load_function_pointer ~arity closure =
     let* e = field closure (if arity = 1 then 0 else 2) in
     return (`Index, e)
+
+  let load_function_arity closure = Arith.(field closure 1 lsr const 24l)
 end
 
 module Value = struct
@@ -239,6 +241,9 @@ module Closure = struct
     in
     index 0 info.Wa_closure_conversion.functions
 
+  let closure_info ~arity ~sz =
+    W.Const (I32 Int32.(add (shift_left (of_int arity) 24) (of_int ((sz lsl 1) + 1))))
+
   let translate ~context ~closures x =
     let info = Code.Var.Map.find x closures in
     let f, _ = List.hd info.Wa_closure_conversion.functions in
@@ -246,21 +251,21 @@ module Closure = struct
     if Code.Var.equal x f
     then (
       let start_env = closure_env_start info in
-      let _, start =
+      let* _, start =
         List.fold_left
-          ~f:(fun (i, start) (f, arity) ->
+          ~f:(fun accu (f, arity) ->
+            let* i, start = accu in
+            let* curry_fun = if arity > 1 then need_curry_fun ~arity else return f in
             let start =
               if i = 0
               then start
               else W.Const (I32 (Memory.header ~tag:Obj.infix_tag ~len:i ())) :: start
             in
-            let clos_info =
-              Int32.(
-                add (shift_left (of_int arity) 24) (of_int (((start_env - i) lsl 1) + 1)))
-            in
-            let start = W.Const (I32 clos_info) :: W.ConstSym (V f, 0) :: start in
-            if arity > 1 then i + 4, W.ConstSym (V f, 0) :: start else i + 3, start)
-          ~init:(0, [])
+            let clos_info = closure_info ~arity ~sz:(start_env - i) in
+            let start = clos_info :: W.ConstSym (V curry_fun, 0) :: start in
+            return
+              (if arity > 1 then i + 4, W.ConstSym (V f, 0) :: start else i + 3, start))
+          ~init:(return (0, []))
           info.functions
       in
       closure_stats context info;
@@ -293,7 +298,7 @@ module Closure = struct
     if Hashtbl.mem context.constants f
     then
       (* The closures are all constants and the environment is empty. *)
-      (* let* _ = add_var (Code.Var.fresh ()) in *)
+      let* _ = add_var (Code.Var.fresh ()) in
       return ()
     else
       let info = Code.Var.Map.find f closures in
@@ -329,6 +334,18 @@ module Closure = struct
                   return (W.Load (I32 (Int32.of_int (4 * i)), f))) ))
            ~init:(offset, return ())
            free_variables)
+
+  let curry_allocate ~arity _ ~f ~closure ~arg =
+    Memory.allocate
+      ~tag:Obj.closure_tag
+      [ `Expr (W.ConstSym (f, 0))
+      ; `Expr (closure_info ~arity ~sz:2)
+      ; `Var closure
+      ; `Var arg
+      ]
+
+  let curry_load ~arity:_ _ closure =
+    return (Memory.field (load closure) 3, Memory.field (load closure) 4)
 end
 
 let entry_point ~register_primitive =

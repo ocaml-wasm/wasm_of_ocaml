@@ -44,7 +44,7 @@ module Generate (Target : Wa_target_sig.S) = struct
 
   let rec translate_expr ctx x e =
     match e with
-    | Apply { f; args; exact = _ } ->
+    | Apply { f; args; exact } when exact || List.length args = 1 ->
         (*ZZZ*)
         let rec loop acc l =
           match l with
@@ -73,6 +73,11 @@ module Generate (Target : Wa_target_sig.S) = struct
               loop (x :: acc) r
         in
         loop [] args
+    | Apply { f; args; _ } ->
+        let* apply = need_apply_fun ~arity:(List.length args) in
+        let* args = expression_list load args in
+        let* closure = load f in
+        return (W.Call (V apply, args @ [ closure ]))
     | Block (tag, a, _) ->
         Memory.allocate ~tag (List.map ~f:(fun x -> `Var x) (Array.to_list a))
     | Field (x, n) -> Memory.field (load x) n
@@ -355,22 +360,18 @@ module Generate (Target : Wa_target_sig.S) = struct
     (*
   Format.eprintf "=== %d ===@." pc;
 *)
-    let local_count, body =
-      function_body
-        ~context:ctx.global_context
-        ~body:
-          (let* () = build_initial_env in
-           translate_branch [ Value.value ] `Return (-1) cont [])
-    in
     let param_count =
       match name_opt with
       | None -> 0
       | Some _ -> List.length params + 1
     in
     let local_count, body =
-      if false
-      then local_count, body
-      else Wa_minimize_locals.f ~param_count ~local_count body
+      function_body
+        ~context:ctx.global_context
+        ~param_count
+        ~body:
+          (let* () = build_initial_env in
+           translate_branch [ Value.value ] `Return (-1) cont [])
     in
     W.Function
       { name =
@@ -389,7 +390,7 @@ module Generate (Target : Wa_target_sig.S) = struct
       let* () = entry_point ~register_primitive:(register_primitive ctx) in
       drop (return (W.Call (V toplevel_fun, [])))
     in
-    let _, body = function_body ~context:ctx.global_context ~body in
+    let _, body = function_body ~context:ctx.global_context ~param_count:0 ~body in
     W.Function
       { name = Var.fresh_n "entry_point"
       ; exported_name = Some entry_name
@@ -397,6 +398,8 @@ module Generate (Target : Wa_target_sig.S) = struct
       ; locals = []
       ; body
       }
+
+  module Curry = Wa_curry.Make (Target)
 
   let f
       (p : Code.program)
@@ -439,6 +442,7 @@ module Generate (Target : Wa_target_sig.S) = struct
           W.Data { name; read_only = true; active; contents })
         (Var.Map.bindings ctx.global_context.data_segments)
     in
+    Curry.f ~context:ctx.global_context;
     let fields =
       List.rev_append
         ctx.global_context.other_fields

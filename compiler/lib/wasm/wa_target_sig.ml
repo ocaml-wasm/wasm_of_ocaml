@@ -10,6 +10,8 @@ module type S = sig
       -> expression
       -> ([ `Index | `Ref of Wa_ast.var ] * Wa_ast.expression) Wa_code_generation.t
 
+    val load_function_arity : expression -> expression
+
     val tag : expression -> expression
 
     val field : expression -> int -> expression
@@ -93,6 +95,17 @@ module type S = sig
       -> closures:Wa_closure_conversion.closure Code.Var.Map.t
       -> Code.Var.t
       -> unit Wa_code_generation.t
+
+    val curry_allocate :
+         arity:int
+      -> int
+      -> f:Wa_ast.symbol
+      -> closure:Code.Var.t
+      -> arg:Code.Var.t
+      -> Wa_ast.expression Wa_code_generation.t
+
+    val curry_load :
+      arity:int -> int -> Code.Var.t -> (expression * expression) Wa_code_generation.t
   end
 
   val entry_point :

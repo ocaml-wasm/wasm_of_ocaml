@@ -27,6 +27,8 @@ type context =
   ; mutable closure_envs : Var.t Var.Map.t
         (** GC: mapping of recursive functions to their shared environment *)
   ; mutable use_exceptions : bool
+  ; mutable apply_funs : Var.t IntMap.t
+  ; mutable curry_funs : Var.t IntMap.t
   }
 
 let make_context () =
@@ -37,6 +39,8 @@ let make_context () =
   ; types = Hashtbl.create 128
   ; closure_envs = Var.Map.empty
   ; use_exceptions = false
+  ; apply_funs = IntMap.empty
+  ; curry_funs = IntMap.empty
   }
 
 type var =
@@ -60,6 +64,16 @@ let ( let* ) (type a b) (e : a t) (f : a -> b t) : b t =
   f v st
 
 let return x st = x, st
+
+let expression_list f l =
+  let rec loop acc l =
+    match l with
+    | [] -> return (List.rev acc)
+    | x :: r ->
+        let* x = f x in
+        loop (x :: acc) r
+  in
+  loop [] l
 
 let register_data_segment x ~active v st =
   st.context.data_segments <- Var.Map.add x (active, v) st.context.data_segments;
@@ -326,7 +340,26 @@ let use_exceptions st =
   st.context.use_exceptions <- true;
   (), st
 
-let function_body ~context ~body =
+let need_apply_fun ~arity st =
+  let ctx = st.context in
+  ( (try IntMap.find arity ctx.apply_funs
+     with Not_found ->
+       let x = Var.fresh_n (Printf.sprintf "apply_%d" arity) in
+       ctx.apply_funs <- IntMap.add arity x ctx.apply_funs;
+       x)
+  , st )
+
+let need_curry_fun ~arity st =
+  let ctx = st.context in
+  ( (try IntMap.find arity ctx.curry_funs
+     with Not_found ->
+       let x = Var.fresh_n (Printf.sprintf "curry_%d" arity) in
+       ctx.curry_funs <- IntMap.add arity x ctx.curry_funs;
+       x)
+  , st )
+
+let function_body ~context ~param_count ~body =
   let st = { var_count = 0; vars = Var.Map.empty; instrs = []; context } in
   let (), st = body st in
-  st.var_count, List.rev st.instrs
+  let local_count, body = st.var_count, List.rev st.instrs in
+  if false then local_count, body else Wa_minimize_locals.f ~param_count ~local_count body

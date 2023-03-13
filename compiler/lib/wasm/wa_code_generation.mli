@@ -9,6 +9,8 @@ type context =
   ; mutable closure_envs : Code.Var.t Code.Var.Map.t
         (** GC: mapping of recursive functions to their shared environment *)
   ; mutable use_exceptions : bool
+  ; mutable apply_funs : Code.Var.t Stdlib.IntMap.t
+  ; mutable curry_funs : Code.Var.t Stdlib.IntMap.t
   }
 
 val make_context : unit -> context
@@ -24,6 +26,8 @@ val return : 'a -> 'a t
 val instr : Wa_ast.instruction -> unit t
 
 val seq : unit t -> expression -> expression
+
+val expression_list : ('a -> expression) -> 'a list -> Wa_ast.expression list t
 
 module Arith : sig
   val const : int32 -> expression
@@ -111,4 +115,9 @@ val is_closure : Code.Var.t -> bool t
 
 val use_exceptions : unit t
 
-val function_body : context:context -> body:unit t -> int * Wa_ast.instruction list
+val need_apply_fun : arity:int -> Code.Var.t t
+
+val need_curry_fun : arity:int -> Code.Var.t t
+
+val function_body :
+  context:context -> param_count:int -> body:unit t -> int * Wa_ast.instruction list

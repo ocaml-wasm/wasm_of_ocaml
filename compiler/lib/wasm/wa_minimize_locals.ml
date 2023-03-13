@@ -6,16 +6,18 @@ type ctx =
   { mutable position : int
   ; last_use : int array
   ; mapping : int array
+  ; assignemnt_count : int array
   ; mutable largest_used : int
   ; mutable free_variables : IntSet.t
   }
 
-let extend_scope_on_assignment ctx i =
+let handle_assignment ctx i =
+  ctx.assignemnt_count.(i) <- ctx.assignemnt_count.(i) + 1;
   (* Extend the variable's scope, but only if it is used. If the
      variable is not used anywhere, we can remove the assignemnt. This
-     is detected by the fact that there is no scope associated to it
-     ([ctx.last_use.(i) = -1]). If it is used, we need to include the
-     assignment in its scope. *)
+     will be detected by the fact that there is no scope associated to
+     it ([ctx.last_use.(i) = -1]). If it is used, we need to include
+     the assignment in its scope. *)
   if ctx.last_use.(i) >= 0 then ctx.last_use.(i) <- ctx.position
 
 let rec scan_expression ctx e =
@@ -44,7 +46,7 @@ let rec scan_expression ctx e =
   | LocalTee (i, e') ->
       scan_expression ctx e';
       ctx.position <- ctx.position + 1;
-      extend_scope_on_assignment ctx i
+      handle_assignment ctx i
   | Call_indirect (_, e', l) | Call_ref (_, e', l) ->
       scan_expressions ctx l;
       scan_expression ctx e'
@@ -72,7 +74,7 @@ and scan_instruction ctx i =
   | LocalSet (i, e) ->
       scan_expression ctx e;
       ctx.position <- ctx.position + 1;
-      extend_scope_on_assignment ctx i
+      handle_assignment ctx i
   | Loop (_, l) | Block (_, l) -> scan_instructions ctx l
   | If (_, e, l, l') ->
       scan_expression ctx e;
@@ -108,6 +110,13 @@ let assignment ctx v e =
           ctx.free_variables <- IntSet.remove v' ctx.free_variables;
           ctx.mapping.(v) <- v';
           v'
+      | Wa_ast.LocalGet v0
+        when ctx.last_use.(v0) >= ctx.last_use.(v) && ctx.assignemnt_count.(v) = 1 ->
+          (* Reuse the same register to eliminate the assignment *)
+          ctx.last_use.(v) <- ctx.last_use.(v0);
+          let v' = ctx.mapping.(v0) in
+          ctx.mapping.(v) <- v';
+          v'
       | _ -> (
           match IntSet.min_elt_opt ctx.free_variables with
           | Some v' ->
@@ -140,14 +149,14 @@ let rec rewrite_expression ctx e =
       if ctx.position = ctx.last_use.(v)
       then ctx.free_variables <- IntSet.add v' ctx.free_variables;
       LocalGet v'
-  | LocalTee (v, e') -> (
-      let e' = rewrite_expression ctx e' in
+  | LocalTee (v, e0) -> (
+      let e' = rewrite_expression ctx e0 in
       if ctx.last_use.(v) = -1
       then (
         ctx.position <- ctx.position + 1;
         e')
       else
-        let v' = assignment ctx v e in
+        let v' = assignment ctx v e0 in
         match e' with
         | LocalGet v'' when v' = v'' -> e'
         | _ -> LocalTee (v', e'))
@@ -196,14 +205,14 @@ and rewrite_instruction ctx i =
       let e = rewrite_expression ctx e in
       let e' = rewrite_expression ctx e' in
       Store8 (s, op, e, e')
-  | LocalSet (v, e) -> (
-      let e = rewrite_expression ctx e in
+  | LocalSet (v, e0) -> (
+      let e = rewrite_expression ctx e0 in
       if ctx.last_use.(v) = -1
       then (
         ctx.position <- ctx.position + 1;
         Drop e)
       else
-        let v' = assignment ctx v e in
+        let v' = assignment ctx v e0 in
         match e with
         | LocalGet v'' when v' = v'' -> Nop
         | _ -> LocalSet (v', e))
@@ -257,6 +266,7 @@ let f ~param_count ~local_count instrs =
     { position = 0
     ; last_use = Array.make (max param_count local_count) (-1)
     ; mapping = Array.make (max param_count local_count) (-1)
+    ; assignemnt_count = Array.make (max param_count local_count) 0
     ; largest_used = param_count - 1
     ; free_variables = IntSet.empty
     }

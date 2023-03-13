@@ -3,19 +3,8 @@ https://dfinity.org/grants/
 
 ========
 
-- Partial application / over application
-  apply1 really fast
-  apply2 fast through indirect function
-  other cases slow
-
-- more efficient handling of type definitions
-
 - exceptions (if supported)
   ==> update Wa_structure
-
-- remove unused local.tee (in Wa_minimize_locals)
-  ==> local.set/tee extend the scope if there is a local.get
-  ==> remove local.tee/local.set if no associated scope
 
 =======
 
@@ -37,6 +26,9 @@ Simple improvements
                  --entry kernel_run
       ==> hello.s (for debugging)
       ==> hello.wasm
+
+- more efficient handling of type definitions (do not rebuild the
+  types every times)
 
 =======
 

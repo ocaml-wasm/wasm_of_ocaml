@@ -57,7 +57,7 @@ module Value = struct
          ((if arity = 1
           then
             [ { W.mut = false; typ = W.Value I32 }
-            ; { mut = false; typ = Value (Ref { nullable = false; typ = Type fun_ty' }) }
+            ; { mut = false; typ = Value (Ref { nullable = false; typ = Type fun_ty }) }
             ]
           else
             [ { mut = false; typ = Value I32 }
@@ -68,6 +68,20 @@ module Value = struct
              ~f:(fun _ ->
                { W.mut = false; typ = W.Value (Ref { nullable = false; typ = Eq }) })
              ~len:n))
+
+  let rec curry_type arity m =
+    let* cl_typ = closure_type 1 in
+    let* fun_ty = function_type 1 in
+    let* cl_ty = if m = arity then closure_type arity else curry_type arity (m + 1) in
+    register_type
+      (Printf.sprintf "curry_%d_%d" arity m)
+      ~supertype:cl_typ
+      (W.Struct
+         [ { W.mut = false; typ = W.Value I32 }
+         ; { mut = false; typ = Value (Ref { nullable = false; typ = Type fun_ty }) }
+         ; { mut = false; typ = Value (Ref { nullable = false; typ = Type cl_ty }) }
+         ; { W.mut = false; typ = Value value }
+         ])
 
   let rec_env_type ~function_count ~free_variable_count =
     register_type
@@ -163,17 +177,6 @@ module Value = struct
   let int_asr = binop Arith.( asr )
 end
 
-(*ZZZ Move?*)
-let expression_list f l =
-  let rec loop acc l =
-    match l with
-    | [] -> return (List.rev acc)
-    | x :: r ->
-        let* x = f x in
-        loop (x :: acc) r
-  in
-  loop [] l
-
 module Memory = struct
   let allocate ~tag l =
     let* l =
@@ -246,6 +249,10 @@ module Memory = struct
     let* fun_ty = Value.function_type arity in
     let* e = wasm_struct_get ty (wasm_cast ty closure) (if arity = 1 then 1 else 2) in
     return (`Ref fun_ty, e)
+
+  let load_function_arity closure =
+    let* ty = Value.closure_type_1 in
+    wasm_struct_get ty (wasm_cast ty closure) 0
 end
 
 module Constant = struct
@@ -308,129 +315,6 @@ module Constant = struct
       return (W.GlobalGet (V name))
 end
 
-(*
-module Curryfication = struct
-  let bind_parameters l =
-    List.fold_left
-      ~f:(fun l x ->
-        let* _ = l in
-        let* _ = add_var x in
-        return ())
-      ~init:(return ())
-      l
-
-  let curry_app_name n m = Printf.sprintf "curry_app %d_%d" n m
-
-  (* ZZZ
-          curry_app: load m arguments from the env;
-          get (m - n) arguments as parameters;
-          apply to f
-     parameters : closure_{n - m}
-
-     local.set closure_(n -1) (field 4 (local.get closure_n))
-
-     local.set closure_(n - 1) (field 4 (local.get closure_n))
-     call
-        (load_func (local.get closure_0)) (field 3 (local.get closure_1)) (field 3 (local.get closure_2)) ... (local.get closure_{n - m})) (local.get x1) ... (local.get xm) (local.get closure_0))
-  *)
-  let curry_app _n m =
-    assert (m = 1);
-    let x = Code.Var.fresh_n "x" in
-    let* _ = add_var x in
-    let f = Code.Var.fresh_n "f" in
-    let* _ = add_var f in
-    let* _ty = Value.env_type ~arity:1 2 in
-    let* _x = load x in
-    let* _f = load f in
-    return ()
-  (*
-    let rec loop k acc =
-      if k = 0 then return (List.rev acc)
-      else
-
-(tee f Memory.wasm_cast (load f)
-
-        let* x = tee f e in
-        return (StructGet (ty, x, 2))
-        loop (x :: acc) r
-*)
-
-  let curry_name n m = Printf.sprintf "curry_%d_%d" n m
-
-  let curry n m =
-    assert (m > 1);
-    let body =
-      let x = Code.Var.fresh_n "x" in
-      let* _ = add_var x in
-      let f = Code.Var.fresh_n "f" in
-      let* _ = add_var f in
-      let* ty = Value.env_type ~arity:1 2 in
-      let* x = load x in
-      let* f = load f in
-      instr
-        (Push
-           (StructNew
-              ( ty
-              , [ Const (I32 1l)
-                ; RefFunc (S (if m = 2 then curry_app_name n 1 else curry_name n (m - 1)))
-                ; f
-                ; x
-                ] )))
-    in
-    let* context = get_context in
-    let local_count, body = function_body ~context ~body in
-    return
-      (W.Function
-         { name = Code.Var.fresh_n (curry_name n m)
-         ; exported_name = None
-         ; typ = Decl (Value.func_type 2)
-         ; locals = List.init ~len:(local_count - n - 1) ~f:(fun _ -> Value.value)
-         ; body
-         })
-
-  let apply n =
-    assert (n > 1);
-    let body =
-      let l = List.init ~len:n ~f:(fun i -> Code.Var.fresh_n (Printf.sprintf "x%d" i)) in
-      let* () = bind_parameters l in
-      let f = Code.Var.fresh_n "f" in
-      let* _ = add_var f in
-      let* ty = Value.closure_type_1 in
-      let arity = Memory.wasm_struct_get ty (Memory.wasm_cast ty (load f)) 0 in
-      if_
-        { params = []; result = [ I32 ] }
-        Arith.(arity = const (Int32.of_int n))
-        (let* l = expression_list load l in
-         let* closure = load f in
-         let* _, funct = Memory.load_function_pointer ~arity:n (load f) in
-         let* ty = Value.closure_type n in
-         instr (Push (Call_ref (ty, funct, l @ [ closure ]))))
-        (let* e =
-           List.fold_left
-             ~f:(fun e x ->
-               let* x = load x in
-               let f = Code.Var.fresh_n "f" in
-               let* e = tee f e in
-               let* _, funct = Memory.load_function_pointer ~arity:1 (load f) in
-               return (W.Call_ref (ty, funct, [ x; e ])))
-             ~init:(load f)
-             l
-         in
-         instr (Push e))
-    in
-    let* context = get_context in
-    let local_count, body = function_body ~context ~body in
-    return
-      (W.Function
-         { name = Code.Var.fresh_n (Printf.sprintf "apply_%d" n)
-         ; exported_name = None
-         ; typ = Decl (Value.func_type n)
-         ; locals = List.init ~len:(local_count - n - 1) ~f:(fun _ -> Value.value)
-         ; body
-         })
-end
-*)
-
 module Closure = struct
   let get_free_variables ~context info =
     List.filter
@@ -447,6 +331,7 @@ module Closure = struct
     let info = Code.Var.Map.find f closures in
     let free_variables = get_free_variables ~context info in
     let arity = List.assoc f info.functions in
+    let* curry_fun = if arity > 1 then need_curry_fun ~arity else return f in
     if List.is_empty free_variables
     then
       let* typ = Value.closure_type arity in
@@ -460,8 +345,10 @@ module Closure = struct
              , if arity = 1
                then [ Const (I32 1l); RefFunc (V f) ]
                else
-                 [ Const (I32 (Int32.of_int arity)); RefFunc (S "apply1"); RefFunc (V f) ]
-             ))
+                 [ Const (I32 (Int32.of_int arity))
+                 ; RefFunc (V curry_fun)
+                 ; RefFunc (V f)
+                 ] ))
       in
       return (W.GlobalGet (V name))
     else
@@ -478,7 +365,7 @@ module Closure = struct
                  then [ W.Const (I32 1l); RefFunc (V f) ]
                  else
                    [ Const (I32 (Int32.of_int arity))
-                   ; RefFunc (S "apply1")
+                   ; RefFunc (V curry_fun)
                    ; RefFunc (V f)
                    ])
                  @ l ))
@@ -514,7 +401,7 @@ module Closure = struct
                    then [ W.Const (I32 1l); RefFunc (V f) ]
                    else
                      [ Const (I32 (Int32.of_int arity))
-                     ; RefFunc (S "apply1")
+                     ; RefFunc (V curry_fun)
                      ; RefFunc (V f)
                      ])
                    @ [ env ] ))
@@ -541,7 +428,7 @@ module Closure = struct
     if Hashtbl.mem context.constants f
     then
       (* The closures are all constants and the environment is empty. *)
-      (* let* _ = add_var (Code.Var.fresh ()) in *)
+      let* _ = add_var (Code.Var.fresh ()) in
       return ()
     else
       let info = Code.Var.Map.find f closures in
@@ -581,6 +468,22 @@ module Closure = struct
                  ))
                ~init:(0, return ())
                (List.map ~f:fst functions @ free_variables))
+
+  let curry_allocate ~arity m ~f ~closure ~arg =
+    let* ty = Value.curry_type arity m in
+    let* cl_ty =
+      if m = arity then Value.closure_type arity else Value.curry_type arity (m + 1)
+    in
+    let* closure = Memory.wasm_cast cl_ty (load closure) in
+    let* arg = load arg in
+    return (W.StructNew (ty, [ Const (I32 1l); RefFunc f; closure; arg ]))
+
+  let curry_load ~arity m closure =
+    let* ty = Value.curry_type arity m in
+    (*ZZZ Remove casts*)
+    return
+      ( Memory.wasm_struct_get ty (Memory.wasm_cast ty (load closure)) 2
+      , Memory.wasm_struct_get ty (Memory.wasm_cast ty (load closure)) 3 )
 end
 
 let entry_point ~register_primitive:_ = return ()
