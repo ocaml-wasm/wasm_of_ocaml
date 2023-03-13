@@ -193,14 +193,19 @@ module Generate (Target : Wa_target_sig.S) = struct
 
   let exception_name = "ocaml_exception"
 
+  let extend_context fall_through context =
+    match fall_through with
+    | `Block _ as b -> b :: context
+    | `Return -> `Skip :: context
+
   let translate_function ctx name_opt toplevel_name params ((pc, _) as cont) acc =
     let g = Wa_structure.build_graph ctx.blocks pc in
     let idom = Wa_structure.dominator_tree g in
     let dom = Wa_structure.reverse_tree idom in
     let rec index pc i context =
       match context with
-      | (`Loop pc' | `Block pc') :: _ when pc = pc' -> i
-      | _ :: rem -> index pc (i + 1) rem
+      | `Block pc' :: _ when pc = pc' -> i
+      | (`Block _ | `Skip) :: rem -> index pc (i + 1) rem
       | [] -> assert false
     in
     let rec translate_tree result_typ fall_through pc context =
@@ -213,20 +218,25 @@ module Generate (Target : Wa_target_sig.S) = struct
       let param_ty =
         if enable_multivalue then List.map ~f:(fun _ -> Value.value) block.params else []
       in
-      let code =
+      let code ~context =
         translate_node_within
-          param_ty
-          result_typ
-          fall_through
-          pc
-          (List.filter
-             ~f:(fun pc' -> is_switch || Wa_structure.is_merge_node g pc')
-             (List.rev (Addr.Set.elements (Wa_structure.get_edges dom pc))))
+          ~param_ty
+          ~result_typ
+          ~fall_through
+          ~pc
+          ~l:
+            (List.filter
+               ~f:(fun pc' -> is_switch || Wa_structure.is_merge_node g pc')
+               (List.rev (Addr.Set.elements (Wa_structure.get_edges dom pc))))
+          ~context
       in
       if Wa_structure.is_loop_header g pc
-      then loop { params = param_ty; result = result_typ } (code (`Loop pc :: context))
-      else code context
-    and translate_node_within param_ty result_typ fall_through pc l context =
+      then
+        loop
+          { params = param_ty; result = result_typ }
+          (code ~context:(`Block pc :: context))
+      else code ~context
+    and translate_node_within ~param_ty ~result_typ ~fall_through ~pc ~l ~context =
       match l with
       | pc' :: rem ->
           let* () =
@@ -237,15 +247,28 @@ module Generate (Target : Wa_target_sig.S) = struct
                 List.map ~f:(fun _ -> Value.value) block'.params
               else []
             in
-            block
-              { params = param_ty; result = result_typ }
-              (translate_node_within
-                 param_ty
-                 result_typ
-                 (`Block pc')
-                 pc
-                 rem
-                 (`Block pc' :: context))
+            let code ~context =
+              translate_node_within
+                ~param_ty
+                ~result_typ
+                ~fall_through:(`Block pc')
+                ~pc
+                ~l:rem
+                ~context
+            in
+            (* Do not insert a block if the inner code contains a
+               structured control flow instruction ([if] or [try] *)
+            if (not (List.is_empty rem))
+               ||
+               let block = Addr.Map.find pc ctx.blocks in
+               match block.branch with
+               | Cond _ | Pushtrap _ -> false (*ZZZ also some Switch*)
+               | _ -> true
+            then
+              block
+                { params = param_ty; result = result_typ }
+                (code ~context:(extend_context fall_through context))
+            else code ~context
           in
           translate_tree result_typ fall_through pc' context
       | [] -> (
@@ -271,11 +294,12 @@ module Generate (Target : Wa_target_sig.S) = struct
               | `Return -> instr (Push e)
               | `Block _ -> instr (Return (Some e)))
           | Cond (x, cont1, cont2) ->
+              let context' = extend_context fall_through context in
               if_
                 { params = []; result = result_typ }
                 (Value.check_is_not_zero (load x))
-                (translate_branch result_typ fall_through pc cont1 (`If :: context))
-                (translate_branch result_typ fall_through pc cont2 (`If :: context))
+                (translate_branch result_typ fall_through pc cont1 context')
+                (translate_branch result_typ fall_through pc cont2 context')
           | Stop -> (
               let* e = Value.unit in
               match fall_through with
@@ -297,25 +321,26 @@ module Generate (Target : Wa_target_sig.S) = struct
               | _, [||] -> br_table (load x) a1 context
               | _ ->
                   (*ZZZ Use Br_on_cast *)
+                  let context' = extend_context fall_through context in
                   if_
                     { params = []; result = result_typ }
                     (Value.check_is_int (load x))
-                    (br_table (load x) a1 context)
-                    (br_table (Memory.tag (load x)) a2 context))
+                    (br_table (load x) a1 context')
+                    (br_table (Memory.tag (load x)) a2 context'))
           | Raise (x, _) ->
               let* () = use_exceptions in
               let* e = load x in
               instr (Throw (exception_name, e))
           | Pushtrap (cont, x, cont', _) ->
+              let context' = extend_context fall_through context in
               let* () = use_exceptions in
               try_
                 { params = []; result = result_typ }
-                (translate_branch result_typ fall_through pc cont (`Try :: context))
+                (translate_branch result_typ fall_through pc cont context')
                 exception_name
                 (let* () = store ~always:true x (return (W.Pop Value.value)) in
-                 translate_branch result_typ fall_through pc cont' (`Catch :: context))
-          | Poptrap cont ->
-              translate_branch result_typ fall_through pc cont context (*ZZZ*))
+                 translate_branch result_typ fall_through pc cont' context')
+          | Poptrap cont -> translate_branch result_typ fall_through pc cont context)
     and translate_branch result_typ fall_through src (dst, args) context =
       let* () =
         if enable_multivalue
