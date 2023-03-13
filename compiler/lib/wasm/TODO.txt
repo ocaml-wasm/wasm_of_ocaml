@@ -14,6 +14,8 @@ https://dfinity.org/grants/
   ==> update Wa_structure
 
 - remove unused local.tee (in Wa_minimize_locals)
+  ==> local.set/tee extend the scope if there is a local.get
+  ==> remove local.tee/local.set if no associated scope
 
 =======
 

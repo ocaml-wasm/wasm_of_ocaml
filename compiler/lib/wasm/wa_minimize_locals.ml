@@ -10,6 +10,14 @@ type ctx =
   ; mutable free_variables : IntSet.t
   }
 
+let extend_scope_on_assignment ctx i =
+  (* Extend the variable's scope, but only if it is used. If the
+     variable is not used anywhere, we can remove the assignemnt. This
+     is detected by the fact that there is no scope associated to it
+     ([ctx.last_use.(i) = -1]). If it is used, we need to include the
+     assignment in its scope. *)
+  if ctx.last_use.(i) >= 0 then ctx.last_use.(i) <- ctx.position
+
 let rec scan_expression ctx e =
   match e with
   | Wa_ast.Const _ | ConstSym _ | GlobalGet _ | Pop _ | RefFunc _ | RefNull -> ()
@@ -36,7 +44,7 @@ let rec scan_expression ctx e =
   | LocalTee (i, e') ->
       scan_expression ctx e';
       ctx.position <- ctx.position + 1;
-      ctx.last_use.(i) <- ctx.position
+      extend_scope_on_assignment ctx i
   | Call_indirect (_, e', l) | Call_ref (_, e', l) ->
       scan_expressions ctx l;
       scan_expression ctx e'
@@ -64,7 +72,7 @@ and scan_instruction ctx i =
   | LocalSet (i, e) ->
       scan_expression ctx e;
       ctx.position <- ctx.position + 1;
-      ctx.last_use.(i) <- ctx.position
+      extend_scope_on_assignment ctx i
   | Loop (_, l) | Block (_, l) -> scan_instructions ctx l
   | If (_, e, l, l') ->
       scan_expression ctx e;
@@ -134,10 +142,15 @@ let rec rewrite_expression ctx e =
       LocalGet v'
   | LocalTee (v, e') -> (
       let e' = rewrite_expression ctx e' in
-      let v' = assignment ctx v e in
-      match e' with
-      | LocalGet v'' when v' = v'' -> e'
-      | _ -> LocalTee (v', e'))
+      if ctx.last_use.(v) = -1
+      then (
+        ctx.position <- ctx.position + 1;
+        e')
+      else
+        let v' = assignment ctx v e in
+        match e' with
+        | LocalGet v'' when v' = v'' -> e'
+        | _ -> LocalTee (v', e'))
   | Call_indirect (typ, e', l) ->
       let l = rewrite_expressions ctx l in
       let e' = rewrite_expression ctx e' in
@@ -185,10 +198,15 @@ and rewrite_instruction ctx i =
       Store8 (s, op, e, e')
   | LocalSet (v, e) -> (
       let e = rewrite_expression ctx e in
-      let v' = assignment ctx v e in
-      match e with
-      | LocalGet v'' when v' = v'' -> Nop
-      | _ -> LocalSet (v', e))
+      if ctx.last_use.(v) = -1
+      then (
+        ctx.position <- ctx.position + 1;
+        Drop e)
+      else
+        let v' = assignment ctx v e in
+        match e with
+        | LocalGet v'' when v' = v'' -> Nop
+        | _ -> LocalSet (v', e))
   | GlobalSet (nm, e) -> GlobalSet (nm, rewrite_expression ctx e)
   | Loop (typ, l) -> Loop (typ, rewrite_instructions ctx l)
   | Block (typ, l) -> Block (typ, rewrite_instructions ctx l)
