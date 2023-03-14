@@ -1,11 +1,6 @@
 
 https://dfinity.org/grants/
 
-========
-
-- exceptions (if supported)
-  ==> update Wa_structure
-
 =======
 
 Simple improvements
@@ -15,9 +10,6 @@ Simple improvements
   ==> simplification of br_table/if
 
 - GC: large constants should be generated at runtime
-
-- how can we avoid some casts. see what ocaml does for floats
-  shall we typecheck the program?
 
 - wasm_of_ocaml specific binary: options + linking
   choose entry point
@@ -49,10 +41,10 @@ Optimization phases
     x = f(...)
     return x
 
-- local optimizations:
-  avoid store followed by unique load
-  inline non-mutable expressions
-  multiple cast on the same value
+- how can we avoid some casts. see what ocaml does for floats
+  shall we typecheck the program?
+
+- local optimizations: multiple cast on the same value
 
 =======
 
@@ -61,7 +53,7 @@ Accurate compilation
 
 - Spilling
   Naive spilling for a start?
-  ==> How do we avoid spilling thousand of values?
+  ==> How do we avoid spilling thousands of values?
 
 - specialize: divide by zero / modulus / check array bound
 
@@ -141,10 +133,8 @@ https://github.com/WebAssembly/gc/blob/main/interpreter/syntax/ast.ml
 
 ========
 
-Curryfication
-=============
-
-https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.134.9317&rep=rep1&type=pdf
+Curryfication improvements
+==========================
 
 - Each closure can hold several pointers (by copying the parent closure)
    caml_curry_n_1
@@ -165,5 +155,4 @@ https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.134.9317&rep=rep1&type
 
 
 
-
-caml_curry_n_m = fun x env -> (1, caml_curry_m+1, x, env)
+raise (try raise Not_found with x -> x)

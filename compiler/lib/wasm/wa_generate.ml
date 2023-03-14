@@ -267,7 +267,7 @@ module Generate (Target : Wa_target_sig.S) = struct
             then
               block
                 { params = param_ty; result = result_typ }
-                (code ~context:(extend_context fall_through context))
+                (code ~context:(`Block pc' :: context))
             else code ~context
           in
           translate_tree result_typ fall_through pc' context

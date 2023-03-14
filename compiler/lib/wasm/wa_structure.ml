@@ -17,6 +17,12 @@ let reverse_tree t =
   Hashtbl.iter (fun child parent -> add_edge g parent child) t;
   g
 
+let rec leave_try_body blocks pc =
+  match Addr.Map.find pc blocks with
+  | { body = []; branch = Return _ | Stop; _ } -> false
+  | { body = []; branch = Branch (pc', _); _ } -> leave_try_body blocks pc'
+  | _ -> true
+
 type control_flow_graph =
   { succs : (Addr.t, Addr.Set.t) Hashtbl.t
   ; preds : (Addr.t, Addr.Set.t) Hashtbl.t
@@ -28,16 +34,38 @@ let build_graph blocks pc =
   let succs = Hashtbl.create 16 in
   let l = ref [] in
   let visited = Hashtbl.create 16 in
-  let rec traverse pc =
+  let rec traverse ~englobing_exn_handlers pc =
     if not (Hashtbl.mem visited pc)
     then (
       Hashtbl.add visited pc ();
       let successors = Code.fold_children blocks pc Addr.Set.add Addr.Set.empty in
       Hashtbl.add succs pc successors;
-      Addr.Set.iter traverse successors;
+      let block = Addr.Map.find pc blocks in
+      Addr.Set.iter
+        (fun pc' ->
+          let englobing_exn_handlers =
+            match block.branch with
+            | Pushtrap ((body_pc, _), _, _, _) when pc' = body_pc ->
+                pc :: englobing_exn_handlers
+            | Poptrap (leave_pc, _) -> (
+                match englobing_exn_handlers with
+                | [] -> assert false
+                | enter_pc :: rem ->
+                    if leave_try_body blocks leave_pc
+                    then
+                      (* Add an edge to limit the [try] body *)
+                      Hashtbl.add
+                        succs
+                        enter_pc
+                        (Addr.Set.add leave_pc (Hashtbl.find succs enter_pc));
+                    rem)
+            | _ -> englobing_exn_handlers
+          in
+          traverse ~englobing_exn_handlers pc')
+        successors;
       l := pc :: !l)
   in
-  traverse pc;
+  traverse ~englobing_exn_handlers:[] pc;
   let block_order = Hashtbl.create 16 in
   List.iteri !l ~f:(fun i pc -> Hashtbl.add block_order pc i);
   let preds = reverse_graph succs in
