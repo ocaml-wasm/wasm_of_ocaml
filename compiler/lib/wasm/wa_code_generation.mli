@@ -93,8 +93,13 @@ val define_var : Wa_ast.var -> expression -> unit t
 
 val is_small_constant : Wa_ast.expression -> bool t
 
-val register_type :
-  string -> ?supertype:Wa_ast.var -> ?final:bool -> Wa_ast.str_type -> Wa_ast.var t
+type type_def =
+  { supertype : Wa_ast.var option
+  ; final : bool
+  ; typ : Wa_ast.str_type
+  }
+
+val register_type : string -> (unit -> type_def t) -> Wa_ast.var t
 
 val register_global :
   Wa_ast.symbol -> ?constant:bool -> Wa_ast.global_type -> Wa_ast.expression -> unit t

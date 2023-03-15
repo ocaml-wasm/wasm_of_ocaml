@@ -87,8 +87,15 @@ let register_constant x e st =
   Hashtbl.add st.context.constants x e;
   (), st
 
-let register_type nm ?supertype ?(final = false) typ st =
+type type_def =
+  { supertype : Wa_ast.var option
+  ; final : bool
+  ; typ : Wa_ast.str_type
+  }
+
+let register_type nm gen_typ st =
   let context = st.context in
+  let { supertype; final; typ }, st = gen_typ () st in
   ( (try Hashtbl.find context.types nm
      with Not_found ->
        let name = Var.fresh_n nm in
