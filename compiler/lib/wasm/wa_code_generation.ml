@@ -369,4 +369,5 @@ let function_body ~context ~param_count ~body =
   let st = { var_count = 0; vars = Var.Map.empty; instrs = []; context } in
   let (), st = body st in
   let local_count, body = st.var_count, List.rev st.instrs in
+  let body = Wa_tail_call.f body in
   if false then local_count, body else Wa_minimize_locals.f ~param_count ~local_count body

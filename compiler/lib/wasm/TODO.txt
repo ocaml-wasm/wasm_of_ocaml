@@ -10,6 +10,7 @@ Simple improvements
   ==> simplification of br_table/if
 
 - GC: large constants should be generated at runtime
+  (in particular, more compact strings using a data segment)
 
 - wasm_of_ocaml specific binary: options + linking
   choose entry point
@@ -18,9 +19,6 @@ Simple improvements
                  --entry kernel_run
       ==> hello.s (for debugging)
       ==> hello.wasm
-
-- more efficient handling of type definitions (do not rebuild the
-  types every times)
 
 =======
 
@@ -74,7 +72,7 @@ Remarks
 - issue: binaryen does not support block input parameters
   https://github.com/WebAssembly/binaryen/issues/5047
 
-- performance of casts:
+- performance of casts (v8):
  --experimental-wasm-assume-ref-cast-succeeds
  --experimental-wasm-skip-null-checks
 

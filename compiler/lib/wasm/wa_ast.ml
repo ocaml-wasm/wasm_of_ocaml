@@ -175,7 +175,7 @@ and instruction =
   | Br_on_cast_fail of int * ref_type * expression
   | Return_call_indirect of type_use * expression * expression list
   | Return_call of symbol * expression list
-  | Return_call_ref of symbol * expression * expression list
+  | Return_call_ref of var * expression * expression list
 
 type import_desc =
   | Fun of type_use

@@ -445,8 +445,8 @@ let expression_or_instructions ctx in_function =
         [ List (Atom "return_call" :: index f :: List.concat (List.map ~f:expression l)) ]
     | Return_call_ref (symb, e, l) ->
         [ List
-            (Atom "call_ref"
-            :: index symb
+            (Atom "return_call_ref"
+            :: index (V symb)
             :: List.concat (List.map ~f:expression (l @ [ e ])))
         ]
   and instructions l = List.concat (List.map ~f:instruction l) in
