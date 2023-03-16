@@ -280,8 +280,10 @@ let f ~param_count ~local_count instrs =
   done;
   ctx.position <- 0;
   let instrs = rewrite_instructions ctx instrs in
+  (*
   Format.eprintf
     "ZZZZ %d ==> %d@."
     (local_count - param_count)
     (ctx.largest_used + 1 - param_count);
+*)
   ctx.largest_used + 1, instrs
