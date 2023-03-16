@@ -92,6 +92,9 @@ module Generate (Target : Wa_target_sig.S) = struct
         | Extern "caml_string_unsafe_get", [ x; y ] -> Memory.bytes_get x y
         | Extern "caml_string_unsafe_set", [ x; y; z ] ->
             seq (Memory.bytes_set x y z) Value.unit
+        | Extern "caml_bytes_unsafe_get", [ x; y ] -> Memory.bytes_get x y
+        | Extern "caml_bytes_unsafe_set", [ x; y; z ] ->
+            seq (Memory.bytes_set x y z) Value.unit
         | Extern "%int_add", [ x; y ] -> Value.int_add x y
         | Extern "%int_sub", [ x; y ] -> Value.int_sub x y
         | Extern "%int_mul", [ x; y ] -> Value.int_mul x y

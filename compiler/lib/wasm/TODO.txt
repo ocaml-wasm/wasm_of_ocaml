@@ -34,11 +34,6 @@ Optimization phases
   other expressions can float until they are used
   flush at end of blocks
 
-- optional tail recursion:
-  detect the following:
-    x = f(...)
-    return x
-
 - how can we avoid some casts. see what ocaml does for floats
   shall we typecheck the program?
 
