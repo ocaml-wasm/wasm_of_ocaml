@@ -31,16 +31,18 @@ let heap_type (ty : heap_type) =
   | I31 -> Atom "i31"
   | Type symb -> index (V symb)
 
-let ref_type { nullable; typ } =
+let ref_type' { nullable; typ } =
   let r = [ heap_type typ ] in
   if nullable then Atom "null" :: r else r
+
+let ref_type r = List (Atom "ref" :: ref_type' r)
 
 let value_type (t : value_type) =
   match t with
   | I32 -> Atom "i32"
   | I64 -> Atom "i64"
   | F64 -> Atom "f64"
-  | Ref ty -> List (Atom "ref" :: ref_type ty)
+  | Ref ty -> ref_type ty
 
 let packed_type t =
   match t with
@@ -176,7 +178,7 @@ type ctx =
 
 let reference_function ctx (f : symbol) =
   match f with
-  | S _ -> prerr_endline "ZZZZZZZZZZZZZZZZZ"
+  | S _ -> assert false
   | V f -> ctx.function_refs <- Code.Var.Set.add f ctx.function_refs
 
 let lookup_symbol ctx (symb : symbol) =
@@ -266,10 +268,7 @@ let expression_or_instructions ctx in_function =
         [ List (Atom "array.new" :: index (V symb) :: (expression e @ expression e')) ]
     | ArrayNewFixed (symb, l) ->
         [ List
-            (Atom
-               (match target with
-               | `Binaryen -> "array.new_fixed"
-               | `Reference -> "array.new_canon_fixed")
+            (Atom "array.new_fixed"
             :: index (V symb)
             :: ((match target with
                 | `Binaryen -> []
@@ -278,10 +277,7 @@ let expression_or_instructions ctx in_function =
         ]
     | ArrayNewData (symb, symb', e, e') ->
         [ List
-            (Atom
-               (match target with
-               | `Binaryen -> "array.new_data"
-               | `Reference -> "array.new_canon_data")
+            (Atom "array.new_data"
             :: index (V symb)
             :: index (V symb')
             :: (expression e @ expression e'))
@@ -297,12 +293,7 @@ let expression_or_instructions ctx in_function =
     | ArrayLength e -> [ List (Atom "array.length" :: expression e) ]
     | StructNew (symb, l) ->
         [ List
-            (Atom
-               (match target with
-               | `Binaryen -> "struct.new"
-               | `Reference -> "struct.new_canon")
-            :: index (V symb)
-            :: List.concat (List.map ~f:expression l))
+            (Atom "struct.new" :: index (V symb) :: List.concat (List.map ~f:expression l))
         ]
     | StructGet (None, symb, i, e) ->
         [ List
@@ -315,8 +306,14 @@ let expression_or_instructions ctx in_function =
             :: Atom (string_of_int i)
             :: expression e)
         ]
-    | RefCast (ty, e) -> [ List (Atom "ref.cast" :: (ref_type ty @ expression e)) ]
-    | RefTest (ty, e) -> [ List (Atom "ref.test" :: (ref_type ty @ expression e)) ]
+    | RefCast (ty, e) -> (
+        match target with
+        | `Binaryen -> [ List (Atom "ref.cast" :: (ref_type' ty @ expression e)) ]
+        | `Reference -> [ List (Atom "ref.cast" :: ref_type ty :: expression e) ])
+    | RefTest (ty, e) -> (
+        match target with
+        | `Binaryen -> [ List (Atom "ref.test" :: (ref_type' ty @ expression e)) ]
+        | `Reference -> [ List (Atom "ref.test" :: ref_type ty :: expression e) ])
     | RefEq (e, e') -> [ List (Atom "ref.eq" :: (expression e @ expression e')) ]
     | RefNull -> [ Atom "ref.null" ]
     | ExternInternalize e -> [ List (Atom "extern.internalize" :: expression e) ]
@@ -426,16 +423,38 @@ let expression_or_instructions ctx in_function =
             :: Atom (string_of_int i)
             :: (expression e @ expression e'))
         ]
-    | Br_on_cast (i, ty, e) ->
-        [ List
-            (Atom "br_on_cast" :: Atom (string_of_int i) :: (ref_type ty @ expression e))
-        ]
-    | Br_on_cast_fail (i, ty, e) ->
-        [ List
-            (Atom "br_on_cast_fail"
-            :: Atom (string_of_int i)
-            :: (ref_type ty @ expression e))
-        ]
+    | Br_on_cast (i, ty, ty', e) -> (
+        match target with
+        | `Binaryen ->
+            [ List
+                (Atom "br_on_cast"
+                :: Atom (string_of_int i)
+                :: (ref_type' ty' @ expression e))
+            ]
+        | `Reference ->
+            [ List
+                (Atom "br_on_cast"
+                :: Atom (string_of_int i)
+                :: ref_type ty
+                :: ref_type ty'
+                :: expression e)
+            ])
+    | Br_on_cast_fail (i, ty, ty', e) -> (
+        match target with
+        | `Binaryen ->
+            [ List
+                (Atom "br_on_cast_fail"
+                :: Atom (string_of_int i)
+                :: (ref_type' ty' @ expression e))
+            ]
+        | `Reference ->
+            [ List
+                (Atom "br_on_cast_fail"
+                :: Atom (string_of_int i)
+                :: ref_type ty
+                :: ref_type ty'
+                :: expression e)
+            ])
     | Return_call_indirect (typ, e, l) ->
         [ List
             ((Atom "return_call_indirect" :: type_use typ)

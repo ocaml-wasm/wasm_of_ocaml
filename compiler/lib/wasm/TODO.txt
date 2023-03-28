@@ -20,6 +20,8 @@ Simple improvements
       ==> hello.s (for debugging)
       ==> hello.wasm
 
+- caml_{alloc,update}_dummy
+
 =======
 
 Optimization phases
@@ -49,6 +51,12 @@ Accurate compilation
   ==> How do we avoid spilling thousands of values?
 
 - specialize: divide by zero / modulus / check array bound
+
+- exceptions using CPS transform
+  ==> trampolining
+  ==> check after external calls
+
+- setfield => use caml_modify
 
 ========
 
@@ -81,6 +89,9 @@ Possible improvements
 =====================
 
 - directly generate wasm binary?
+  ==> the most stable way to use Binaryen will always be to pass it a WebAssembly binary https://github.com/WebAssembly/binaryen/issues/5591#issuecomment-1476497338
+  ==> can include DWARF debug information + other custom sections
+  ==> we may not need to support both a wast and an .s ouput
 
 ==============================================
 
@@ -146,6 +157,29 @@ Curryfication improvements
     caml_apply_full_n_1
     caml_apply_full_n_2
 
+==============================
 
+Exception
+=========
 
-raise (try raise Not_found with x -> x)
+     res=f(...)
+     if !res return res  (* Or jump to exception handler *)
+
+     (No test necessary for tail calls)
+
+     Store actual exception in a global variable
+
+Trampoline
+==========
+
+     while(1) {
+       res = f()
+       if (res) return res
+       if (exception pending) return res
+       f = load_continuation()
+     }
+
+     if (depth < 40) f(x1, ..., xn)
+     else { store (fun () -> f(x1, ..., xn)); return 0 }
+
+     ===> create thunk functions
