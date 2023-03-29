@@ -128,7 +128,7 @@ module Generate (Target : Wa_target_sig.S) = struct
         | (Not | Lt | Le | Eq | Neq | Ult | Array_get | IsInt | Vectlength), _ ->
             assert false)
 
-  and translate_instr ctx i =
+  and translate_instr ctx (i, _) =
     match i with
     | Assign (x, y) -> assign x (load y)
     | Let (x, e) ->
@@ -214,7 +214,7 @@ module Generate (Target : Wa_target_sig.S) = struct
     let rec translate_tree result_typ fall_through pc context =
       let block = Addr.Map.find pc ctx.blocks in
       let is_switch =
-        match block.branch with
+        match fst block.branch with
         | Switch _ -> true
         | _ -> false
       in
@@ -264,7 +264,7 @@ module Generate (Target : Wa_target_sig.S) = struct
             if (not (List.is_empty rem))
                ||
                let block = Addr.Map.find pc ctx.blocks in
-               match block.branch with
+               match fst block.branch with
                | Cond _ | Pushtrap _ -> false (*ZZZ also some Switch*)
                | _ -> true
             then
@@ -289,7 +289,7 @@ module Generate (Target : Wa_target_sig.S) = struct
             else return ()
           in
           let* () = translate_instrs ctx block.body in
-          match block.branch with
+          match fst block.branch with
           | Branch cont -> translate_branch result_typ fall_through pc cont context
           | Return x -> (
               let* e = load x in

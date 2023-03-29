@@ -19,8 +19,8 @@ let reverse_tree t =
 
 let rec leave_try_body blocks pc =
   match Addr.Map.find pc blocks with
-  | { body = []; branch = Return _ | Stop; _ } -> false
-  | { body = []; branch = Branch (pc', _); _ } -> leave_try_body blocks pc'
+  | { body = []; branch = (Return _ | Stop), _; _ } -> false
+  | { body = []; branch = Branch (pc', _), _; _ } -> leave_try_body blocks pc'
   | _ -> true
 
 type control_flow_graph =
@@ -44,7 +44,7 @@ let build_graph blocks pc =
       Addr.Set.iter
         (fun pc' ->
           let englobing_exn_handlers =
-            match block.branch with
+            match fst block.branch with
             | Pushtrap ((body_pc, _), _, _, _) when pc' = body_pc ->
                 pc :: englobing_exn_handlers
             | Poptrap (leave_pc, _) -> (

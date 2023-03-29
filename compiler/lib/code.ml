@@ -670,7 +670,7 @@ let fold_closures_outermost_first { start; blocks; _ } f accu =
         let block = Addr.Map.find pc blocks in
         List.fold_left block.body ~init:accu ~f:(fun accu i ->
             match i with
-            | Let (x, Closure (params, cont)) ->
+            | Let (x, Closure (params, cont)), _ ->
                 let accu = f (Some x) params cont accu in
                 visit blocks (fst cont) f accu
             | _ -> accu))
