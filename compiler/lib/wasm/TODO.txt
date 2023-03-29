@@ -183,3 +183,27 @@ Trampoline
      else { store (fun () -> f(x1, ..., xn)); return 0 }
 
      ===> create thunk functions
+
+======================
+
+Use one table by arity
+===> function references / not supported by LLVM
+===>
+[wasm-gc] Optimize call_indirect type checks
+
+Remove type check if declared signature exactly matches table
+signature. Remove null check if the table is non-nullable.
+
+=======================
+
+Final types can be used for struct/array casts as well
+==>
+[wasm-gc] Final types
+
+We add final types to wasm-gc.
+- We introduce a `kWasmSubtypeFinalCode` as an alternative to
+  `kWasmSubtypeCode`.
+- Behind a flag, we interpret types behind this code as final, as well
+  as types outside a subtype definition by default.
+- For final types, type checks for call_indirect and ref.test etc. are
+  reduced to simple type identity checks.
