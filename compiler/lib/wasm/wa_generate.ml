@@ -201,7 +201,8 @@ module Generate (Target : Wa_target_sig.S) = struct
     | `Block _ as b -> b :: context
     | `Return -> `Skip :: context
 
-  let translate_function ctx name_opt toplevel_name params ((pc, _) as cont) acc =
+  let translate_function p ctx name_opt toplevel_name params ((pc, _) as cont) acc =
+    Wa_spilling.f p ctx.global_context ctx.closures pc params;
     let g = Wa_structure.build_graph ctx.blocks pc in
     let idom = Wa_structure.dominator_tree g in
     let dom = Wa_structure.reverse_tree idom in
@@ -456,7 +457,7 @@ module Generate (Target : Wa_target_sig.S) = struct
       Code.fold_closures_outermost_first
         p
         (fun name_opt params cont ->
-          translate_function ctx name_opt toplevel_name params cont)
+          translate_function p ctx name_opt toplevel_name params cont)
         []
     in
     let primitives =
