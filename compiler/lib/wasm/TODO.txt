@@ -22,6 +22,8 @@ Simple improvements
 
 - caml_{alloc,update}_dummy
 
+- setfield => use caml_modify
+
 =======
 
 Optimization phases
@@ -55,8 +57,6 @@ Accurate compilation
 - exceptions using CPS transform
   ==> trampolining
   ==> check after external calls
-
-- setfield => use caml_modify
 
 ========
 
