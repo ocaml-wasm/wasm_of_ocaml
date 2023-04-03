@@ -132,9 +132,3 @@
   (re (and (>= 1.9.0) :with-test))
 ))
 
-(package
- (name wasm_of_ocaml-wasm)
- (synopsis "Wasm code from WebAssembly spec")
- (description
-  "Js_of_ocaml is a compiler from OCaml bytecode to JavaScript. It makes it possible to run pure OCaml programs in JavaScript environment like browsers and Node.js"))
-

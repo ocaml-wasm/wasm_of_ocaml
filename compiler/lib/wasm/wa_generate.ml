@@ -10,7 +10,7 @@ https://github.com/llvm/llvm-project/issues/56935
 https://github.com/llvm/llvm-project/issues/58438
 *)
 
-let target = `GC (*`Core*)
+let target = `Core (*`GC*)
 
 (* binaryen does not support block input parameters
    https://github.com/WebAssembly/binaryen/issues/5047 *)

@@ -178,11 +178,11 @@ let propagate blocks ~context ~closures rev_deps pc0 params st pc =
   | None -> Domain.Bot
   | Some input ->
       let b = Addr.Map.find pc blocks in
-      let s = Var.Set.union input (Var.Set.of_list b.params) in
+      let input = Var.Set.union input (Var.Set.of_list b.params) in
       let output =
         List.fold_left
           ~f:(fun s i -> propagate_through_instr ~context ~closures s i)
-          ~init:s
+          ~init:input
           b.body
       in
       Set { input; output }
@@ -301,3 +301,8 @@ let f { blocks; _ } context closures pc0 params =
       Code.Print.block (fun _ _ -> "") pc block)
     domain;
   ignore st
+
+(*
+TODO:
+stack structure / spilling / reload
+*)
