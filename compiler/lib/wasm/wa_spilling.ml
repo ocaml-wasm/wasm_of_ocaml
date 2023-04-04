@@ -329,12 +329,17 @@ let spilling blocks sv live_info pc0 params =
               match i with
               | Let (x, e) -> (
                   match e with
-                  | Apply _ | Prim _ | Block _ | Closure _ ->
+                  | Apply _ | Block _ | Closure _ ->
                       let live_vars = Var.Map.find x (fst live_info) in
                       let stack = spill_vars depth live_vars vars stack in
                       info := Var.Map.add x (vars, stack) !info;
                       (*ZZZ Spilling *) stack, Var.Set.empty
-                  | Constant _ | Field _ -> stack, vars)
+                  | Prim (p, _) when not (no_alloc p) ->
+                      let live_vars = Var.Map.find x (fst live_info) in
+                      let stack = spill_vars depth live_vars vars stack in
+                      info := Var.Map.add x (vars, stack) !info;
+                      (*ZZZ Spilling *) stack, Var.Set.empty
+                  | Prim _ | Constant _ | Field _ -> stack, vars)
               | Assign _ | Offset_ref _ | Set_field _ | Array_set _ -> stack, vars
             in
             let vars =
