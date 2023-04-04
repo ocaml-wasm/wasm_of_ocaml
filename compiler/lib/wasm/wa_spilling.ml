@@ -23,6 +23,7 @@ let make_table l =
   List.iter ~f:(fun s -> Hashtbl.add h s ()) l;
   h
 
+(*ZZZ See lambda/translprim.ml + stdlib *)
 let no_alloc_tbl =
   make_table
     [ "caml_array_unsafe_set"
@@ -209,46 +210,49 @@ let spilled_variables blocks context closures domain vars st =
         List.fold_left
           ~f:(fun (loaded, spilled) i ->
             let loaded' = propagate_through_instr ~context ~closures loaded i in
-            let spilled =
+            let reloaded =
               match fst i with
               | Let (x, e) -> (
                   match e with
                   | Apply { f; args; _ } ->
                       List.fold_left
-                        ~f:(fun spilled x -> check_spilled vars loaded x spilled)
+                        ~f:(fun reloaded x -> check_spilled vars loaded x reloaded)
                         (f :: args)
-                        ~init:spilled
+                        ~init:Var.Set.empty
                   | Block (_, l, _) ->
                       Array.fold_left
-                        ~f:(fun spilled x -> check_spilled vars loaded' x spilled)
+                        ~f:(fun reloaded x -> check_spilled vars loaded' x reloaded)
                         l
-                        ~init:spilled
+                        ~init:Var.Set.empty
                   | Prim (_, args) ->
                       List.fold_left
-                        ~f:(fun spilled x ->
+                        ~f:(fun reloaded x ->
                           match x with
-                          | Pv x -> check_spilled vars loaded x spilled
-                          | Pc _ -> spilled)
+                          | Pv x -> check_spilled vars loaded x reloaded
+                          | Pc _ -> reloaded)
                         args
-                        ~init:spilled
+                        ~init:Var.Set.empty
                   | Closure _ ->
                       let fv = function_free_variables ~context ~closures x in
                       List.fold_left
-                        ~f:(fun spilled x -> check_spilled vars loaded x spilled)
+                        ~f:(fun reloaded x -> check_spilled vars loaded' x reloaded)
                         fv
-                        ~init:spilled
-                  | Constant _ -> spilled
-                  | Field (x, _) -> check_spilled vars loaded x spilled)
-              | Assign (_, x) | Offset_ref (x, _) -> check_spilled vars loaded x spilled
+                        ~init:Var.Set.empty
+                  | Constant _ -> Var.Set.empty
+                  | Field (x, _) -> check_spilled vars loaded x Var.Set.empty)
+              | Assign (_, x) | Offset_ref (x, _) ->
+                  check_spilled vars loaded x Var.Set.empty
               | Set_field (x, _, y) ->
-                  spilled |> check_spilled vars loaded x |> check_spilled vars loaded y
+                  Var.Set.empty
+                  |> check_spilled vars loaded x
+                  |> check_spilled vars loaded y
               | Array_set (x, y, z) ->
-                  spilled
+                  Var.Set.empty
                   |> check_spilled vars loaded x
                   |> check_spilled vars loaded y
                   |> check_spilled vars loaded z
             in
-            loaded', spilled)
+            Var.Set.union loaded' reloaded, Var.Set.union spilled reloaded)
           ~init:(loaded, spilled)
           block.body
       in
@@ -270,6 +274,86 @@ let spilled_variables blocks context closures domain vars st =
     domain
     spilled
 
+let traverse ~f pc blocks input =
+  let rec traverse_rec f pc visited blocks inp =
+    if not (Addr.Set.mem pc visited)
+    then
+      let visited = Addr.Set.add pc visited in
+      let out = f pc inp in
+      Code.fold_children
+        blocks
+        pc
+        (fun pc visited -> traverse_rec f pc visited blocks out)
+        visited
+    else visited
+  in
+  ignore (traverse_rec f pc Addr.Set.empty blocks input)
+
+let filter_stack live stack =
+  List.fold_right
+    ~f:(fun v rem ->
+      match v, rem with
+      | Some x, _ when Var.Set.mem x live -> v :: rem
+      | _, [] -> []
+      | _ -> None :: rem)
+    stack
+    ~init:[]
+
+let rec spill x stack =
+  match stack with
+  | None :: rem -> Some x :: rem
+  | [] -> [ Some x ]
+  | v :: rem -> v :: spill x rem
+
+let spill_vars depth live vars stack =
+  let stack = filter_stack live stack in
+  let stack = Var.Set.fold spill vars stack in
+  depth := max !depth (List.length stack);
+  stack
+
+let spilling blocks sv live_info pc0 params =
+  let stack = [] in
+  (*ZZZ Spilling at function start*)
+  let depth = ref 0 in
+  let vars = Var.Set.inter params sv in
+  let stack = spill_vars depth Var.Set.empty vars stack in
+  let info = ref Var.Map.empty in
+  let info' = ref Addr.Map.empty in
+  traverse pc0 blocks stack ~f:(fun pc stack ->
+      let block = Addr.Map.find pc blocks in
+      let vars = Var.Set.inter (Var.Set.of_list block.params) sv in
+      let stack, vars =
+        List.fold_left
+          ~f:(fun (stack, vars) (i, _) ->
+            let stack, vars =
+              match i with
+              | Let (x, e) -> (
+                  match e with
+                  | Apply _ | Prim _ | Block _ | Closure _ ->
+                      let live_vars = Var.Map.find x (fst live_info) in
+                      let stack = spill_vars depth live_vars vars stack in
+                      info := Var.Map.add x (vars, stack) !info;
+                      (*ZZZ Spilling *) stack, Var.Set.empty
+                  | Constant _ | Field _ -> stack, vars)
+              | Assign _ | Offset_ref _ | Set_field _ | Array_set _ -> stack, vars
+            in
+            let vars =
+              match i with
+              | Let (x, _) when Var.Set.mem x sv -> Var.Set.add x vars
+              | _ -> vars
+            in
+            stack, vars)
+          ~init:(stack, vars)
+          block.body
+      in
+      (* ZZZ Spilling at end of block *)
+      let live_vars = Addr.Map.find pc (snd live_info) in
+      let stack = spill_vars depth live_vars vars stack in
+      info' := Addr.Map.add pc (vars, stack) !info';
+      stack);
+  Format.eprintf "DEPTH %d@." !depth;
+  !info, !info'
+
 let f { blocks; _ } context closures pc0 params =
   let params = Var.Set.of_list params in
   let domain, (deps, rev_deps), vars =
@@ -285,6 +369,7 @@ let f { blocks; _ } context closures pc0 params =
   Format.eprintf "SPILLED:";
   Var.Set.iter (fun x -> Format.eprintf " %a" Var.print x) sv;
   Format.eprintf "@.";
+  (*
   Addr.Set.iter
     (fun pc ->
       let s = Addr.Map.find pc st in
@@ -300,9 +385,74 @@ let f { blocks; _ } context closures pc0 params =
       let block = Addr.Map.find pc blocks in
       Code.Print.block (fun _ _ -> "") pc block)
     domain;
-  ignore st
+*)
+  let live_info = Wa_liveness.f blocks context closures domain sv pc0 in
+  let info, info' = spilling blocks sv live_info pc0 params in
+  Addr.Set.iter
+    (fun pc ->
+      let block = Addr.Map.find pc blocks in
+      let _print_vars s =
+        if Var.Set.is_empty s
+        then ""
+        else
+          Format.asprintf
+            "{%a}"
+            (fun f l ->
+              Format.pp_print_list
+                ~pp_sep:(fun f () -> Format.fprintf f " ")
+                Var.print
+                f
+                l)
+            (Var.Set.elements s)
+      in
+      let print_stack s =
+        if List.is_empty s
+        then ""
+        else
+          Format.asprintf
+            "{%a}"
+            (fun f l ->
+              Format.pp_print_list
+                ~pp_sep:(fun f () -> Format.fprintf f " ")
+                (fun f v ->
+                  match v with
+                  | None -> Format.fprintf f "*"
+                  | Some x -> Var.print f x)
+                f
+                l)
+            s
+      in
+      Code.Print.block
+        (fun _pc loc ->
+          match loc with
+          | Instr (Let (x, _), _) -> (
+              match Var.Map.find_opt x info with
+              | Some (_, s) -> print_stack s
+              | None -> "")
+          | Instr _ -> ""
+          | Last _ ->
+              let _, s = Addr.Map.find pc info' in
+              print_stack s)
+        pc
+        block)
+    domain;
+  ()
 
 (*
+Traverse the code
+Collect definitions of variables to be spilled
+On spill points, update the stack + add these variables to the stack
+
+===> print stack size changes + spilled variables
+
+Stack: position |-> variable
+
+
 TODO:
 stack structure / spilling / reload
+
+liveness: at the end of each block / at each allocation point / at each call point
+
+backward analysis:
+==> live if needs to load from stack
 *)
