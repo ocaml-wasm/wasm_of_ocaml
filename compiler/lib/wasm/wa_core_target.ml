@@ -23,11 +23,17 @@ module Memory = struct
         return data
     | _ -> return (W.Load (I32 (Int32.of_int offset), e))
 
-  let mem_store ?(offset = 0) e e' =
+  let mem_init ?(offset = 0) e e' =
     assert (offset >= 0);
     let* e = e in
     let* e' = e' in
     instr (Store (I32 (Int32.of_int offset), e, e'))
+
+  let mem_store ?(offset = 0) e e' =
+    assert (offset >= 0);
+    let* e = Arith.(e + const (Int32.of_int offset)) in
+    let* e' = e' in
+    instr (CallInstr (S "caml_modify", [ e; e' ]))
 
   (*ZZZ
     p = young_ptr - size;
@@ -47,14 +53,14 @@ module Memory = struct
          tee p Arith.(return (W.GlobalGet (S "young_ptr")) - const (Int32.of_int size))
        in
        let* () = instr (W.GlobalSet (S "young_ptr", v)) in
-       let* () = mem_store (load p) (Arith.const (header ~tag ~len ())) in
+       let* () = mem_init (load p) (Arith.const (header ~tag ~len ())) in
        snd
          (List.fold_right
             ~init:(len, return ())
             ~f:(fun v (i, cont) ->
               ( i - 1
               , let* () =
-                  mem_store
+                  mem_init
                     ~offset:(4 * i)
                     (load p)
                     (match v with
@@ -354,6 +360,7 @@ let entry_point ~register_primitive =
   in
   let* () = declare_global "young_ptr" in
   let* () = declare_global "young_limit" in
+  register_primitive "caml_modify" { W.params = [ I32; I32 ]; result = [] };
   register_primitive "__wasm_call_ctors" { W.params = []; result = [] };
   let* () = instr (W.CallInstr (S "__wasm_call_ctors", [])) in
   let* sz = Arith.const 3l in

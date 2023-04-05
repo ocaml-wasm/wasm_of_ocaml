@@ -311,16 +311,41 @@ let spill_vars depth live vars stack =
   depth := max !depth (List.length stack);
   stack
 
+let h = Hashtbl.create 16
+
+let print_stack s =
+  if List.is_empty s
+  then ""
+  else
+    Format.asprintf
+      "{%a}"
+      (fun f l ->
+        Format.pp_print_list
+          ~pp_sep:(fun f () -> Format.fprintf f " ")
+          (fun f v ->
+            match v with
+            | None -> Format.fprintf f "*"
+            | Some x -> Var.print f x)
+          f
+          l)
+      s
+
 let spilling blocks sv live_info pc0 params =
   let stack = [] in
   (*ZZZ Spilling at function start*)
   let depth = ref 0 in
+  let calls = ref false in
   let vars = Var.Set.inter params sv in
   let stack = spill_vars depth Var.Set.empty vars stack in
   let info = ref Var.Map.empty in
   let info' = ref Addr.Map.empty in
   traverse pc0 blocks stack ~f:(fun pc stack ->
       let block = Addr.Map.find pc blocks in
+      let live_vars = Addr.Map.find pc (snd live_info) in
+      (* ZZZ Initial stack *)
+      let stack_in =
+        spill_vars depth live_vars.Wa_liveness.Domain.output Var.Set.empty stack
+      in
       let vars = Var.Set.inter (Var.Set.of_list block.params) sv in
       let stack, vars =
         List.fold_left
@@ -332,6 +357,9 @@ let spilling blocks sv live_info pc0 params =
                   | Apply _ | Block _ | Closure _ ->
                       let live_vars = Var.Map.find x (fst live_info) in
                       let stack = spill_vars depth live_vars vars stack in
+                      (match e with
+                      | Apply _ when not (List.is_empty stack) -> calls := true
+                      | _ -> ());
                       info := Var.Map.add x (vars, stack) !info;
                       (*ZZZ Spilling *) stack, Var.Set.empty
                   | Prim (p, _) when not (no_alloc p) ->
@@ -353,10 +381,29 @@ let spilling blocks sv live_info pc0 params =
       in
       (* ZZZ Spilling at end of block *)
       let live_vars = Addr.Map.find pc (snd live_info) in
-      let stack = spill_vars depth live_vars vars stack in
-      info' := Addr.Map.add pc (vars, stack) !info';
+      let stack = spill_vars depth live_vars.Wa_liveness.Domain.input vars stack in
+      info' := Addr.Map.add pc (vars, stack_in, stack) !info';
+      Code.fold_children
+        blocks
+        pc
+        (fun pc' () ->
+          try
+            let pc0, stack' = Hashtbl.find h pc' in
+            if List.length stack <> List.length stack'
+            then
+              Format.eprintf
+                "ZZZZ %d/%d %d  %s / %s@."
+                pc
+                pc0
+                pc'
+                (print_stack stack)
+                (print_stack stack')
+            (*                  assert (List.length stack = List.length stack')*)
+          with Not_found -> Hashtbl.add h pc' (pc, stack))
+        ();
+
       stack);
-  Format.eprintf "DEPTH %d@." !depth;
+  Format.eprintf "DEPTH %d   CALLS %b@." !depth !calls;
   !info, !info'
 
 let f { blocks; _ } context closures pc0 params =
@@ -410,23 +457,8 @@ let f { blocks; _ } context closures pc0 params =
                 l)
             (Var.Set.elements s)
       in
-      let print_stack s =
-        if List.is_empty s
-        then ""
-        else
-          Format.asprintf
-            "{%a}"
-            (fun f l ->
-              Format.pp_print_list
-                ~pp_sep:(fun f () -> Format.fprintf f " ")
-                (fun f v ->
-                  match v with
-                  | None -> Format.fprintf f "*"
-                  | Some x -> Var.print f x)
-                f
-                l)
-            s
-      in
+      let _, s, _ = Addr.Map.find pc info' in
+      Format.eprintf "%s@." (print_stack s);
       Code.Print.block
         (fun _pc loc ->
           match loc with
@@ -436,7 +468,7 @@ let f { blocks; _ } context closures pc0 params =
               | None -> "")
           | Instr _ -> ""
           | Last _ ->
-              let _, s = Addr.Map.find pc info' in
+              let _, _, s = Addr.Map.find pc info' in
               print_stack s)
         pc
         block)
@@ -444,20 +476,33 @@ let f { blocks; _ } context closures pc0 params =
   ()
 
 (*
-Traverse the code
-Collect definitions of variables to be spilled
-On spill points, update the stack + add these variables to the stack
+Spilling information:
+- what needs to be reloaded (live before instruction but not longer live)
+- how the stack pointer needs to be adjusted
+- what needs to be spilled
 
-===> print stack size changes + spilled variables
+Spill:
+    (setlocal sp' (getglobal sp))          ; load stack
+    (setlocal y (load (getlocal sp') n))   ; reload
+    ...
+    (setglobal sp (tee sp'' (add n (getlocal sp')))) ; update stack
+    (store (getlocal sp'') 0 (getlocal x)) ; spill
+    ...
 
-Stack: position |-> variable
+Function information:
+- Stack maximal depth
+- Whether we are calling another function with a non-empty stack
 
+Need to adjust the stack also in branchs (including in switches...)
+==> add intermediate blocks
 
-TODO:
-stack structure / spilling / reload
+-----------------
 
-liveness: at the end of each block / at each allocation point / at each call point
+Where do we place reloads?
+==> Keep track of loaded variables
+When does the sp need to be reloaded?
+==> keep track of whether sp is loaded
 
-backward analysis:
-==> live if needs to load from stack
+set_loaded_variables (at beginning of block / killed)
+set_stack (update stack information at beginning of block / after spilling)
 *)

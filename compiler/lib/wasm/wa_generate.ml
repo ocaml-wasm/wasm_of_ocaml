@@ -86,6 +86,7 @@ module Generate (Target : Wa_target_sig.S) = struct
     | Prim (p, l) -> (
         let l = List.map ~f:transl_prim_arg l in
         match p, l with
+        (*ZZZ array operations need to deal with array of unboxed floats *)
         | Extern "caml_array_unsafe_get", [ x; y ] -> Memory.array_get x y
         | Extern "caml_array_unsafe_set", [ x; y; z ] ->
             seq (Memory.array_set x y z) Value.unit

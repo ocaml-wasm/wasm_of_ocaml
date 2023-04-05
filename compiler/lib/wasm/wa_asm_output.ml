@@ -159,7 +159,7 @@ module Output () = struct
     ^
     match s with
     | S -> "_s"
-    | U -> "_"
+    | U -> "_u"
 
   let int_bin_op (op : int_bin_op) =
     match op with
@@ -219,14 +219,14 @@ module Output () = struct
   let integer32 i =
     string
       (if Poly.(i > -10000l && i < 10000l)
-      then Int32.to_string i
-      else Printf.sprintf "0x%lx" i)
+       then Int32.to_string i
+       else Printf.sprintf "0x%lx" i)
 
   let integer64 i =
     string
       (if Poly.(i > -10000L && i < 10000L)
-      then Int64.to_string i
-      else Printf.sprintf "0x%Lx" i)
+       then Int64.to_string i
+       else Printf.sprintf "0x%Lx" i)
 
   let symbol name offset =
     string
@@ -311,7 +311,7 @@ module Output () = struct
         ^^ expression e'
         ^^ line
              (type_prefix offset
-             ^^ string (signage "store" s)
+             ^^ string (signage "store8" s)
              ^^ string " "
              ^^ string (select Int32.to_string Int32.to_string Int32.to_string offset))
     | LocalSet (i, e) -> expression e ^^ line (string "local.set " ^^ integer i)
@@ -557,11 +557,11 @@ module Output () = struct
               ^^ indent
                    (declare_func_type name typ
                    ^^ (if List.is_empty locals
-                      then empty
-                      else
-                        line
-                          (string ".local "
-                          ^^ separate_map (string ", ") value_type locals))
+                       then empty
+                       else
+                         line
+                           (string ".local "
+                           ^^ separate_map (string ", ") value_type locals))
                    ^^ concat_map instruction body
                    ^^ line (string "end_function"))
           | Import _ | Data _ | Global _ | Tag _ | Type _ -> empty)

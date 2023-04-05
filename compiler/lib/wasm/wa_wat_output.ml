@@ -334,7 +334,7 @@ let expression_or_instructions ctx in_function =
           if Int32.equal i 0l then [] else [ Atom (Printf.sprintf "offset=%ld" i) ]
         in
         [ List
-            (Atom (type_prefix offset (signage "store" s))
+            (Atom (type_prefix offset (signage "store8" s))
             :: (select offs offs offs offset @ expression e1 @ expression e2))
         ]
     | LocalSet (i, Seq (l, e)) when Poly.equal target `Binaryen ->
@@ -350,8 +350,8 @@ let expression_or_instructions ctx in_function =
             :: (block_type ty
                @ expression e
                @ (if Poly.equal target `Binaryen && List.is_empty l1
-                 then [ List [ Atom "then"; Atom "nop" ] ]
-                 else list ~always:true "then" instructions l1)
+                  then [ List [ Atom "then"; Atom "nop" ] ]
+                  else list ~always:true "then" instructions l1)
                @ list "else" instructions l2))
         ]
     | Try (ty, body, catches, catch_all) ->
@@ -560,9 +560,9 @@ let field ctx f =
           (Atom "data"
           :: index (V name)
           :: ((if active
-              then
-                expression ctx (Const (I32 (Int32.of_int (lookup_symbol ctx (V name)))))
-              else [])
+               then
+                 expression ctx (Const (I32 (Int32.of_int (lookup_symbol ctx (V name)))))
+               else [])
              @ [ Atom ("\"" ^ data_contents ctx contents ^ "\"") ]))
       ]
   | Type [ t ] -> [ type_field t ]

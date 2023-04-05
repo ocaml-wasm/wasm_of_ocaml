@@ -9,9 +9,6 @@ Simple improvements
 - Rebuild call-graph
   ==> simplification of br_table/if
 
-- GC: large constants should be generated at runtime
-  (in particular, more compact strings using a data segment)
-
 - wasm_of_ocaml specific binary: options + linking
   choose entry point
   linker
@@ -20,9 +17,10 @@ Simple improvements
       ==> hello.s (for debugging)
       ==> hello.wasm
 
-- caml_{alloc,update}_dummy
+- GC: large constants should be generated at runtime
+  (in particular, more compact strings using a data segment)
 
-- setfield => use caml_modify
+- GC: caml_{alloc,update}_dummy
 
 =======
 
@@ -82,6 +80,7 @@ Remarks
 - we have a problem with large number of variable during the
   initialization phase, which could be an issue for the GC
   ==> keep initial globals but remove entries?
+  ==> run-length encoded stack maps?
 
 ==================
 

@@ -135,10 +135,10 @@ let propagate blocks ~context ~closures ~vars rev_deps st pc =
 module G = Dgraph.Make (Int) (Addr.Set) (Addr.Map)
 module Solver = G.Solver (Domain)
 
-let live_variables blocks context closures domain vars block_live_vars =
+let live_variables blocks context closures domain vars st =
   Addr.Set.fold
     (fun pc live_info ->
-      let live_vars = Addr.Map.find pc block_live_vars in
+      let live_vars = (Addr.Map.find pc st).Domain.input in
       let block = Addr.Map.find pc blocks in
       let live_vars = propagate_through_branch ~vars block.branch live_vars in
       let _, live_info =
@@ -172,8 +172,7 @@ let f blocks context closures domain vars pc =
   let st =
     Solver.f g (fun st pc -> propagate blocks ~context ~closures ~vars rev_deps st pc)
   in
-  let block_live_vars = Addr.Map.map (fun d -> d.Domain.input) st in
-  let info = live_variables blocks context closures domain vars block_live_vars in
+  let info = live_variables blocks context closures domain vars st in
   (*
   Addr.Set.iter
     (fun pc ->
@@ -200,25 +199,4 @@ let f blocks context closures domain vars pc =
         block)
     domain;
 *)
-  info, block_live_vars
-
-(*
-Liveness information
-- live range to know when we can reuse a stack location
-  (use block number + index in block)
-
-Spilling/reloading
-- scan blocks using reverse post-order
-- get current stack from one of the parent blocks
-   (from previous block?)
-- spill variables that are defined but not yet spilled at each spill point
-
-  x = f(y)
-  ==> x not yet live; f, y no longer live
-
-  x = {tag=0; 0 = a; 1 = b}
-  ==> x not yet live; a, b still live
-
-  branch (pc, args)
-  ===> args no longer live (parameters not yet live)
-*)
+  info, st
