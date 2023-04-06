@@ -110,4 +110,31 @@ module type S = sig
 
   val entry_point :
     register_primitive:(string -> Wa_ast.func_type -> unit) -> unit Wa_code_generation.t
+
+  module Stack : sig
+    type info
+
+    val generate_spilling_information :
+         Code.program
+      -> context:Wa_code_generation.context
+      -> closures:Wa_closure_conversion.closure Code.Var.Map.t
+      -> pc:Code.Addr.t
+      -> params:Code.Var.t list
+      -> info
+
+    type ctx
+
+    val start_function : info -> ctx
+
+    val start_block : info -> Code.Addr.t -> ctx
+
+    val perform_reloads : ctx -> Code.Print.xinstr -> ctx Wa_code_generation.t
+
+    val perform_spilling :
+         ctx
+      -> [ `Function | `Instr of Code.Var.t | `Block of Code.Addr.t ]
+      -> ctx Wa_code_generation.t
+
+    val kill_variables : ctx -> ctx
+  end
 end

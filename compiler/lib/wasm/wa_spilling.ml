@@ -346,7 +346,7 @@ type spilling_info =
   ; stack : stack
   }
 
-let print_spilling { reloads; depth_change; spills; stack } =
+let print_spilling { reloads; depth_change; spills; stack; _ } =
   let print_actions f l =
     Format.pp_print_list
       ~pp_sep:(fun f () -> Format.fprintf f " ")
@@ -360,8 +360,9 @@ let print_spilling { reloads; depth_change; spills; stack } =
     Format.asprintf "%d {%a} {%a}" depth_change print_actions reloads print_actions spills
 
 type block_info =
-  { initial_depth : int
-  ; spilling : spilling_info
+  { initial_stack : stack (* Stack at beginning of block *)
+  ; loaded_variables : Var.Set.t (* Values in local variables at beginning of block *)
+  ; spilling : spilling_info (* Spilling at end of block *)
   }
 
 type info =
@@ -370,6 +371,7 @@ type info =
   ; initial_spilling : spilling_info
   ; block : block_info Addr.Map.t
   ; instr : spilling_info Var.Map.t
+  ; sp : Var.t
   }
 
 let update_stack ~max_depth { Wa_liveness.live_vars; no_longer_live } vars stack =
@@ -391,7 +393,7 @@ let update_stack ~max_depth { Wa_liveness.live_vars; no_longer_live } vars stack
   ; spills
   }
 
-let spilling blocks sv live_info pc0 params =
+let spilling blocks st sv live_info pc0 params =
   let stack = [] in
   (*ZZZ Spilling at function start*)
   let max_depth = ref 0 in
@@ -406,7 +408,9 @@ let spilling blocks sv live_info pc0 params =
   traverse pc0 blocks stack ~f:(fun pc stack ->
       let block = Addr.Map.find pc blocks in
       let block_live_vars = Addr.Map.find pc live_info.Wa_liveness.block in
-      let stack_in, _ = spill_vars block_live_vars.initially_live Var.Set.empty stack in
+      let initial_stack, _ =
+        spill_vars block_live_vars.initially_live Var.Set.empty stack
+      in
       let vars = Var.Set.inter (Var.Set.of_list block.params) sv in
       let stack, vars =
         List.fold_left
@@ -448,20 +452,23 @@ let spilling blocks sv live_info pc0 params =
       let ({ stack; _ } as sp) =
         update_stack ~max_depth block_live_vars.branch vars stack
       in
+      let loaded_variables =
+        match Addr.Map.find pc st with
+        | Domain.Bot -> assert false
+        | Domain.Set { input; _ } -> input
+      in
       block_info :=
-        Addr.Map.add
-          pc
-          { initial_depth = List.length stack_in; spilling = sp }
-          !block_info;
+        Addr.Map.add pc { initial_stack; loaded_variables; spilling = sp } !block_info;
       stack);
   { max_depth = !max_depth
   ; subcalls = !subcalls
   ; initial_spilling
   ; block = !block_info
   ; instr = !instr_info
+  ; sp = Code.Var.fresh_n "sp"
   }
 
-let f { blocks; _ } ~context ~closures ~pc:pc0 ~params =
+let generate_spilling_information { blocks; _ } ~context ~closures ~pc:pc0 ~params =
   let params = Var.Set.of_list params in
   let domain, (deps, rev_deps), vars =
     function_deps blocks ~context ~closures pc0 params
@@ -494,7 +501,7 @@ let f { blocks; _ } ~context ~closures ~pc:pc0 ~params =
     domain;
 *)
   let live_info = Wa_liveness.f ~blocks ~context ~closures ~domain ~vars:sv ~pc:pc0 in
-  let info = spilling blocks sv live_info pc0 params in
+  let info = spilling blocks st sv live_info pc0 params in
   Format.eprintf "== %d == depth %d calls %b@." pc0 info.max_depth info.subcalls;
   Format.eprintf "%s@." (print_spilling info.initial_spilling);
   Addr.Set.iter
@@ -528,7 +535,7 @@ let f { blocks; _ } ~context ~closures ~pc:pc0 ~params =
         pc
         block)
     domain;
-  ()
+  info
 
 (*
 Function:
@@ -580,5 +587,108 @@ Check curry / apply functions
 
 ----------------
 
-
+Assign must update the stack
 *)
+
+type ctx =
+  { loaded_variables : Var.Set.t
+  ; sp_loaded : bool
+  ; sp : Code.Var.t
+  ; stack : stack
+  ; info : info
+  }
+
+open Wa_code_generation
+module W = Wa_ast
+
+let rec find_in_stack x stack =
+  match stack with
+  | [] -> raise Not_found
+  | Some y :: rem when Var.equal x y -> List.length rem
+  | _ :: rem -> find_in_stack x rem
+
+let perform_reloads ctx l =
+  let vars = ref Var.Set.empty in
+  (match l with
+  | Print.Instr (i, _) ->
+      Freevars.iter_instr_free_vars
+        (fun x ->
+          if not (Var.Set.mem x ctx.loaded_variables) then vars := Var.Set.add x !vars)
+        i
+  | Last (l, _) ->
+      Freevars.iter_last_free_var
+        (fun x ->
+          if not (Var.Set.mem x ctx.loaded_variables) then vars := Var.Set.add x !vars)
+        l);
+  if Var.Set.is_empty !vars
+  then return ctx
+  else
+    let* () =
+      if ctx.sp_loaded then return () else store ctx.sp (return (W.GlobalGet (S "sp")))
+    in
+    let* () =
+      Var.Set.fold
+        (fun x before ->
+          let* () = before in
+          let* sp = load ctx.sp in
+          let offset = 4 * find_in_stack x ctx.stack in
+          store x (return (W.Load (I32 (Int32.of_int offset), sp))))
+        !vars
+        (return ())
+    in
+    return
+      { ctx with
+        loaded_variables = Var.Set.union ctx.loaded_variables !vars
+      ; sp_loaded = true
+      }
+
+let perform_spilling ctx loc =
+  let spilling =
+    match loc with
+    | `Function -> ctx.info.initial_spilling
+    | `Instr x -> Var.Map.find x ctx.info.instr
+    | `Block pc -> (Addr.Map.find pc ctx.info.block).spilling
+  in
+  let* () =
+    if ctx.sp_loaded then return () else store ctx.sp (return (W.GlobalGet (S "sp")))
+  in
+  let* () =
+    if spilling.depth_change = 0
+    then return ()
+    else
+      let delta = 4 * spilling.depth_change in
+      let* sp = tee ctx.sp Arith.(load ctx.sp + const (Int32.of_int delta)) in
+      instr (W.GlobalSet (S "sp", sp))
+  in
+  let* () =
+    List.fold_left
+      ~f:(fun before (x, i) ->
+        let* () = before in
+        let* sp = load ctx.sp in
+        let* x = load x in
+        let offset = 4 * i in
+        instr (W.Store (I32 (Int32.of_int offset), sp, x)))
+      spilling.spills
+      ~init:(return ())
+  in
+  return { ctx with stack = spilling.stack }
+
+let start_block spilling_info pc =
+  let info = Addr.Map.find pc spilling_info.block in
+  { loaded_variables = info.loaded_variables
+  ; sp_loaded = false
+  ; sp = spilling_info.sp
+  ; stack = info.initial_stack
+  ; info = spilling_info
+  }
+
+let start_function (spilling_info : info) =
+  (*ZZZ Check stack depth *)
+  { loaded_variables = Var.Set.empty
+  ; sp_loaded = false
+  ; sp = spilling_info.sp
+  ; stack = []
+  ; info = spilling_info
+  }
+
+let kill_variables ctx = { ctx with loaded_variables = Var.Set.empty; sp_loaded = false }

@@ -74,6 +74,7 @@ module Generate (Target : Wa_target_sig.S) = struct
         in
         loop [] args
     | Apply { f; args; _ } ->
+        let* _ = Stack.perform_spilling stack_ctx (`Instr x) in
         let* apply = need_apply_fun ~arity:(List.length args) in
         let* args = expression_list load args in
         let* closure = load f in
@@ -145,12 +146,13 @@ module Generate (Target : Wa_target_sig.S) = struct
           Arith.(Memory.field (load x) 0 + const (Int32.of_int n'))
     | Array_set (x, y, z) -> Memory.array_set (load x) (load y) (load z)
 
-  and translate_instrs ctx l =
+  and translate_instrs ctx stack_ctx l =
     match l with
-    | [] -> return ()
+    | [] -> return stack_ctx
     | i :: rem ->
+        let* stack_ctx = Stack.perform_reloads stack_ctx (Code.Print.Instr i) in
         let* () = translate_instr ctx i in
-        translate_instrs ctx rem
+        translate_instrs ctx stack_ctx rem
 
   let parallel_renaming params args =
     let rec visit visited prev s m x l =
@@ -203,7 +205,14 @@ module Generate (Target : Wa_target_sig.S) = struct
     | `Return -> `Skip :: context
 
   let translate_function p ctx name_opt toplevel_name params ((pc, _) as cont) acc =
-    Wa_spilling.f p ~context:ctx.global_context ~closures:ctx.closures ~pc ~params;
+    let stack_info =
+      Stack.generate_spilling_information
+        p
+        ~context:ctx.global_context
+        ~closures:ctx.closures
+        ~pc
+        ~params
+    in
     let g = Wa_structure.build_graph ctx.blocks pc in
     let idom = Wa_structure.dominator_tree g in
     let dom = Wa_structure.reverse_tree idom in
@@ -290,7 +299,10 @@ module Generate (Target : Wa_target_sig.S) = struct
                 ~init:(return ())
             else return ()
           in
-          let* () = translate_instrs ctx block.body in
+          let stack_ctx = Stack.start_block stack_info pc in
+          let* stack_ctx = translate_instrs ctx stack_ctx block.body in
+          let* stack_ctx = Stack.perform_reloads stack_ctx (Last block.branch) in
+          let* _ = Stack.perform_spilling stack_ctx (`Block pc) in
           match fst block.branch with
           | Branch cont -> translate_branch result_typ fall_through pc cont context
           | Return x -> (
@@ -401,6 +413,7 @@ module Generate (Target : Wa_target_sig.S) = struct
         ~param_count
         ~body:
           (let* () = build_initial_env in
+           let* _ = Stack.perform_spilling (Stack.start_function stack_info) `Function in
            translate_branch [ Value.value ] `Return (-1) cont [])
     in
     W.Function
