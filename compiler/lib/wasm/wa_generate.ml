@@ -42,10 +42,10 @@ module Generate (Target : Wa_target_sig.S) = struct
   let func_type n =
     { W.params = List.init ~len:n ~f:(fun _ -> Value.value); result = [ Value.value ] }
 
-  let rec translate_expr ctx x e =
+  let rec translate_expr ctx stack_ctx x e =
     match e with
     | Apply { f; args; exact } when exact || List.length args = 1 ->
-        (*ZZZ*)
+        let* () = Stack.perform_spilling stack_ctx (`Instr x) in
         let rec loop acc l =
           match l with
           | [] -> (
@@ -53,6 +53,7 @@ module Generate (Target : Wa_target_sig.S) = struct
               let funct = Var.fresh () in
               let* closure = tee funct (load f) in
               let* kind, funct = Memory.load_function_pointer ~arity (load funct) in
+              Stack.kill_variables stack_ctx;
               let* b = is_closure f in
               if b
               then return (W.Call (V f, List.rev (closure :: acc)))
@@ -74,10 +75,11 @@ module Generate (Target : Wa_target_sig.S) = struct
         in
         loop [] args
     | Apply { f; args; _ } ->
-        let* _ = Stack.perform_spilling stack_ctx (`Instr x) in
+        let* () = Stack.perform_spilling stack_ctx (`Instr x) in
         let* apply = need_apply_fun ~arity:(List.length args) in
         let* args = expression_list load args in
         let* closure = load f in
+        Stack.kill_variables stack_ctx;
         return (W.Call (V apply, args @ [ closure ]))
     | Block (tag, a, _) ->
         Memory.allocate ~tag (List.map ~f:(fun x -> `Var x) (Array.to_list a))
@@ -130,13 +132,13 @@ module Generate (Target : Wa_target_sig.S) = struct
         | (Not | Lt | Le | Eq | Neq | Ult | Array_get | IsInt | Vectlength), _ ->
             assert false)
 
-  and translate_instr ctx (i, _) =
+  and translate_instr ctx stack_ctx (i, _) =
     match i with
     | Assign (x, y) -> assign x (load y)
     | Let (x, e) ->
         if ctx.live.(Var.idx x) = 0
-        then drop (translate_expr ctx x e)
-        else store x (translate_expr ctx x e)
+        then drop (translate_expr ctx stack_ctx x e)
+        else store x (translate_expr ctx stack_ctx x e)
     | Set_field (x, n, y) -> Memory.set_field (load x) n (load y)
     | Offset_ref (x, n) ->
         let n' = 2 * n in
@@ -148,10 +150,10 @@ module Generate (Target : Wa_target_sig.S) = struct
 
   and translate_instrs ctx stack_ctx l =
     match l with
-    | [] -> return stack_ctx
+    | [] -> return ()
     | i :: rem ->
-        let* stack_ctx = Stack.perform_reloads stack_ctx (Code.Print.Instr i) in
-        let* () = translate_instr ctx i in
+        let* () = Stack.perform_reloads stack_ctx (Code.Print.Instr i) in
+        let* () = translate_instr ctx stack_ctx i in
         translate_instrs ctx stack_ctx rem
 
   let parallel_renaming params args =
@@ -300,9 +302,9 @@ module Generate (Target : Wa_target_sig.S) = struct
             else return ()
           in
           let stack_ctx = Stack.start_block stack_info pc in
-          let* stack_ctx = translate_instrs ctx stack_ctx block.body in
-          let* stack_ctx = Stack.perform_reloads stack_ctx (Last block.branch) in
-          let* _ = Stack.perform_spilling stack_ctx (`Block pc) in
+          let* () = translate_instrs ctx stack_ctx block.body in
+          let* () = Stack.perform_reloads stack_ctx (Last block.branch) in
+          let* () = Stack.perform_spilling stack_ctx (`Block pc) in
           match fst block.branch with
           | Branch cont -> translate_branch result_typ fall_through pc cont context
           | Return x -> (

@@ -95,21 +95,21 @@ module Type = struct
           ; typ =
               W.Struct
                 ((if arity = 1
-                 then
-                   [ { W.mut = false; typ = W.Value I32 }
-                   ; { mut = false
-                     ; typ = Value (Ref { nullable = false; typ = Type fun_ty })
-                     }
-                   ]
-                 else
-                   [ { mut = false; typ = Value I32 }
-                   ; { mut = false
-                     ; typ = Value (Ref { nullable = false; typ = Type fun_ty })
-                     }
-                   ; { mut = false
-                     ; typ = Value (Ref { nullable = false; typ = Type fun_ty' })
-                     }
-                   ])
+                  then
+                    [ { W.mut = false; typ = W.Value I32 }
+                    ; { mut = false
+                      ; typ = Value (Ref { nullable = false; typ = Type fun_ty })
+                      }
+                    ]
+                  else
+                    [ { mut = false; typ = Value I32 }
+                    ; { mut = false
+                      ; typ = Value (Ref { nullable = false; typ = Type fun_ty })
+                      }
+                    ; { mut = false
+                      ; typ = Value (Ref { nullable = false; typ = Type fun_ty' })
+                      }
+                    ])
                 @ List.init
                     ~f:(fun _ ->
                       { W.mut = false
@@ -149,21 +149,21 @@ module Type = struct
           ; typ =
               W.Struct
                 ((if arity = 1
-                 then
-                   [ { W.mut = false; typ = W.Value I32 }
-                   ; { mut = false
-                     ; typ = Value (Ref { nullable = false; typ = Type fun_ty' })
-                     }
-                   ]
-                 else
-                   [ { mut = false; typ = Value I32 }
-                   ; { mut = false
-                     ; typ = Value (Ref { nullable = false; typ = Type fun_ty })
-                     }
-                   ; { mut = false
-                     ; typ = Value (Ref { nullable = false; typ = Type fun_ty' })
-                     }
-                   ])
+                  then
+                    [ { W.mut = false; typ = W.Value I32 }
+                    ; { mut = false
+                      ; typ = Value (Ref { nullable = false; typ = Type fun_ty' })
+                      }
+                    ]
+                  else
+                    [ { mut = false; typ = Value I32 }
+                    ; { mut = false
+                      ; typ = Value (Ref { nullable = false; typ = Type fun_ty })
+                      }
+                    ; { mut = false
+                      ; typ = Value (Ref { nullable = false; typ = Type fun_ty' })
+                      }
+                    ])
                 @ [ { W.mut = false
                     ; typ = W.Value (Ref { nullable = false; typ = Type env_ty })
                     }
@@ -439,12 +439,12 @@ module Closure = struct
             (W.StructNew
                ( typ
                , (if arity = 1
-                 then [ W.Const (I32 1l); RefFunc (V f) ]
-                 else
-                   [ Const (I32 (Int32.of_int arity))
-                   ; RefFunc (V curry_fun)
-                   ; RefFunc (V f)
-                   ])
+                  then [ W.Const (I32 1l); RefFunc (V f) ]
+                  else
+                    [ Const (I32 (Int32.of_int arity))
+                    ; RefFunc (V curry_fun)
+                    ; RefFunc (V f)
+                    ])
                  @ l ))
       | (g, _) :: _ as functions ->
           let function_count = List.length functions in
@@ -475,12 +475,12 @@ module Closure = struct
               (W.StructNew
                  ( typ
                  , (if arity = 1
-                   then [ W.Const (I32 1l); RefFunc (V f) ]
-                   else
-                     [ Const (I32 (Int32.of_int arity))
-                     ; RefFunc (V curry_fun)
-                     ; RefFunc (V f)
-                     ])
+                    then [ W.Const (I32 1l); RefFunc (V f) ]
+                    else
+                      [ Const (I32 (Int32.of_int arity))
+                      ; RefFunc (V curry_fun)
+                      ; RefFunc (V f)
+                      ])
                    @ [ env ] ))
           in
           if is_last_fun functions f
@@ -561,6 +561,24 @@ module Closure = struct
     return
       ( Memory.wasm_struct_get ty (Memory.wasm_cast ty (load closure)) 2
       , Memory.wasm_struct_get ty (Memory.wasm_cast ty (load closure)) 3 )
+end
+
+module Stack = struct
+  type info = unit
+
+  let generate_spilling_information _ ~context:_ ~closures:_ ~pc:_ ~params:_ = ()
+
+  type ctx = unit
+
+  let start_function _ = ()
+
+  let start_block _ _ = ()
+
+  let perform_reloads _ _ = return ()
+
+  let perform_spilling _ _ = return ()
+
+  let kill_variables _ = ()
 end
 
 let entry_point ~register_primitive:_ = return ()

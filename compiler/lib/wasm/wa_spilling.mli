@@ -39,11 +39,11 @@ val start_function : info -> ctx
 
 val start_block : info -> Code.Addr.t -> ctx
 
-val perform_reloads : ctx -> Code.Print.xinstr -> ctx Wa_code_generation.t
+val perform_reloads : ctx -> Code.Print.xinstr -> unit Wa_code_generation.t
 
 val perform_spilling :
      ctx
   -> [ `Function | `Instr of Code.Var.t | `Block of Code.Addr.t ]
-  -> ctx Wa_code_generation.t
+  -> unit Wa_code_generation.t
 
-val kill_variables : ctx -> ctx
+val kill_variables : ctx -> unit

@@ -44,16 +44,18 @@ module Memory = struct
   let header ?(const = false) ~tag ~len () =
     Int32.(add (shift_left (of_int len) 10) (of_int (tag + if const then 3 * 256 else 0)))
 
-  let allocate ~tag l =
+  let allocate stack_ctx x ~tag l =
     let len = List.length l in
     let p = Code.Var.fresh_n "p" in
     let size = (len + 1) * 4 in
     seq
-      (let* v =
+      (let* () = Wa_spilling.perform_spilling stack_ctx (`Instr x) in
+       let* v =
          tee p Arith.(return (W.GlobalGet (S "young_ptr")) - const (Int32.of_int size))
        in
        let* () = instr (W.GlobalSet (S "young_ptr", v)) in
        let* () = mem_init (load p) (Arith.const (header ~tag ~len ())) in
+       Wa_spilling.kill_variables stack_ctx;
        snd
          (List.fold_right
             ~init:(len, return ())
@@ -250,7 +252,7 @@ module Closure = struct
   let closure_info ~arity ~sz =
     W.Const (I32 Int32.(add (shift_left (of_int arity) 24) (of_int ((sz lsl 1) + 1))))
 
-  let translate ~context ~closures x =
+  let translate ~context ~closures ~stack_ctx x =
     let info = Code.Var.Map.find x closures in
     let f, _ = List.hd info.Wa_closure_conversion.functions in
     let* () = set_closure_env x x in
@@ -293,6 +295,8 @@ module Closure = struct
         return (W.ConstSym (V name, 4))
       else
         Memory.allocate
+          stack_ctx
+          x
           ~tag:Obj.closure_tag
           (List.rev_map ~f:(fun e -> `Expr e) start
           @ List.map ~f:(fun x -> `Var x) free_variables))
@@ -353,6 +357,8 @@ module Closure = struct
   let curry_load ~arity:_ _ closure =
     return (Memory.field (load closure) 3, Memory.field (load closure) 4)
 end
+
+module Stack = Wa_spilling
 
 let entry_point ~register_primitive =
   let declare_global name =

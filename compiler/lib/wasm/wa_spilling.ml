@@ -590,13 +590,15 @@ Check curry / apply functions
 Assign must update the stack
 *)
 
-type ctx =
+type context =
   { loaded_variables : Var.Set.t
   ; sp_loaded : bool
   ; sp : Code.Var.t
   ; stack : stack
   ; info : info
   }
+
+type ctx = context ref
 
 open Wa_code_generation
 module W = Wa_ast
@@ -608,87 +610,97 @@ let rec find_in_stack x stack =
   | _ :: rem -> find_in_stack x rem
 
 let perform_reloads ctx l =
-  let vars = ref Var.Set.empty in
+  let vars = ref Var.Map.empty in
+  let add_var x =
+    if not (Var.Set.mem x !ctx.loaded_variables)
+    then
+      try
+        let i = find_in_stack x !ctx.stack in
+        vars := Var.Map.add x i !vars
+      with Not_found -> ()
+  in
   (match l with
-  | Print.Instr (i, _) ->
-      Freevars.iter_instr_free_vars
-        (fun x ->
-          if not (Var.Set.mem x ctx.loaded_variables) then vars := Var.Set.add x !vars)
-        i
-  | Last (l, _) ->
-      Freevars.iter_last_free_var
-        (fun x ->
-          if not (Var.Set.mem x ctx.loaded_variables) then vars := Var.Set.add x !vars)
-        l);
-  if Var.Set.is_empty !vars
-  then return ctx
+  | Print.Instr (i, _) -> Freevars.iter_instr_free_vars add_var i
+  | Last (l, _) -> Freevars.iter_last_free_var add_var l);
+  if Var.Map.is_empty !vars
+  then return ()
   else
     let* () =
-      if ctx.sp_loaded then return () else store ctx.sp (return (W.GlobalGet (S "sp")))
+      if !ctx.sp_loaded then return () else store !ctx.sp (return (W.GlobalGet (S "sp")))
     in
     let* () =
-      Var.Set.fold
-        (fun x before ->
+      Var.Map.fold
+        (fun x i before ->
           let* () = before in
-          let* sp = load ctx.sp in
-          let offset = 4 * find_in_stack x ctx.stack in
+          let* sp = load !ctx.sp in
+          let offset = 4 * i in
           store x (return (W.Load (I32 (Int32.of_int offset), sp))))
         !vars
         (return ())
     in
-    return
-      { ctx with
-        loaded_variables = Var.Set.union ctx.loaded_variables !vars
+    ctx :=
+      { !ctx with
+        loaded_variables =
+          Var.Set.union
+            !ctx.loaded_variables
+            (Var.Map.fold (fun x _ s -> Var.Set.add x s) !vars Var.Set.empty)
       ; sp_loaded = true
-      }
+      };
+    return ()
 
 let perform_spilling ctx loc =
   let spilling =
     match loc with
-    | `Function -> ctx.info.initial_spilling
-    | `Instr x -> Var.Map.find x ctx.info.instr
-    | `Block pc -> (Addr.Map.find pc ctx.info.block).spilling
+    | `Function -> !ctx.info.initial_spilling
+    | `Instr x -> Var.Map.find x !ctx.info.instr
+    | `Block pc -> (Addr.Map.find pc !ctx.info.block).spilling
   in
   let* () =
-    if ctx.sp_loaded then return () else store ctx.sp (return (W.GlobalGet (S "sp")))
+    if !ctx.sp_loaded || (spilling.depth_change = 0 && List.is_empty spilling.spills)
+    then return ()
+    else store !ctx.sp (return (W.GlobalGet (S "sp")))
   in
   let* () =
     if spilling.depth_change = 0
     then return ()
     else
       let delta = 4 * spilling.depth_change in
-      let* sp = tee ctx.sp Arith.(load ctx.sp + const (Int32.of_int delta)) in
+      let* sp = tee !ctx.sp Arith.(load !ctx.sp + const (Int32.of_int delta)) in
       instr (W.GlobalSet (S "sp", sp))
   in
   let* () =
     List.fold_left
       ~f:(fun before (x, i) ->
         let* () = before in
-        let* sp = load ctx.sp in
+        let* sp = load !ctx.sp in
         let* x = load x in
         let offset = 4 * i in
         instr (W.Store (I32 (Int32.of_int offset), sp, x)))
       spilling.spills
       ~init:(return ())
   in
-  return { ctx with stack = spilling.stack }
+  ctx := { !ctx with stack = spilling.stack };
+  return ()
 
 let start_block spilling_info pc =
   let info = Addr.Map.find pc spilling_info.block in
-  { loaded_variables = info.loaded_variables
-  ; sp_loaded = false
-  ; sp = spilling_info.sp
-  ; stack = info.initial_stack
-  ; info = spilling_info
-  }
+  ref
+    { loaded_variables = info.loaded_variables
+    ; sp_loaded = false
+    ; sp = spilling_info.sp
+    ; stack = info.initial_stack
+    ; info = spilling_info
+    }
 
 let start_function (spilling_info : info) =
   (*ZZZ Check stack depth *)
-  { loaded_variables = Var.Set.empty
-  ; sp_loaded = false
-  ; sp = spilling_info.sp
-  ; stack = []
-  ; info = spilling_info
-  }
+  ref
+    { loaded_variables = Var.Set.empty
+    ; sp_loaded = false
+    ; sp = spilling_info.sp
+    ; stack = []
+    ; info = spilling_info
+    }
 
-let kill_variables ctx = { ctx with loaded_variables = Var.Set.empty; sp_loaded = false }
+let kill_variables ctx =
+  ctx := { !ctx with loaded_variables = Var.Set.empty; sp_loaded = false }
