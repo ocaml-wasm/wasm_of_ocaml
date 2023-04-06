@@ -206,3 +206,20 @@ We add final types to wasm-gc.
   as types outside a subtype definition by default.
 - For final types, type checks for call_indirect and ref.test etc. are
   reduced to simple type identity checks.
+
+======================
+
+Core:
++ immediately usable
++ no need to implement a runtime
++ can interface with C libraries
+- needs to work with Ocaml's GC (shadow stack)
+- exception (sentinel return value to indicate that an exception was raised)
+
+GC + exceptions
++ easier to interface with JavaScript
++ easier to use (not need to compile a custom OCaml runtime)
+- need to implement a runtime
+- the specs are still in developpement
+
+Target code specification for now. Can share some of the code: control flow reconstruction, currifycation, ...

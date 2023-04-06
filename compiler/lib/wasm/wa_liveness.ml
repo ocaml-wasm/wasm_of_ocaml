@@ -5,7 +5,7 @@ ZZZ If live in exception handler, live any place we may raise in the body
 open! Stdlib
 open Code
 
-let print_vars s =
+let _print_vars s =
   Format.asprintf
     "{%a}"
     (fun f l ->
@@ -30,13 +30,11 @@ let get_free_variables ~context info =
     info.Wa_closure_conversion.free_variables
 
 let function_free_variables ~context ~closures x =
-  let info = Code.Var.Map.find x closures in
+  let info = Var.Map.find x closures in
   let f, _ = List.hd info.Wa_closure_conversion.functions in
-  if Code.Var.equal x f then get_free_variables ~context info else []
+  if Var.equal x f then get_free_variables ~context info else []
 
 let get_set h x = try Hashtbl.find h x with Not_found -> Addr.Set.empty
-
-let get_list h x = try Hashtbl.find h x with Not_found -> []
 
 let cont_deps (deps, rev_deps) pc (pc', _) =
   Hashtbl.replace deps pc' (Addr.Set.add pc (get_set deps pc'));
@@ -113,6 +111,12 @@ let propagate_through_branch ~vars (b, _) s =
   | Pushtrap (cont, x, cont_h, _) ->
       s |> cont_used ~vars cont |> cont_used ~vars cont_h |> Var.Set.remove x
 
+let no_longer_live_after_expr ~context ~closures ~vars x e live_vars_after =
+  Var.Set.diff (expr_used ~context ~closures ~vars x e Var.Set.empty) live_vars_after
+
+let no_longer_live_after_branch ~vars b live_vars_after =
+  Var.Set.diff (propagate_through_branch ~vars b Var.Set.empty) live_vars_after
+
 let propagate blocks ~context ~closures ~vars rev_deps st pc =
   let input =
     pc
@@ -135,12 +139,29 @@ let propagate blocks ~context ~closures ~vars rev_deps st pc =
 module G = Dgraph.Make (Int) (Addr.Set) (Addr.Map)
 module Solver = G.Solver (Domain)
 
-let live_variables blocks context closures domain vars st =
+type instr_info =
+  { live_vars : Var.Set.t (* Live variables at spilling point *)
+  ; no_longer_live : Var.Set.t
+        (* Variable used after spilling point but no longer live after
+           the instruction *)
+  }
+
+type block_info =
+  { initially_live : Var.Set.t (* Live at start of block *)
+  ; branch : instr_info
+  }
+
+type info =
+  { instr : instr_info Var.Map.t
+  ; block : block_info Addr.Map.t
+  }
+
+let compute_instr_info blocks context closures domain vars st =
   Addr.Set.fold
     (fun pc live_info ->
       let live_vars = (Addr.Map.find pc st).Domain.input in
       let block = Addr.Map.find pc blocks in
-      let live_vars = propagate_through_branch ~vars block.branch live_vars in
+      let live_vars = propagate_through_branch ~vars block.Code.branch live_vars in
       let _, live_info =
         List.fold_right
           ~f:(fun i (live_vars, live_info) ->
@@ -152,8 +173,24 @@ let live_variables blocks context closures domain vars st =
               | Let (x, e) -> (
                   match e with
                   | Apply _ | Prim _ ->
-                      Var.Map.add x (Var.Set.remove x live_vars) live_info
-                  | Block _ | Closure _ -> Var.Map.add x live_vars' live_info
+                      Var.Map.add
+                        x
+                        { live_vars = Var.Set.remove x live_vars
+                        ; no_longer_live =
+                            no_longer_live_after_expr
+                              ~context
+                              ~closures
+                              ~vars
+                              x
+                              e
+                              live_vars
+                        }
+                        live_info
+                  | Block _ | Closure _ ->
+                      Var.Map.add
+                        x
+                        { live_vars = live_vars'; no_longer_live = Var.Set.empty }
+                        live_info
                   | Constant _ | Field _ -> live_info)
               | Assign _ | Offset_ref _ | Set_field _ | Array_set _ -> live_info
             in
@@ -165,14 +202,28 @@ let live_variables blocks context closures domain vars st =
     domain
     Var.Map.empty
 
-let f blocks context closures domain vars pc =
+let compute_block_info blocks vars st =
+  Addr.Map.mapi
+    (fun pc { Domain.input; output } ->
+      let block = Addr.Map.find pc blocks in
+      let live_vars = propagate_through_branch ~vars block.Code.branch input in
+      { initially_live = output
+      ; branch =
+          { live_vars
+          ; no_longer_live = no_longer_live_after_branch ~vars block.Code.branch input
+          }
+      })
+    st
+
+let f ~blocks ~context ~closures ~domain ~vars ~pc =
   let deps, rev_deps = function_deps blocks pc in
   let fold_children f pc acc = Addr.Set.fold f (get_set deps pc) acc in
   let g = { G.domain; fold_children } in
   let st =
     Solver.f g (fun st pc -> propagate blocks ~context ~closures ~vars rev_deps st pc)
   in
-  let info = live_variables blocks context closures domain vars st in
+  let instr = compute_instr_info blocks context closures domain vars st in
+  let block = compute_block_info blocks vars st in
   (*
   Addr.Set.iter
     (fun pc ->
@@ -199,4 +250,4 @@ let f blocks context closures domain vars pc =
         block)
     domain;
 *)
-  info, st
+  { block; instr }

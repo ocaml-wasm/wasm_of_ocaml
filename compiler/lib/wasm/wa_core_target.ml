@@ -222,7 +222,7 @@ module Closure = struct
     let n = ref 0 in
     fun context info ->
       let free_variables = get_free_variables ~context info in
-      if true && not (List.is_empty free_variables)
+      if false && not (List.is_empty free_variables)
       then
         (incr n;
          s := !s + List.length free_variables;

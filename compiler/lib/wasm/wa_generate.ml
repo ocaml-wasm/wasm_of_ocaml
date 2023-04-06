@@ -203,7 +203,7 @@ module Generate (Target : Wa_target_sig.S) = struct
     | `Return -> `Skip :: context
 
   let translate_function p ctx name_opt toplevel_name params ((pc, _) as cont) acc =
-    Wa_spilling.f p ctx.global_context ctx.closures pc params;
+    Wa_spilling.f p ~context:ctx.global_context ~closures:ctx.closures ~pc ~params;
     let g = Wa_structure.build_graph ctx.blocks pc in
     let idom = Wa_structure.dominator_tree g in
     let dom = Wa_structure.reverse_tree idom in
