@@ -255,7 +255,7 @@ module Value = struct
 end
 
 module Memory = struct
-  let allocate ~tag l =
+  let allocate _ _ ~tag l =
     let* l =
       expression_list
         (fun v ->
@@ -404,7 +404,7 @@ module Closure = struct
     | [ (g, _) ] -> Code.Var.equal f g
     | _ :: r -> is_last_fun r f
 
-  let translate ~context ~closures f =
+  let translate ~context ~closures ~stack_ctx:_ f =
     let info = Code.Var.Map.find f closures in
     let free_variables = get_free_variables ~context info in
     let arity = List.assoc f info.functions in
@@ -546,7 +546,7 @@ module Closure = struct
                ~init:(0, return ())
                (List.map ~f:fst functions @ free_variables))
 
-  let curry_allocate ~arity m ~f ~closure ~arg =
+  let curry_allocate ~stack_ctx:_ ~x:_ ~arity m ~f ~closure ~arg =
     let* ty = Type.curry_type arity m in
     let* cl_ty =
       if m = arity then Type.closure_type arity else Type.curry_type arity (m + 1)
@@ -564,9 +564,13 @@ module Closure = struct
 end
 
 module Stack = struct
+  type stack = Code.Var.t option list
+
   type info = unit
 
   let generate_spilling_information _ ~context:_ ~closures:_ ~pc:_ ~params:_ = ()
+
+  let add_spilling _ ~location:_ ~stack:_ ~live_vars:_ ~spilled_vars:_ = (), []
 
   type ctx = unit
 
@@ -579,6 +583,8 @@ module Stack = struct
   let perform_spilling _ _ = return ()
 
   let kill_variables _ = ()
+
+  let make_info () = ()
 end
 
 let entry_point ~register_primitive:_ = return ()

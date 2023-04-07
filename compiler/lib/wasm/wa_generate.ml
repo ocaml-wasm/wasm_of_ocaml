@@ -82,9 +82,10 @@ module Generate (Target : Wa_target_sig.S) = struct
         Stack.kill_variables stack_ctx;
         return (W.Call (V apply, args @ [ closure ]))
     | Block (tag, a, _) ->
-        Memory.allocate ~tag (List.map ~f:(fun x -> `Var x) (Array.to_list a))
+        Memory.allocate stack_ctx x ~tag (List.map ~f:(fun x -> `Var x) (Array.to_list a))
     | Field (x, n) -> Memory.field (load x) n
-    | Closure _ -> Closure.translate ~context:ctx.global_context ~closures:ctx.closures x
+    | Closure _ ->
+        Closure.translate ~context:ctx.global_context ~closures:ctx.closures ~stack_ctx x
     | Constant c -> Constant.translate c
     | Prim (p, l) -> (
         let l = List.map ~f:transl_prim_arg l in
@@ -152,7 +153,7 @@ module Generate (Target : Wa_target_sig.S) = struct
     match l with
     | [] -> return ()
     | i :: rem ->
-        let* () = Stack.perform_reloads stack_ctx (Code.Print.Instr i) in
+        let* () = Stack.perform_reloads stack_ctx (`Instr (fst i)) in
         let* () = translate_instr ctx stack_ctx i in
         translate_instrs ctx stack_ctx rem
 
@@ -303,7 +304,7 @@ module Generate (Target : Wa_target_sig.S) = struct
           in
           let stack_ctx = Stack.start_block stack_info pc in
           let* () = translate_instrs ctx stack_ctx block.body in
-          let* () = Stack.perform_reloads stack_ctx (Last block.branch) in
+          let* () = Stack.perform_reloads stack_ctx (`Branch (fst block.branch)) in
           let* () = Stack.perform_spilling stack_ctx (`Block pc) in
           match fst block.branch with
           | Branch cont -> translate_branch result_typ fall_through pc cont context

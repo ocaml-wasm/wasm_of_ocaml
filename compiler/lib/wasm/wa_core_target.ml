@@ -56,6 +56,18 @@ module Memory = struct
        let* () = instr (W.GlobalSet (S "young_ptr", v)) in
        let* () = mem_init (load p) (Arith.const (header ~tag ~len ())) in
        Wa_spilling.kill_variables stack_ctx;
+       let* () =
+         Wa_spilling.perform_reloads
+           stack_ctx
+           (`Vars
+             (List.fold_left
+                ~f:(fun s v ->
+                  match v with
+                  | `Expr _ -> s
+                  | `Var x -> Code.Var.Set.add x s)
+                ~init:Code.Var.Set.empty
+                l))
+       in
        snd
          (List.fold_right
             ~init:(len, return ())
@@ -345,8 +357,10 @@ module Closure = struct
            ~init:(offset, return ())
            free_variables)
 
-  let curry_allocate ~arity _ ~f ~closure ~arg =
+  let curry_allocate ~stack_ctx ~x ~arity _ ~f ~closure ~arg =
     Memory.allocate
+      stack_ctx
+      x
       ~tag:Obj.closure_tag
       [ `Expr (W.ConstSym (f, 0))
       ; `Expr (closure_info ~arity ~sz:2)

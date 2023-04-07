@@ -97,8 +97,32 @@ module Make (Target : Wa_target_sig.S) = struct
       let* _ = add_var x in
       let f = Code.Var.fresh_n "f" in
       let* _ = add_var f in
-      let* e = Closure.curry_allocate ~arity m ~f:(V name') ~closure:f ~arg:x in
-      instr (Push e)
+      let res = Code.Var.fresh_n "res" in
+      let stack_info, stack =
+        Stack.make_info ()
+        |> fun info ->
+        Stack.add_spilling
+          info
+          ~location:res
+          ~stack:[]
+          ~live_vars:Var.Set.empty
+          ~spilled_vars:(Var.Set.of_list [ x; f ])
+      in
+      let ret = Code.Var.fresh_n "ret" in
+      let stack_info, _ =
+        Stack.add_spilling
+          stack_info
+          ~location:ret
+          ~stack
+          ~live_vars:Var.Set.empty
+          ~spilled_vars:Var.Set.empty
+      in
+      let stack_ctx = Stack.start_function stack_info in
+      let* e =
+        Closure.curry_allocate ~stack_ctx ~x:res ~arity m ~f:(V name') ~closure:f ~arg:x
+      in
+      let* () = instr (Push e) in
+      Stack.perform_spilling stack_ctx (`Instr ret)
     in
     let local_count, body = function_body ~context ~param_count:2 ~body in
     W.Function

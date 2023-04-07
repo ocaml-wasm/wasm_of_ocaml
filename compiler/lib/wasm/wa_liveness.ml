@@ -111,12 +111,6 @@ let propagate_through_branch ~vars (b, _) s =
   | Pushtrap (cont, x, cont_h, _) ->
       s |> cont_used ~vars cont |> cont_used ~vars cont_h |> Var.Set.remove x
 
-let no_longer_live_after_expr ~context ~closures ~vars x e live_vars_after =
-  Var.Set.diff (expr_used ~context ~closures ~vars x e Var.Set.empty) live_vars_after
-
-let no_longer_live_after_branch ~vars b live_vars_after =
-  Var.Set.diff (propagate_through_branch ~vars b Var.Set.empty) live_vars_after
-
 let propagate blocks ~context ~closures ~vars rev_deps st pc =
   let input =
     pc
@@ -139,20 +133,13 @@ let propagate blocks ~context ~closures ~vars rev_deps st pc =
 module G = Dgraph.Make (Int) (Addr.Set) (Addr.Map)
 module Solver = G.Solver (Domain)
 
-type instr_info =
-  { live_vars : Var.Set.t (* Live variables at spilling point *)
-  ; no_longer_live : Var.Set.t
-        (* Variable used after spilling point but no longer live after
-           the instruction *)
-  }
-
 type block_info =
   { initially_live : Var.Set.t (* Live at start of block *)
-  ; branch : instr_info
+  ; live_before_branch : Var.Set.t
   }
 
 type info =
-  { instr : instr_info Var.Map.t
+  { instr : Var.Set.t Var.Map.t (* Live variables at spilling point *)
   ; block : block_info Addr.Map.t
   }
 
@@ -173,24 +160,8 @@ let compute_instr_info blocks context closures domain vars st =
               | Let (x, e) -> (
                   match e with
                   | Apply _ | Prim _ ->
-                      Var.Map.add
-                        x
-                        { live_vars = Var.Set.remove x live_vars
-                        ; no_longer_live =
-                            no_longer_live_after_expr
-                              ~context
-                              ~closures
-                              ~vars
-                              x
-                              e
-                              live_vars
-                        }
-                        live_info
-                  | Block _ | Closure _ ->
-                      Var.Map.add
-                        x
-                        { live_vars = live_vars'; no_longer_live = Var.Set.empty }
-                        live_info
+                      Var.Map.add x (Var.Set.remove x live_vars) live_info
+                  | Block _ | Closure _ -> Var.Map.add x live_vars' live_info
                   | Constant _ | Field _ -> live_info)
               | Assign _ | Offset_ref _ | Set_field _ | Array_set _ -> live_info
             in
@@ -206,13 +177,8 @@ let compute_block_info blocks vars st =
   Addr.Map.mapi
     (fun pc { Domain.input; output } ->
       let block = Addr.Map.find pc blocks in
-      let live_vars = propagate_through_branch ~vars block.Code.branch input in
-      { initially_live = output
-      ; branch =
-          { live_vars
-          ; no_longer_live = no_longer_live_after_branch ~vars block.Code.branch input
-          }
-      })
+      let live_before_branch = propagate_through_branch ~vars block.Code.branch input in
+      { initially_live = output; live_before_branch })
     st
 
 let f ~blocks ~context ~closures ~domain ~vars ~pc =

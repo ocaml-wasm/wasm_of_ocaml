@@ -1,17 +1,10 @@
-type instr_info =
-  { live_vars : Code.Var.Set.t (* Live variables at spilling point *)
-  ; no_longer_live : Code.Var.Set.t
-        (* Variable used after spilling point but no longer live after
-           the instruction *)
-  }
-
 type block_info =
   { initially_live : Code.Var.Set.t (* Live at start of block *)
-  ; branch : instr_info
+  ; live_before_branch : Code.Var.Set.t
   }
 
 type info =
-  { instr : instr_info Code.Var.Map.t
+  { instr : Code.Var.Set.t Code.Var.Map.t (* Live variables at spilling point *)
   ; block : block_info Code.Addr.Map.t
   }
 

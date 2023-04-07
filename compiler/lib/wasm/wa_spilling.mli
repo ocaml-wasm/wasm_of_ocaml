@@ -23,6 +23,8 @@ type info =
   }
 *)
 
+type stack = Code.Var.t option list
+
 type info
 
 val generate_spilling_information :
@@ -33,13 +35,26 @@ val generate_spilling_information :
   -> params:Code.Var.t list
   -> info
 
+val make_info : unit -> info
+
+val add_spilling :
+     info
+  -> location:Code.Var.t
+  -> stack:stack
+  -> live_vars:Code.Var.Set.t
+  -> spilled_vars:Code.Var.Set.t
+  -> info * stack
+
 type ctx
 
 val start_function : info -> ctx
 
 val start_block : info -> Code.Addr.t -> ctx
 
-val perform_reloads : ctx -> Code.Print.xinstr -> unit Wa_code_generation.t
+val perform_reloads :
+     ctx
+  -> [ `Branch of Code.last | `Instr of Code.instr | `Vars of Code.Var.Set.t ]
+  -> unit Wa_code_generation.t
 
 val perform_spilling :
      ctx
