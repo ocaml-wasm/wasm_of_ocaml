@@ -13,6 +13,7 @@ val f :
   -> context:Wa_code_generation.context
   -> closures:Wa_closure_conversion.closure Code.Var.Map.t
   -> domain:Code.Addr.Set.t
+  -> env:Code.Var.t
   -> vars:Code.Var.Set.t
   -> pc:int
   -> info

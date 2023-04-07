@@ -519,45 +519,6 @@ let generate_spilling_information { blocks; _ } ~context ~closures ~pc:pc0 ~para
     domain;
   info
 
-(*
-Spilling information:
-- what needs to be reloaded (live before instruction but not longer live)
-- how the stack pointer needs to be adjusted
-- what needs to be spilled
-
-Need to adjust the stack also in branches (including in switches...)
-==> add intermediate blocks
-
------------------
-
-When does the sp need to be reloaded?
-==> keep track of whether sp is loaded
-
------------------
-
-range splitting to avoid using too many local variables
-
------------------
-
-Check curry / apply functions
-
-----------------
-
-Assign must update the stack
-
----------------
-
-We might be unnecessarily spilling around constant closure?
-
----------------
-
-Shadow stack and exceptions???
-
---------
-
-ZZZ Env spilling????
-*)
-
 type context =
   { loaded_variables : Var.Set.t
   ; sp_loaded : bool (* ZZZ loaded_sp: Code.Var.t option *)
@@ -616,6 +577,21 @@ let perform_reloads ctx l =
       ; sp_loaded = true
       };
     return ()
+
+let assign ctx x =
+  match find_in_stack x !ctx.stack with
+  | exception Not_found -> return ()
+  | i ->
+      let* () =
+        if !ctx.sp_loaded
+        then return ()
+        else store !ctx.sp (return (W.GlobalGet (S "sp")))
+      in
+      ctx := { !ctx with sp_loaded = true };
+      let* sp = load !ctx.sp in
+      let* x = load x in
+      let offset = 4 * i in
+      instr (W.Store (I32 (Int32.of_int offset), sp, x))
 
 let perform_spilling ctx loc =
   match
@@ -690,3 +666,24 @@ let add_spilling info ~location:x ~stack ~live_vars ~spilled_vars =
   let spilling = update_stack ~max_depth live_vars spilled_vars stack in
   ( { info with max_depth = !max_depth; instr = Var.Map.add x spilling info.instr }
   , spilling.stack )
+
+(*
+Need to adjust the stack also in branches (including in switches...)
+==> add intermediate blocks
+
+-----------------
+
+Range splitting to avoid using too many local variables???
+
+-----------------
+
+Check apply function
+
+----------------
+
+Shadow stack and exceptions???
+
+--------
+
+ZZZ Env spilling????
+*)

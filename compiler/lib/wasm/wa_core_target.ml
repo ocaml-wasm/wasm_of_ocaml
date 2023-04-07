@@ -4,6 +4,8 @@ open Wa_code_generation
 
 type expression = Wa_ast.expression Wa_code_generation.t
 
+module Stack = Wa_spilling
+
 module Memory = struct
   let mem_load ?(offset = 0) e =
     assert (offset >= 0);
@@ -49,15 +51,15 @@ module Memory = struct
     let p = Code.Var.fresh_n "p" in
     let size = (len + 1) * 4 in
     seq
-      (let* () = Wa_spilling.perform_spilling stack_ctx (`Instr x) in
+      (let* () = Stack.perform_spilling stack_ctx (`Instr x) in
        let* v =
          tee p Arith.(return (W.GlobalGet (S "young_ptr")) - const (Int32.of_int size))
        in
        let* () = instr (W.GlobalSet (S "young_ptr", v)) in
        let* () = mem_init (load p) (Arith.const (header ~tag ~len ())) in
-       Wa_spilling.kill_variables stack_ctx;
+       Stack.kill_variables stack_ctx;
        let* () =
-         Wa_spilling.perform_reloads
+         Stack.perform_reloads
            stack_ctx
            (`Vars
              (List.fold_left
@@ -304,6 +306,11 @@ module Closure = struct
         let h = Memory.header ~const:true ~tag:Obj.closure_tag ~len:(List.length l) () in
         let name = Code.Var.fresh_n "closure" in
         let* () = register_data_segment name ~active:true (W.DataI32 h :: l) in
+        let* () =
+          (* In case we did not detect that this closure was constant
+             during the spilling analysis *)
+          Stack.perform_spilling stack_ctx (`Instr x)
+        in
         return (W.ConstSym (V name, 4))
       else
         Memory.allocate
@@ -371,8 +378,6 @@ module Closure = struct
   let curry_load ~arity:_ _ closure =
     return (Memory.field (load closure) 3, Memory.field (load closure) 4)
 end
-
-module Stack = Wa_spilling
 
 let entry_point ~register_primitive =
   let declare_global name =

@@ -135,7 +135,9 @@ module Generate (Target : Wa_target_sig.S) = struct
 
   and translate_instr ctx stack_ctx (i, _) =
     match i with
-    | Assign (x, y) -> assign x (load y)
+    | Assign (x, y) ->
+        let* () = assign x (load y) in
+        Stack.assign stack_ctx x
     | Let (x, e) ->
         if ctx.live.(Var.idx x) = 0
         then drop (translate_expr ctx stack_ctx x e)
@@ -213,6 +215,10 @@ module Generate (Target : Wa_target_sig.S) = struct
         p
         ~context:ctx.global_context
         ~closures:ctx.closures
+        ~env:
+          (match name_opt with
+          | Some name -> name
+          | None -> Var.fresh ())
         ~pc
         ~params
     in

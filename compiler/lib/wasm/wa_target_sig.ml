@@ -11,6 +11,7 @@ module type S = sig
       -> context:Wa_code_generation.context
       -> closures:Wa_closure_conversion.closure Code.Var.Map.t
       -> pc:Code.Addr.t
+      -> env:Code.Var.t
       -> params:Code.Var.t list
       -> info
 
@@ -41,6 +42,8 @@ module type S = sig
       -> unit Wa_code_generation.t
 
     val kill_variables : ctx -> unit
+
+    val assign : ctx -> Code.Var.t -> unit Wa_code_generation.t
   end
 
   module Memory : sig

@@ -32,6 +32,7 @@ val generate_spilling_information :
   -> context:Wa_code_generation.context
   -> closures:Wa_closure_conversion.closure Code.Var.Map.t
   -> pc:Code.Addr.t
+  -> env:Code.Var.t
   -> params:Code.Var.t list
   -> info
 
@@ -62,3 +63,5 @@ val perform_spilling :
   -> unit Wa_code_generation.t
 
 val kill_variables : ctx -> unit
+
+val assign : ctx -> Code.Var.t -> unit Wa_code_generation.t

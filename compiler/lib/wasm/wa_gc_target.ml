@@ -568,7 +568,7 @@ module Stack = struct
 
   type info = unit
 
-  let generate_spilling_information _ ~context:_ ~closures:_ ~pc:_ ~params:_ = ()
+  let generate_spilling_information _ ~context:_ ~closures:_ ~pc:_ ~env:_ ~params:_ = ()
 
   let add_spilling _ ~location:_ ~stack:_ ~live_vars:_ ~spilled_vars:_ = (), []
 
@@ -583,6 +583,8 @@ module Stack = struct
   let perform_spilling _ _ = return ()
 
   let kill_variables _ = ()
+
+  let assign _ _ = return ()
 
   let make_info () = ()
 end
