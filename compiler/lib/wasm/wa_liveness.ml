@@ -5,13 +5,6 @@ ZZZ If live in exception handler, live any place we may raise in the body
 open! Stdlib
 open Code
 
-let _print_vars s =
-  Format.asprintf
-    "{%a}"
-    (fun f l ->
-      Format.pp_print_list ~pp_sep:(fun f () -> Format.fprintf f " ") Var.print f l)
-    (Var.Set.elements s)
-
 module Domain = struct
   type t =
     { input : Var.Set.t
@@ -66,52 +59,60 @@ let function_deps blocks pc =
     ();
   deps
 
-let add_var vars s x = if Var.Set.mem x vars then Var.Set.add x s else s
+type ctx =
+  { env : Var.t
+  ; bound_vars : Var.Set.t
+  ; spilled_vars : Var.Set.t
+  }
 
-let add_list vars s l = List.fold_left ~f:(fun s x -> add_var vars s x) ~init:s l
+let add_var ~ctx s x =
+  let x = if Var.Set.mem x ctx.bound_vars then x else ctx.env in
+  if Var.Set.mem x ctx.spilled_vars then Var.Set.add x s else s
 
-let add_prim_args vars s l =
+let add_list ~ctx s l = List.fold_left ~f:(fun s x -> add_var ~ctx s x) ~init:s l
+
+let add_prim_args ~ctx s l =
   List.fold_left
     ~f:(fun s x ->
       match x with
       | Pc _ -> s
-      | Pv x -> add_var vars s x)
+      | Pv x -> add_var ~ctx s x)
     ~init:s
     l
 
-let add_array vars s a = Array.fold_left ~f:(fun s x -> add_var vars s x) ~init:s a
+let add_array ~ctx s a = Array.fold_left ~f:(fun s x -> add_var ~ctx s x) ~init:s a
 
-let expr_used ~context ~closures ~vars x e s =
+let expr_used ~context ~closures ~ctx x e s =
   match e with
-  | Apply { f; args; _ } -> add_list vars s (f :: args)
-  | Block (_, a, _) -> add_array vars s a
-  | Prim (_, l) -> add_prim_args vars s l
-  | Closure _ -> add_list vars s (function_free_variables ~context ~closures x)
+  | Apply { f; args; _ } -> add_list ~ctx s (f :: args)
+  | Block (_, a, _) -> add_array ~ctx s a
+  | Prim (_, l) -> add_prim_args ~ctx s l
+  | Closure _ -> add_list ~ctx s (function_free_variables ~context ~closures x)
   | Constant _ -> s
-  | Field (x, _) -> add_var vars s x
+  | Field (x, _) -> add_var ~ctx s x
 
-let propagate_through_instr ~context ~closures ~vars (i, _) s =
+let propagate_through_instr ~context ~closures ~ctx (i, _) s =
   match i with
-  | Let (x, e) -> expr_used ~context ~closures ~vars x e (Var.Set.remove x s)
-  | Set_field (x, _, y) -> add_var vars (add_var vars s x) y
-  | Assign (_, x) | Offset_ref (x, _) -> add_var vars s x
-  | Array_set (x, y, z) -> add_var vars (add_var vars (add_var vars s x) y) z
+  | Let (x, e) -> expr_used ~context ~closures ~ctx x e (Var.Set.remove x s)
+  | Set_field (x, _, y) -> add_var ~ctx (add_var ~ctx s x) y
+  | Assign (_, x) | Offset_ref (x, _) -> add_var ~ctx s x
+  | Array_set (x, y, z) -> add_var ~ctx (add_var ~ctx (add_var ~ctx s x) y) z
 
-let cont_used ~vars (_, args) s = add_list vars s args
+let cont_used ~ctx (_, args) s = add_list ~ctx s args
 
-let propagate_through_branch ~vars (b, _) s =
+let propagate_through_branch ~ctx (b, _) s =
   match b with
-  | Return x | Raise (x, _) -> add_var vars s x
+  | Return x | Raise (x, _) -> add_var ~ctx s x
   | Stop -> s
-  | Branch cont | Poptrap cont -> cont_used ~vars cont s
-  | Cond (_, cont1, cont2) -> s |> cont_used ~vars cont1 |> cont_used ~vars cont2
+  | Branch cont | Poptrap cont -> cont_used ~ctx cont s
+  | Cond (_, cont1, cont2) -> s |> cont_used ~ctx cont1 |> cont_used ~ctx cont2
   | Switch (_, a1, a2) ->
-      let s = Array.fold_right a1 ~f:(fun cont s -> cont_used ~vars cont s) ~init:s in
-      Array.fold_right a2 ~f:(fun cont s -> cont_used ~vars cont s) ~init:s
+      let s = Array.fold_right a1 ~f:(fun cont s -> cont_used ~ctx cont s) ~init:s in
+      Array.fold_right a2 ~f:(fun cont s -> cont_used ~ctx cont s) ~init:s
   | Pushtrap (cont, x, cont_h, _) ->
-      s |> cont_used ~vars cont |> cont_used ~vars cont_h |> Var.Set.remove x
+      s |> cont_used ~ctx cont |> cont_used ~ctx cont_h |> Var.Set.remove x
 
-let propagate blocks ~context ~closures ~vars rev_deps st pc =
+let propagate blocks ~context ~closures ~ctx rev_deps st pc =
   let input =
     pc
     |> get_set rev_deps
@@ -120,10 +121,10 @@ let propagate blocks ~context ~closures ~vars rev_deps st pc =
     |> List.fold_left ~f:Var.Set.union ~init:Var.Set.empty
   in
   let b = Addr.Map.find pc blocks in
-  let s = propagate_through_branch ~vars b.branch input in
+  let s = propagate_through_branch ~ctx b.branch input in
   let output =
     List.fold_right
-      ~f:(fun i s -> propagate_through_instr ~context ~closures ~vars i s)
+      ~f:(fun i s -> propagate_through_instr ~context ~closures ~ctx i s)
       ~init:s
       b.body
   in
@@ -143,17 +144,17 @@ type info =
   ; block : block_info Addr.Map.t
   }
 
-let compute_instr_info blocks context closures domain vars st =
+let compute_instr_info ~blocks ~context ~closures ~domain ~ctx st =
   Addr.Set.fold
     (fun pc live_info ->
       let live_vars = (Addr.Map.find pc st).Domain.input in
       let block = Addr.Map.find pc blocks in
-      let live_vars = propagate_through_branch ~vars block.Code.branch live_vars in
+      let live_vars = propagate_through_branch ~ctx block.Code.branch live_vars in
       let _, live_info =
         List.fold_right
           ~f:(fun i (live_vars, live_info) ->
             let live_vars' =
-              propagate_through_instr ~context ~closures ~vars i live_vars
+              propagate_through_instr ~context ~closures ~ctx i live_vars
             in
             let live_info =
               match fst i with
@@ -173,23 +174,24 @@ let compute_instr_info blocks context closures domain vars st =
     domain
     Var.Map.empty
 
-let compute_block_info blocks vars st =
+let compute_block_info ~blocks ~ctx st =
   Addr.Map.mapi
     (fun pc { Domain.input; output } ->
       let block = Addr.Map.find pc blocks in
-      let live_before_branch = propagate_through_branch ~vars block.Code.branch input in
+      let live_before_branch = propagate_through_branch ~ctx block.Code.branch input in
       { initially_live = output; live_before_branch })
     st
 
-let f ~blocks ~context ~closures ~domain ~vars ~pc =
+let f ~blocks ~context ~closures ~domain ~env ~bound_vars ~spilled_vars ~pc =
+  let ctx = { env; bound_vars; spilled_vars } in
   let deps, rev_deps = function_deps blocks pc in
   let fold_children f pc acc = Addr.Set.fold f (get_set deps pc) acc in
   let g = { G.domain; fold_children } in
   let st =
-    Solver.f g (fun st pc -> propagate blocks ~context ~closures ~vars rev_deps st pc)
+    Solver.f g (fun st pc -> propagate blocks ~context ~closures ~ctx rev_deps st pc)
   in
-  let instr = compute_instr_info blocks context closures domain vars st in
-  let block = compute_block_info blocks vars st in
+  let instr = compute_instr_info ~blocks ~context ~closures ~domain ~ctx st in
+  let block = compute_block_info ~blocks ~ctx st in
   (*
   Addr.Set.iter
     (fun pc ->
@@ -200,20 +202,27 @@ let f ~blocks ~context ~closures ~domain ~vars ~pc =
       Format.eprintf "output:";
       Var.Set.iter (fun x -> Format.eprintf " %a" Var.print x) output;
       Format.eprintf "@.";
-      let block = Addr.Map.find pc blocks in
+      let b = Addr.Map.find pc blocks in
+      let print_vars s =
+        Format.asprintf
+          "{%a}"
+          (fun f l ->
+            Format.pp_print_list ~pp_sep:(fun f () -> Format.fprintf f " ") Var.print f l)
+          (Var.Set.elements s)
+      in
       Code.Print.block
         (fun _pc loc ->
           match loc with
           | Instr (Let (x, _), _) -> (
-              match Var.Map.find_opt x info with
+              match Var.Map.find_opt x instr with
               | Some s -> print_vars s
               | None -> "")
           | Instr _ -> ""
           | Last _ ->
-              let { Domain.input; _ } = Addr.Map.find pc st in
-              print_vars input)
+              let s = Addr.Map.find pc block in
+              print_vars s.live_before_branch)
         pc
-        block)
+        b)
     domain;
-*)
+  *)
   { block; instr }

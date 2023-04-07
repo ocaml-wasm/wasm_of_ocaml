@@ -91,7 +91,7 @@ let cont_deps (deps, rev_deps) pc ?exn (pc', _) =
   Hashtbl.replace deps pc (Addr.Set.add pc' (get_set deps pc));
   Hashtbl.replace rev_deps pc' ((pc, exn) :: get_list rev_deps pc')
 
-let block_deps vars deps block pc =
+let block_deps bound_vars deps block pc =
   match fst block.branch with
   | Return _ | Raise _ | Stop -> ()
   | Branch cont | Poptrap cont -> cont_deps deps pc cont
@@ -103,40 +103,47 @@ let block_deps vars deps block pc =
       Array.iter a2 ~f:(fun cont -> cont_deps deps pc cont)
   | Pushtrap (cont, exn, cont_h, _) ->
       cont_deps deps pc cont;
-      vars := Var.Set.add exn !vars;
+      bound_vars := Var.Set.add exn !bound_vars;
       cont_deps deps pc ~exn cont_h
 
 let function_deps blocks ~context ~closures pc params =
-  let vars = ref params in
+  let bound_vars = ref params in
+  let non_spillable_vars = ref Var.Set.empty in
   let domain = ref Addr.Set.empty in
   let deps = Hashtbl.create 16, Hashtbl.create 16 in
+  let mark_non_spillable x = non_spillable_vars := Var.Set.add x !non_spillable_vars in
   Code.traverse
     { fold = fold_children }
     (fun pc () ->
       domain := Addr.Set.add pc !domain;
       let block = Addr.Map.find pc blocks in
-      vars :=
+      List.iter
+        ~f:(fun (i, _) ->
+          match i with
+          | Let (x, e) -> (
+              match e with
+              | Constant _ -> mark_non_spillable x
+              | Prim (p, _) when no_pointer p -> mark_non_spillable x
+              | Closure _
+                when List.is_empty (function_free_variables ~context ~closures x) ->
+                  mark_non_spillable x
+              | Prim _ | Closure _ | Apply _ | Block _ | Field _ -> ())
+          | Assign _ | Set_field _ | Offset_ref _ | Array_set _ -> ())
+        block.body;
+      bound_vars :=
         List.fold_left
           ~f:(fun vars (i, _) ->
             match i with
-            | Let (x, e) -> (
-                match e with
-                | Constant _ -> vars
-                | Prim (p, _) -> if no_pointer p then vars else Var.Set.add x vars
-                | Closure _ ->
-                    if List.is_empty (function_free_variables ~context ~closures x)
-                    then vars
-                    else Var.Set.add x vars
-                | Apply _ | Block _ | Field _ -> Var.Set.add x vars)
+            | Let (x, _) -> Var.Set.add x vars
             | Assign _ | Set_field _ | Offset_ref _ | Array_set _ -> vars)
-          ~init:!vars
+          ~init:!bound_vars
           block.body;
-      vars := Var.Set.union !vars (Var.Set.of_list block.params);
-      block_deps vars deps block pc)
+      bound_vars := Var.Set.union !bound_vars (Var.Set.of_list block.params);
+      block_deps bound_vars deps block pc)
     pc
     blocks
     ();
-  !domain, deps, !vars
+  !domain, deps, !bound_vars, Var.Set.diff !bound_vars !non_spillable_vars
 
 let inter s s' =
   match s, s' with
@@ -191,13 +198,29 @@ let propagate blocks ~context ~closures rev_deps pc0 params st pc =
 module G = Dgraph.Make (Int) (Addr.Set) (Addr.Map)
 module Solver = G.Solver (Domain)
 
-let check_spilled vars loaded x spilled =
-  if Var.Set.mem x loaded || not (Var.Set.mem x vars)
+type spill_ctx =
+  { env : Var.t
+  ; bound_vars : Var.Set.t
+  ; spillable_vars : Var.Set.t
+  }
+
+let check_spilled ~ctx loaded x spilled =
+  let x = if Var.Set.mem x ctx.bound_vars then x else ctx.env in
+  if Var.Set.mem x loaded || not (Var.Set.mem x ctx.spillable_vars)
   then spilled
   else Var.Set.add x spilled
 
-let spilled_variables blocks context closures domain vars st =
+let spilled_variables
+    ~blocks
+    ~context
+    ~closures
+    ~domain
+    ~env
+    ~bound_vars
+    ~spillable_vars
+    st =
   let spilled = Var.Set.empty in
+  let ctx = { env; bound_vars; spillable_vars } in
   Addr.Set.fold
     (fun pc spilled ->
       let loaded =
@@ -216,41 +239,41 @@ let spilled_variables blocks context closures domain vars st =
                   match e with
                   | Apply { f; args; _ } ->
                       List.fold_left
-                        ~f:(fun reloaded x -> check_spilled vars loaded x reloaded)
+                        ~f:(fun reloaded x -> check_spilled ~ctx loaded x reloaded)
                         (f :: args)
                         ~init:Var.Set.empty
                   | Block (_, l, _) ->
                       Array.fold_left
-                        ~f:(fun reloaded x -> check_spilled vars loaded' x reloaded)
+                        ~f:(fun reloaded x -> check_spilled ~ctx loaded' x reloaded)
                         l
                         ~init:Var.Set.empty
                   | Prim (_, args) ->
                       List.fold_left
                         ~f:(fun reloaded x ->
                           match x with
-                          | Pv x -> check_spilled vars loaded x reloaded
+                          | Pv x -> check_spilled ~ctx loaded x reloaded
                           | Pc _ -> reloaded)
                         args
                         ~init:Var.Set.empty
                   | Closure _ ->
                       let fv = function_free_variables ~context ~closures x in
                       List.fold_left
-                        ~f:(fun reloaded x -> check_spilled vars loaded' x reloaded)
+                        ~f:(fun reloaded x -> check_spilled ~ctx loaded' x reloaded)
                         fv
                         ~init:Var.Set.empty
                   | Constant _ -> Var.Set.empty
-                  | Field (x, _) -> check_spilled vars loaded x Var.Set.empty)
+                  | Field (x, _) -> check_spilled ~ctx loaded x Var.Set.empty)
               | Assign (_, x) | Offset_ref (x, _) ->
-                  check_spilled vars loaded x Var.Set.empty
+                  check_spilled ~ctx loaded x Var.Set.empty
               | Set_field (x, _, y) ->
                   Var.Set.empty
-                  |> check_spilled vars loaded x
-                  |> check_spilled vars loaded y
+                  |> check_spilled ~ctx loaded x
+                  |> check_spilled ~ctx loaded y
               | Array_set (x, y, z) ->
                   Var.Set.empty
-                  |> check_spilled vars loaded x
-                  |> check_spilled vars loaded y
-                  |> check_spilled vars loaded z
+                  |> check_spilled ~ctx loaded x
+                  |> check_spilled ~ctx loaded y
+                  |> check_spilled ~ctx loaded z
             in
             Var.Set.union loaded' reloaded, Var.Set.union spilled reloaded)
           ~init:(loaded, spilled)
@@ -258,12 +281,12 @@ let spilled_variables blocks context closures domain vars st =
       in
       let handle_cont (_, args) spilled =
         List.fold_left
-          ~f:(fun spilled x -> check_spilled vars loaded x spilled)
+          ~f:(fun spilled x -> check_spilled ~ctx loaded x spilled)
           args
           ~init:spilled
       in
       match fst block.branch with
-      | Return x | Raise (x, _) -> check_spilled vars loaded x spilled
+      | Return x | Raise (x, _) -> check_spilled ~ctx loaded x spilled
       | Stop -> spilled
       | Branch cont | Poptrap cont -> handle_cont cont spilled
       | Cond (_, cont1, cont2) -> spilled |> handle_cont cont1 |> handle_cont cont2
@@ -355,7 +378,7 @@ let print_spilling { depth_change; spills; stack; _ } =
   in
   if false
   then print_stack stack
-  else Format.asprintf "%d {%a}" depth_change print_actions spills
+  else Format.asprintf "%d %s {%a}" depth_change (print_stack stack) print_actions spills
 
 type block_info =
   { initial_stack : stack (* Stack at beginning of block *)
@@ -366,6 +389,8 @@ type block_info =
 type info =
   { max_depth : int
   ; subcalls : bool
+  ; env : Var.t
+  ; vars : Var.Set.t
   ; initial_spilling : spilling_info
   ; block : block_info Addr.Map.t
   ; instr : spilling_info Var.Map.t
@@ -377,23 +402,22 @@ let update_stack ~max_depth live_vars vars stack =
   max_depth := max !max_depth (List.length stack);
   { depth_change = List.length stack' - List.length stack; stack = stack'; spills }
 
-let spilling blocks st sv live_info pc0 params =
+let spilling blocks st env bound_vars spilled_vars live_info pc params =
   let stack = [] in
-  (*ZZZ Spilling at function start*)
   let max_depth = ref 0 in
   let subcalls = ref false in
-  let vars = Var.Set.inter params sv in
+  let vars = Var.Set.inter params spilled_vars in
   let stack, spills = spill_vars Var.Set.empty vars stack in
   let initial_spilling = { depth_change = List.length stack; stack; spills } in
   let instr_info = ref Var.Map.empty in
   let block_info = ref Addr.Map.empty in
-  traverse pc0 blocks stack ~f:(fun pc stack ->
+  traverse pc blocks stack ~f:(fun pc stack ->
       let block = Addr.Map.find pc blocks in
       let block_live_vars = Addr.Map.find pc live_info.Wa_liveness.block in
       let initial_stack, _ =
         spill_vars block_live_vars.initially_live Var.Set.empty stack
       in
-      let vars = Var.Set.inter (Var.Set.of_list block.params) sv in
+      let vars = Var.Set.inter (Var.Set.of_list block.params) spilled_vars in
       let stack, vars =
         List.fold_left
           ~f:(fun (stack, vars) (i, _) ->
@@ -423,7 +447,7 @@ let spilling blocks st sv live_info pc0 params =
             in
             let vars =
               match i with
-              | Let (x, _) when Var.Set.mem x sv -> Var.Set.add x vars
+              | Let (x, _) when Var.Set.mem x spilled_vars -> Var.Set.add x vars
               | _ -> vars
             in
             stack, vars)
@@ -444,15 +468,17 @@ let spilling blocks st sv live_info pc0 params =
       stack);
   { max_depth = !max_depth
   ; subcalls = !subcalls
+  ; env
+  ; vars = bound_vars
   ; initial_spilling
   ; block = !block_info
   ; instr = !instr_info
   ; sp = Code.Var.fresh_n "sp"
   }
 
-let generate_spilling_information { blocks; _ } ~context ~closures ~pc:pc0 ~params =
-  let params = Var.Set.of_list params in
-  let domain, (deps, rev_deps), vars =
+let generate_spilling_information { blocks; _ } ~context ~closures ~pc:pc0 ~env ~params =
+  let params = Var.Set.add env (Var.Set.of_list params) in
+  let domain, (deps, rev_deps), bound_vars, spillable_vars =
     function_deps blocks ~context ~closures pc0 params
   in
   let fold_children f pc acc = Addr.Set.fold f (get_set deps pc) acc in
@@ -461,9 +487,22 @@ let generate_spilling_information { blocks; _ } ~context ~closures ~pc:pc0 ~para
     Solver.f g (fun st pc ->
         propagate blocks ~context ~closures rev_deps pc0 params st pc)
   in
-  let sv = spilled_variables blocks context closures domain vars st in
+  let spilled_vars =
+    spilled_variables
+      ~blocks
+      ~context
+      ~closures
+      ~domain
+      ~env
+      ~bound_vars
+      ~spillable_vars
+      st
+  in
+  Format.eprintf "PARAMS: (%a)" Var.print env;
+  Var.Set.iter (fun x -> Format.eprintf " %a" Var.print x) params;
+  Format.eprintf "@.";
   Format.eprintf "SPILLED:";
-  Var.Set.iter (fun x -> Format.eprintf " %a" Var.print x) sv;
+  Var.Set.iter (fun x -> Format.eprintf " %a" Var.print x) spilled_vars;
   Format.eprintf "@.";
   (*
   Addr.Set.iter
@@ -481,9 +520,19 @@ let generate_spilling_information { blocks; _ } ~context ~closures ~pc:pc0 ~para
       let block = Addr.Map.find pc blocks in
       Code.Print.block (fun _ _ -> "") pc block)
     domain;
-*)
-  let live_info = Wa_liveness.f ~blocks ~context ~closures ~domain ~vars:sv ~pc:pc0 in
-  let info = spilling blocks st sv live_info pc0 params in
+  *)
+  let live_info =
+    Wa_liveness.f
+      ~blocks
+      ~context
+      ~closures
+      ~domain
+      ~env
+      ~bound_vars
+      ~spilled_vars
+      ~pc:pc0
+  in
+  let info = spilling blocks st env bound_vars spilled_vars live_info pc0 params in
   Format.eprintf "== %d == depth %d calls %b@." pc0 info.max_depth info.subcalls;
   Format.eprintf "%s@." (print_spilling info.initial_spilling);
   Addr.Set.iter
@@ -541,6 +590,7 @@ let rec find_in_stack x stack =
 let perform_reloads ctx l =
   let vars = ref Var.Map.empty in
   let add_var x =
+    let x = if Var.Set.mem x !ctx.info.vars then x else !ctx.info.env in
     if not (Var.Set.mem x !ctx.loaded_variables)
     then
       try
@@ -655,6 +705,8 @@ let kill_variables ctx =
 let make_info () =
   { max_depth = 0
   ; subcalls = false
+  ; env = Var.fresh ()
+  ; vars = Var.Set.empty
   ; initial_spilling = { depth_change = 0; spills = []; stack = [] }
   ; block = Addr.Map.empty
   ; instr = Var.Map.empty
@@ -674,16 +726,13 @@ Need to adjust the stack also in branches (including in switches...)
 -----------------
 
 Range splitting to avoid using too many local variables???
+Revise how we deal with sp local variable?
 
 -----------------
 
-Check apply function
+Check apply function (need to spill and reload parameters)
 
 ----------------
 
 Shadow stack and exceptions???
-
---------
-
-ZZZ Env spilling????
 *)

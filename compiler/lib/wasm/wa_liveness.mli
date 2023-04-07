@@ -14,6 +14,7 @@ val f :
   -> closures:Wa_closure_conversion.closure Code.Var.Map.t
   -> domain:Code.Addr.Set.t
   -> env:Code.Var.t
-  -> vars:Code.Var.Set.t
+  -> bound_vars:Code.Var.Set.t
+  -> spilled_vars:Code.Var.Set.t
   -> pc:int
   -> info
