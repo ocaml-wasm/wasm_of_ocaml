@@ -44,6 +44,9 @@ module type S = sig
     val kill_variables : ctx -> unit
 
     val assign : ctx -> Code.Var.t -> unit Wa_code_generation.t
+
+    val adjust_stack :
+      ctx -> src:Code.Addr.t -> dst:Code.Addr.t -> unit Wa_code_generation.t
   end
 
   module Memory : sig

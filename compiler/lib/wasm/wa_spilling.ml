@@ -613,14 +613,14 @@ let perform_reloads ctx l =
   else
     let* sp = load_sp ctx in
     let* () =
-      Var.Map.fold
-        (fun x i before ->
+      List.fold_left
+        ~f:(fun before (x, i) ->
           let* () = before in
           let* sp = load sp in
           let offset = 4 * i in
           store x (return (W.Load (I32 (Int32.of_int offset), sp))))
-        !vars
-        (return ())
+        (List.sort ~cmp:(fun (_, i) (_, j) -> compare i j) (Var.Map.bindings !vars))
+        ~init:(return ())
     in
     ctx :=
       { !ctx with
@@ -679,6 +679,20 @@ let perform_spilling ctx loc =
         ctx := { !ctx with stack = spilling.stack };
         return ()
 
+let adjust_stack ctx ~src ~dst =
+  let src_stack =
+    if src = -1 then !ctx.stack else (Addr.Map.find src !ctx.info.block).spilling.stack
+  in
+  let dst_info = Addr.Map.find dst !ctx.info.block in
+  let delta = List.length dst_info.initial_stack - List.length src_stack in
+  if delta = 0
+  then return ()
+  else
+    let* sp = load_sp ctx in
+    let delta = 4 * delta in
+    let* sp = Arith.(load sp + const (Int32.of_int delta)) in
+    instr (W.GlobalSet (S "sp", sp))
+
 let start_block spilling_info pc =
   let info = Addr.Map.find pc spilling_info.block in
   ref
@@ -729,4 +743,7 @@ Range splitting to avoid using too many local variables???
 Check apply function (need to spill and reload parameters)
 
 Shadow stack and exceptions???
+===> pushtrap saves previous stack offset and update the trap offset
+     poptrap remove this information
+     raise pops the stack
 *)

@@ -313,7 +313,8 @@ module Generate (Target : Wa_target_sig.S) = struct
           let* () = Stack.perform_reloads stack_ctx (`Branch (fst block.branch)) in
           let* () = Stack.perform_spilling stack_ctx (`Block pc) in
           match fst block.branch with
-          | Branch cont -> translate_branch result_typ fall_through pc cont context
+          | Branch cont ->
+              translate_branch result_typ fall_through pc cont context stack_ctx
           | Return x -> (
               let* e = load x in
               match fall_through with
@@ -324,8 +325,8 @@ module Generate (Target : Wa_target_sig.S) = struct
               if_
                 { params = []; result = result_typ }
                 (Value.check_is_not_zero (load x))
-                (translate_branch result_typ fall_through pc cont1 context')
-                (translate_branch result_typ fall_through pc cont2 context')
+                (translate_branch result_typ fall_through pc cont1 context' stack_ctx)
+                (translate_branch result_typ fall_through pc cont2 context' stack_ctx)
           | Stop -> (
               let* e = Value.unit in
               match fall_through with
@@ -362,12 +363,13 @@ module Generate (Target : Wa_target_sig.S) = struct
               let* () = use_exceptions in
               try_
                 { params = []; result = result_typ }
-                (translate_branch result_typ fall_through pc cont context')
+                (translate_branch result_typ fall_through pc cont context' stack_ctx)
                 exception_name
                 (let* () = store ~always:true x (return (W.Pop Value.value)) in
-                 translate_branch result_typ fall_through pc cont' context')
-          | Poptrap cont -> translate_branch result_typ fall_through pc cont context)
-    and translate_branch result_typ fall_through src (dst, args) context =
+                 translate_branch result_typ fall_through pc cont' context' stack_ctx)
+          | Poptrap cont ->
+              translate_branch result_typ fall_through pc cont context stack_ctx)
+    and translate_branch result_typ fall_through src (dst, args) context stack_ctx =
       let* () =
         if enable_multivalue
         then
@@ -384,6 +386,7 @@ module Generate (Target : Wa_target_sig.S) = struct
           let block = Addr.Map.find dst ctx.blocks in
           parallel_renaming block.params args
       in
+      let* () = Stack.adjust_stack stack_ctx ~src ~dst in
       if (src >= 0 && Wa_structure.is_backward g src dst)
          || Wa_structure.is_merge_node g dst
       then
@@ -422,8 +425,9 @@ module Generate (Target : Wa_target_sig.S) = struct
         ~param_count
         ~body:
           (let* () = build_initial_env in
-           let* _ = Stack.perform_spilling (Stack.start_function stack_info) `Function in
-           translate_branch [ Value.value ] `Return (-1) cont [])
+           let stack_ctx = Stack.start_function stack_info in
+           let* () = Stack.perform_spilling stack_ctx `Function in
+           translate_branch [ Value.value ] `Return (-1) cont [] stack_ctx)
     in
     W.Function
       { name =
