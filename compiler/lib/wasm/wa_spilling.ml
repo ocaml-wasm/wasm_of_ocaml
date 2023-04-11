@@ -725,6 +725,14 @@ let adjust_stack ctx ~src ~dst =
     let* sp = Arith.(load sp + const (Int32.of_int delta)) in
     instr (W.GlobalSet (S "sp", sp))
 
+let stack_adjustment_needed ctx ~src ~dst =
+  let src_stack =
+    if src = -1 then !ctx.stack else (Addr.Map.find src !ctx.info.block).spilling.stack
+  in
+  let dst_info = Addr.Map.find dst !ctx.info.block in
+  let delta = List.length dst_info.initial_stack - List.length src_stack in
+  delta <> 0
+
 let start_block ~context spilling_info pc =
   let info = Addr.Map.find pc spilling_info.block in
   ref
@@ -769,16 +777,9 @@ let add_spilling info ~location:x ~stack ~live_vars ~spilled_vars =
   , spilling.stack )
 
 (*
-ZZZ
-Need to adjust the stack also in branches (including in switches...)
-==> add intermediate blocks
-
-Check apply function (need to spill and reload parameters)
-
-Shadow stack and exceptions???
-===> pushtrap saves previous stack offset and update the trap offset
-     poptrap remove this information
-     raise pops the stack
-
-Check available stack depth at beginning of function
+ZZZ TODO
+- We could improve the code generated for stack adjustment after a switch
+- We need to deal with exceptions...
+- Check available stack depth at beginning of function (also for curry/apply)
+- We could zero-out no longer used stack slots to avoid memory leaks
 *)

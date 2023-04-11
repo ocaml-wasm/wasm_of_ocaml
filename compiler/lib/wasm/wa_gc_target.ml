@@ -589,6 +589,8 @@ module Stack = struct
   let make_info () = ()
 
   let adjust_stack _ ~src:_ ~dst:_ = return ()
+
+  let stack_adjustment_needed _ ~src:_ ~dst:_ = false
 end
 
 let entry_point ~register_primitive:_ = return ()

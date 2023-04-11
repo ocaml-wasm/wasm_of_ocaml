@@ -336,7 +336,12 @@ module Generate (Target : Wa_target_sig.S) = struct
               match fall_through with
               | `Return -> instr (Push e)
               | `Block _ -> instr (Return (Some e)))
-          | Switch (x, a1, a2) -> (
+          | Switch (x, a1, a2) ->
+              let l =
+                List.filter
+                  ~f:(fun pc' -> Stack.stack_adjustment_needed stack_ctx ~src:pc ~dst:pc')
+                  (List.rev (Addr.Set.elements (Wa_structure.get_edges dom pc)))
+              in
               let br_table e a context =
                 let len = Array.length a in
                 let l = Array.to_list (Array.sub a ~pos:0 ~len:(len - 1)) in
@@ -347,17 +352,30 @@ module Generate (Target : Wa_target_sig.S) = struct
                 let* e = e in
                 instr (Br_table (e, List.map ~f:dest l, dest a.(len - 1)))
               in
-              match a1, a2 with
-              | [||], _ -> br_table (Memory.tag (load x)) a2 context
-              | _, [||] -> br_table (load x) a1 context
-              | _ ->
-                  (*ZZZ Use Br_on_cast *)
-                  let context' = extend_context fall_through context in
-                  if_
-                    { params = []; result = result_typ }
-                    (Value.check_is_int (load x))
-                    (br_table (load x) a1 context')
-                    (br_table (Memory.tag (load x)) a2 context'))
+              let rec nest l context =
+                match l with
+                | pc' :: rem ->
+                    let* () =
+                      Wa_code_generation.block
+                        { params = param_ty; result = [] }
+                        (nest rem (`Block pc' :: context))
+                    in
+                    let* () = Stack.adjust_stack stack_ctx ~src:pc ~dst:pc' in
+                    instr (Br (index pc' 0 context, None))
+                | [] -> (
+                    match a1, a2 with
+                    | [||], _ -> br_table (Memory.tag (load x)) a2 context
+                    | _, [||] -> br_table (load x) a1 context
+                    | _ ->
+                        (*ZZZ Use Br_on_cast *)
+                        let context' = extend_context fall_through context in
+                        if_
+                          { params = []; result = result_typ }
+                          (Value.check_is_int (load x))
+                          (br_table (load x) a1 context')
+                          (br_table (Memory.tag (load x)) a2 context'))
+              in
+              nest l context
           | Raise (x, _) ->
               let* () = use_exceptions in
               let* e = load x in

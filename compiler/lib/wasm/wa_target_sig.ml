@@ -47,6 +47,8 @@ module type S = sig
 
     val adjust_stack :
       ctx -> src:Code.Addr.t -> dst:Code.Addr.t -> unit Wa_code_generation.t
+
+    val stack_adjustment_needed : ctx -> src:Code.Addr.t -> dst:Code.Addr.t -> bool
   end
 
   module Memory : sig
