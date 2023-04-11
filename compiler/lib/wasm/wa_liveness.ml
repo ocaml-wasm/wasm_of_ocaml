@@ -63,11 +63,15 @@ type ctx =
   { env : Var.t
   ; bound_vars : Var.Set.t
   ; spilled_vars : Var.Set.t
+  ; context : Wa_code_generation.context
   }
 
 let add_var ~ctx s x =
-  let x = if Var.Set.mem x ctx.bound_vars then x else ctx.env in
-  if Var.Set.mem x ctx.spilled_vars then Var.Set.add x s else s
+  if Hashtbl.mem ctx.context.Wa_code_generation.constants x
+  then s
+  else
+    let x = if Var.Set.mem x ctx.bound_vars then x else ctx.env in
+    if Var.Set.mem x ctx.spilled_vars then Var.Set.add x s else s
 
 let add_list ~ctx s l = List.fold_left ~f:(fun s x -> add_var ~ctx s x) ~init:s l
 
@@ -183,7 +187,7 @@ let compute_block_info ~blocks ~ctx st =
     st
 
 let f ~blocks ~context ~closures ~domain ~env ~bound_vars ~spilled_vars ~pc =
-  let ctx = { env; bound_vars; spilled_vars } in
+  let ctx = { env; bound_vars; spilled_vars; context } in
   let deps, rev_deps = function_deps blocks pc in
   let fold_children f pc acc = Addr.Set.fold f (get_set deps pc) acc in
   let g = { G.domain; fold_children } in

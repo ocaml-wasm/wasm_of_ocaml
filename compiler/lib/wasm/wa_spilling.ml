@@ -227,13 +227,17 @@ type spill_ctx =
   { env : Var.t
   ; bound_vars : Var.Set.t
   ; spillable_vars : Var.Set.t
+  ; context : Wa_code_generation.context
   }
 
 let check_spilled ~ctx loaded x spilled =
-  let x = if Var.Set.mem x ctx.bound_vars then x else ctx.env in
-  if Var.Set.mem x loaded || not (Var.Set.mem x ctx.spillable_vars)
+  if Hashtbl.mem ctx.context.Wa_code_generation.constants x
   then spilled
-  else Var.Set.add x spilled
+  else
+    let x = if Var.Set.mem x ctx.bound_vars then x else ctx.env in
+    if Var.Set.mem x loaded || not (Var.Set.mem x ctx.spillable_vars)
+    then spilled
+    else Var.Set.add x spilled
 
 let spilled_variables
     ~blocks
@@ -245,7 +249,7 @@ let spilled_variables
     ~spillable_vars
     st =
   let spilled = Var.Set.empty in
-  let ctx = { env; bound_vars; spillable_vars } in
+  let ctx = { env; bound_vars; spillable_vars; context } in
   Addr.Set.fold
     (fun pc spilled ->
       let loaded =
@@ -596,6 +600,7 @@ type context =
   ; loaded_sp : Code.Var.t option
   ; stack : stack
   ; info : info
+  ; context : Wa_code_generation.context
   }
 
 type ctx = context ref
@@ -621,13 +626,15 @@ let load_sp ctx =
 let perform_reloads ctx l =
   let vars = ref Var.Map.empty in
   let add_var x =
-    let x = if Var.Set.mem x !ctx.info.bound_vars then x else !ctx.info.env in
-    if not (Var.Set.mem x !ctx.loaded_variables)
+    if not (Hashtbl.mem !ctx.context.Wa_code_generation.constants x)
     then
-      try
-        let i = find_in_stack x !ctx.stack in
-        vars := Var.Map.add x i !vars
-      with Not_found -> ()
+      let x = if Var.Set.mem x !ctx.info.bound_vars then x else !ctx.info.env in
+      if not (Var.Set.mem x !ctx.loaded_variables)
+      then
+        try
+          let i = find_in_stack x !ctx.stack in
+          vars := Var.Map.add x i !vars
+        with Not_found -> ()
   in
   (match l with
   | `Instr i -> Freevars.iter_instr_free_vars add_var i
@@ -718,22 +725,24 @@ let adjust_stack ctx ~src ~dst =
     let* sp = Arith.(load sp + const (Int32.of_int delta)) in
     instr (W.GlobalSet (S "sp", sp))
 
-let start_block spilling_info pc =
+let start_block ~context spilling_info pc =
   let info = Addr.Map.find pc spilling_info.block in
   ref
     { loaded_variables = info.loaded_variables
     ; loaded_sp = None
     ; stack = info.initial_stack
     ; info = spilling_info
+    ; context
     }
 
-let start_function (spilling_info : info) =
+let start_function ~context (spilling_info : info) =
   (*ZZZ Check stack depth *)
   ref
     { loaded_variables = Var.Set.empty
     ; loaded_sp = None
     ; stack = []
     ; info = spilling_info
+    ; context
     }
 
 let kill_variables ctx =

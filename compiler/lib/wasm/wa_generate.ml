@@ -311,7 +311,8 @@ module Generate (Target : Wa_target_sig.S) = struct
                 ~init:(return ())
             else return ()
           in
-          let stack_ctx = Stack.start_block stack_info pc in
+          let* global_context = get_context in
+          let stack_ctx = Stack.start_block ~context:global_context stack_info pc in
           let* () = translate_instrs ctx stack_ctx block.body in
           let* () = Stack.perform_reloads stack_ctx (`Branch (fst block.branch)) in
           let* () = Stack.perform_spilling stack_ctx (`Block pc) in
@@ -428,7 +429,7 @@ module Generate (Target : Wa_target_sig.S) = struct
         ~param_count
         ~body:
           (let* () = build_initial_env in
-           let stack_ctx = Stack.start_function stack_info in
+           let stack_ctx = Stack.start_function ~context:ctx.global_context stack_info in
            let* () = Stack.perform_spilling stack_ctx `Function in
            translate_branch [ Value.value ] `Return (-1) cont [] stack_ctx)
     in

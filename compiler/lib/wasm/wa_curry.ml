@@ -117,7 +117,7 @@ module Make (Target : Wa_target_sig.S) = struct
           ~live_vars:Var.Set.empty
           ~spilled_vars:Var.Set.empty
       in
-      let stack_ctx = Stack.start_function stack_info in
+      let stack_ctx = Stack.start_function ~context stack_info in
       let* e =
         Closure.curry_allocate ~stack_ctx ~x:res ~arity m ~f:(V name') ~closure:f ~arg:x
       in

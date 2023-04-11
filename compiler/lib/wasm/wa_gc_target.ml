@@ -574,9 +574,9 @@ module Stack = struct
 
   type ctx = unit
 
-  let start_function _ = ()
+  let start_function ~context:_ _ = ()
 
-  let start_block _ _ = ()
+  let start_block ~context:_ _ _ = ()
 
   let perform_reloads _ _ = return ()
 

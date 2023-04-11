@@ -27,9 +27,9 @@ module type S = sig
 
     type ctx
 
-    val start_function : info -> ctx
+    val start_function : context:Wa_code_generation.context -> info -> ctx
 
-    val start_block : info -> Code.Addr.t -> ctx
+    val start_block : context:Wa_code_generation.context -> info -> Code.Addr.t -> ctx
 
     val perform_reloads :
          ctx
