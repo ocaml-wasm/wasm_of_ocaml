@@ -23,6 +23,8 @@ We should find a way to reuse local variables while they are spilled,
 to minimize the number of local variables used.
 *)
 
+let debug = Debug.find "spilling"
+
 open! Stdlib
 open Code
 
@@ -525,12 +527,14 @@ let generate_spilling_information { blocks; _ } ~context ~closures ~pc:pc0 ~env 
       ~spillable_vars
       st
   in
-  Format.eprintf "PARAMS: (%a)" Var.print env;
-  Var.Set.iter (fun x -> Format.eprintf " %a" Var.print x) params;
-  Format.eprintf "@.";
-  Format.eprintf "SPILLED:";
-  Var.Set.iter (fun x -> Format.eprintf " %a" Var.print x) spilled_vars;
-  Format.eprintf "@.";
+  if debug ()
+  then (
+    Format.eprintf "PARAMS: (%a)" Var.print env;
+    Var.Set.iter (fun x -> Format.eprintf " %a" Var.print x) params;
+    Format.eprintf "@.";
+    Format.eprintf "SPILLED:";
+    Var.Set.iter (fun x -> Format.eprintf " %a" Var.print x) spilled_vars;
+    Format.eprintf "@.");
   (*
   Addr.Set.iter
     (fun pc ->
@@ -560,39 +564,41 @@ let generate_spilling_information { blocks; _ } ~context ~closures ~pc:pc0 ~env 
       ~pc:pc0
   in
   let info = spilling blocks st env bound_vars spilled_vars live_info pc0 params in
-  Format.eprintf "== %d == depth %d calls %b@." pc0 info.max_depth info.subcalls;
-  Format.eprintf "%s@." (print_spilling info.initial_spilling);
-  Addr.Set.iter
-    (fun pc ->
-      let block = Addr.Map.find pc blocks in
-      let _print_vars s =
-        if Var.Set.is_empty s
-        then ""
-        else
-          Format.asprintf
-            "{%a}"
-            (fun f l ->
-              Format.pp_print_list
-                ~pp_sep:(fun f () -> Format.fprintf f " ")
-                Var.print
-                f
-                l)
-            (Var.Set.elements s)
-      in
-      Code.Print.block
-        (fun _pc loc ->
-          match loc with
-          | Instr (Let (x, _), _) -> (
-              match Var.Map.find_opt x info.instr with
-              | Some s -> print_spilling s
-              | None -> "")
-          | Instr _ -> ""
-          | Last _ ->
-              let s = Addr.Map.find pc info.block in
-              print_spilling s.spilling)
-        pc
-        block)
-    domain;
+  if debug ()
+  then (
+    Format.eprintf "== %d == depth %d calls %b@." pc0 info.max_depth info.subcalls;
+    Format.eprintf "%s@." (print_spilling info.initial_spilling);
+    Addr.Set.iter
+      (fun pc ->
+        let block = Addr.Map.find pc blocks in
+        let _print_vars s =
+          if Var.Set.is_empty s
+          then ""
+          else
+            Format.asprintf
+              "{%a}"
+              (fun f l ->
+                Format.pp_print_list
+                  ~pp_sep:(fun f () -> Format.fprintf f " ")
+                  Var.print
+                  f
+                  l)
+              (Var.Set.elements s)
+        in
+        Code.Print.block
+          (fun _pc loc ->
+            match loc with
+            | Instr (Let (x, _), _) -> (
+                match Var.Map.find_opt x info.instr with
+                | Some s -> print_spilling s
+                | None -> "")
+            | Instr _ -> ""
+            | Last _ ->
+                let s = Addr.Map.find pc info.block in
+                print_spilling s.spilling)
+          pc
+          block)
+      domain);
   info
 
 type context =

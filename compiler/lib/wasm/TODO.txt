@@ -3,6 +3,12 @@ https://dfinity.org/grants/
 
 =======
 
+fix wa_minimize_locals (loops)
+=> a variable set outside of a loop is live to the end of the loop if
+   used in the loop
+
+=======
+
 Simple improvements
 ===================
 
@@ -45,10 +51,6 @@ Optimization phases
 
 Accurate compilation
 ====================
-
-- Spilling
-  Naive spilling for a start?
-  ==> How do we avoid spilling thousands of values?
 
 - specialize: divide by zero / modulus / check array bound
 
@@ -221,5 +223,3 @@ GC + exceptions
 + easier to use (not need to compile a custom OCaml runtime)
 - need to implement a runtime
 - the specs are still in developpement
-
-Target code specification for now. Can share some of the code: control flow reconstruction, currifycation, ...
