@@ -113,9 +113,12 @@ module Generate (Target : Wa_target_sig.S) = struct
         | Extern nm, l ->
             (*ZZZ Different calling convention when large number of parameters *)
             register_primitive ctx nm (func_type (List.length l));
+            let* () = Stack.perform_spilling stack_ctx (`Instr x) in
             let rec loop acc l =
               match l with
-              | [] -> return (W.Call (S nm, List.rev acc))
+              | [] ->
+                  Stack.kill_variables stack_ctx;
+                  return (W.Call (S nm, List.rev acc))
               | x :: r ->
                   let* x = x in
                   loop (x :: acc) r

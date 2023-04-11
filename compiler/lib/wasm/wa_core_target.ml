@@ -383,6 +383,7 @@ let entry_point ~register_primitive =
   let declare_global name =
     register_global (S name) { mut = true; typ = I32 } (Const (I32 0l))
   in
+  let* () = declare_global "sp" in
   let* () = declare_global "young_ptr" in
   let* () = declare_global "young_limit" in
   register_primitive "caml_modify" { W.params = [ I32; I32 ]; result = [] };

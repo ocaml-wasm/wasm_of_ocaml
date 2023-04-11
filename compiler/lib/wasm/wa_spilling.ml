@@ -1,3 +1,28 @@
+(*
+We add spilling points at the end of each block and before each
+possible GC: function calls and allocations. Local variables are
+spilled at most once, at the first following spilling points.
+
+We first compute which local variables contain valid values at the
+beginning of each block: either there has been no GC since their
+definition or they have been accessed since the last GC point (so they
+must have been reloaded).
+Then, we compute which variables neeeds to be spilled at some point
+(we access the local variable while it does not contain any valid
+value).
+From this, we can compute what need to be spilled at each spilling
+point, and the stack contents at any point in the program.
+
+When allocating, we currently always spill everything. We should
+probably spill everything only when a GC takes place. To keep the code
+short, we should always spill variables that are still live after the
+allocation, but variables that are no longer live after the allocation
+only need to be spilled when a GC takes place.
+
+We should find a way to reuse local variables while they are spilled,
+to minimize the number of local variables used.
+*)
+
 open! Stdlib
 open Code
 
@@ -450,7 +475,7 @@ let spilling blocks st env bound_vars spilled_vars live_info pc params =
               | _ -> vars
             in
             stack, vars)
-          ~init:(stack, vars)
+          ~init:(initial_stack, vars)
           block.body
       in
       (* ZZZ Spilling at end of block *)
@@ -659,7 +684,7 @@ let perform_spilling ctx loc =
           then return sp
           else
             let sp' = Var.fresh_n "sp" in
-            let delta = 4 * spilling.depth_change in
+            let delta = -4 * spilling.depth_change in
             let* sp = tee sp' Arith.(load sp + const (Int32.of_int delta)) in
             ctx := { !ctx with loaded_sp = Some sp' };
             let* () = instr (W.GlobalSet (S "sp", sp)) in
@@ -689,7 +714,7 @@ let adjust_stack ctx ~src ~dst =
   then return ()
   else
     let* sp = load_sp ctx in
-    let delta = 4 * delta in
+    let delta = -4 * delta in
     let* sp = Arith.(load sp + const (Int32.of_int delta)) in
     instr (W.GlobalSet (S "sp", sp))
 
@@ -735,10 +760,9 @@ let add_spilling info ~location:x ~stack ~live_vars ~spilled_vars =
   , spilling.stack )
 
 (*
+ZZZ
 Need to adjust the stack also in branches (including in switches...)
 ==> add intermediate blocks
-
-Range splitting to avoid using too many local variables???
 
 Check apply function (need to spill and reload parameters)
 
@@ -746,4 +770,6 @@ Shadow stack and exceptions???
 ===> pushtrap saves previous stack offset and update the trap offset
      poptrap remove this information
      raise pops the stack
+
+Check available stack depth at beginning of function
 *)
