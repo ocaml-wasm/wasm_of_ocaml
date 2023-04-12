@@ -347,7 +347,8 @@ module Constant = struct
             ~init:(return [])
             a
         in
-        return (W.ArrayNewFixed (ty, I31New (Const (I32 (Int32.of_int tag))) :: l))
+        return
+          (W.ArrayNewFixed (ty, I31New (Const (I32 (Int32.of_int tag))) :: List.rev l))
     | NativeString (Byte s | Utf (Utf8 s)) | String s ->
         let* ty = Type.string_type in
         (*ZZZ Use this for long strings
