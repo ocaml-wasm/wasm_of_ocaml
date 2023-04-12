@@ -112,7 +112,7 @@ module Memory = struct
 
   let set_field e idx e' = mem_store ~offset:(4 * idx) e e'
 
-  let load_function_pointer ~arity closure =
+  let load_function_pointer ~arity ?skip_cast:_ closure =
     let* e = field closure (if arity = 1 then 0 else 2) in
     return (`Index, e)
 
@@ -376,7 +376,7 @@ module Closure = struct
       ]
 
   let curry_load ~arity:_ _ closure =
-    return (Memory.field (load closure) 3, Memory.field (load closure) 4)
+    return (Memory.field (load closure) 3, Memory.field (load closure) 4, None)
 end
 
 let entry_point ~register_primitive =

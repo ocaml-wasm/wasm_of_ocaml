@@ -44,7 +44,7 @@ let make_context () =
   }
 
 type var =
-  | Local of int
+  | Local of int * W.value_type option
   | Expr of W.expression t
 
 and state =
@@ -150,15 +150,17 @@ let var x st =
     try Expr (return (Hashtbl.find st.context.constants x)), st
     with Not_found ->
       Format.eprintf "ZZZ %a@." Var.print x;
-      Local 0, st)
+      Local (0, None), st)
 
-let add_var x ({ var_count; vars; _ } as st) =
+let add_var ?typ x ({ var_count; vars; _ } as st) =
   match Var.Map.find_opt x vars with
-  | Some (Local i) -> i, st
+  | Some (Local (i, typ')) ->
+      assert (Poly.equal typ typ');
+      i, st
   | Some (Expr _) -> assert false
   | None ->
       let i = var_count in
-      let vars = Var.Map.add x (Local i) vars in
+      let vars = Var.Map.add x (Local (i, typ)) vars in
       i, { st with var_count = var_count + 1; vars }
 
 let define_var x e st = (), { st with vars = Var.Map.add x (Expr e) st.vars }
@@ -276,10 +278,10 @@ let is_small_constant e =
 let load x =
   let* x = var x in
   match x with
-  | Local x -> return (W.LocalGet x)
+  | Local (x, _) -> return (W.LocalGet x)
   | Expr e -> e
 
-let tee x e =
+let tee ?typ x e =
   let* e = e in
   let* b = is_small_constant e in
   if b
@@ -287,28 +289,28 @@ let tee x e =
     let* () = register_constant x e in
     return e
   else
-    let* i = add_var x in
+    let* i = add_var ?typ x in
     return (W.LocalTee (i, e))
 
-let rec store ?(always = false) x e =
+let rec store ?(always = false) ?typ x e =
   let* e = e in
   match e with
   | W.Seq (l, e') ->
       let* () = instrs l in
-      store ~always x (return e')
+      store ~always ?typ x (return e')
   | _ ->
       let* b = is_small_constant e in
       if b && not always
       then register_constant x e
       else
-        let* i = add_var x in
+        let* i = add_var ?typ x in
         instr (LocalSet (i, e))
 
 let assign x e =
   let* x = var x in
   let* e = e in
   match x with
-  | Local x -> instr (W.LocalSet (x, e))
+  | Local (x, _) -> instr (W.LocalSet (x, e))
   | Expr _ -> assert false
 
 let seq l e =
@@ -365,9 +367,27 @@ let need_curry_fun ~arity st =
        x)
   , st )
 
-let function_body ~context ~param_count ~body =
+let function_body ~context ~value_type ~param_count ~body =
   let st = { var_count = 0; vars = Var.Map.empty; instrs = []; context } in
   let (), st = body st in
   let local_count, body = st.var_count, List.rev st.instrs in
+  let local_types = Array.make local_count None in
+  Var.Map.iter
+    (fun _ v ->
+      match v with
+      | Local (i, typ) -> local_types.(i) <- typ
+      | Expr _ -> ())
+    st.vars;
   let body = Wa_tail_call.f body in
-  if false then local_count, body else Wa_minimize_locals.f ~param_count ~local_count body
+  let local_types, body =
+    if false
+    then local_types, body
+    else Wa_minimize_locals.f ~param_count ~local_types body
+  in
+  let locals =
+    local_types
+    |> Array.map ~f:(fun v -> Option.value ~default:value_type v)
+    |> (fun a -> Array.sub a ~pos:param_count ~len:(Array.length a - param_count))
+    |> Array.to_list
+  in
+  locals, body

@@ -441,9 +441,10 @@ module Generate (Target : Wa_target_sig.S) = struct
       | None -> 0
       | Some _ -> List.length params + 1
     in
-    let local_count, body =
+    let locals, body =
       function_body
         ~context:ctx.global_context
+        ~value_type:Value.value
         ~param_count
         ~body:
           (let* () = build_initial_env in
@@ -458,7 +459,7 @@ module Generate (Target : Wa_target_sig.S) = struct
           | Some x -> x)
       ; exported_name = None
       ; typ = Decl (func_type param_count)
-      ; locals = List.init ~len:(local_count - param_count) ~f:(fun _ -> Value.value)
+      ; locals
       ; body
       }
     :: acc
@@ -468,12 +469,18 @@ module Generate (Target : Wa_target_sig.S) = struct
       let* () = entry_point ~register_primitive:(register_primitive ctx) in
       drop (return (W.Call (V toplevel_fun, [])))
     in
-    let _, body = function_body ~context:ctx.global_context ~param_count:0 ~body in
+    let locals, body =
+      function_body
+        ~context:ctx.global_context
+        ~value_type:Value.value
+        ~param_count:0
+        ~body
+    in
     W.Function
       { name = Var.fresh_n "entry_point"
       ; exported_name = Some entry_name
       ; typ = Decl { W.params = []; result = [] }
-      ; locals = []
+      ; locals
       ; body
       }
 

@@ -321,10 +321,11 @@ module Memory = struct
 
   let set_field e idx e' = wasm_array_set e (Arith.const (Int32.of_int (idx + 1))) e'
 
-  let load_function_pointer ~arity closure =
+  let load_function_pointer ~arity ?(skip_cast = false) closure =
     let* ty = Type.closure_type arity in
     let* fun_ty = Type.function_type arity in
-    let* e = wasm_struct_get ty (wasm_cast ty closure) (if arity = 1 then 1 else 2) in
+    let casted_closure = if skip_cast then closure else wasm_cast ty closure in
+    let* e = wasm_struct_get ty casted_closure (if arity = 1 then 1 else 2) in
     return (`Ref fun_ty, e)
 
   let load_function_arity closure =
@@ -532,18 +533,19 @@ module Closure = struct
           let* typ = Type.rec_closure_type ~arity ~function_count ~free_variable_count in
           let* _ = add_var f in
           let env = Code.Var.fresh_n "env" in
+          let* env_typ = Type.rec_env_type ~function_count ~free_variable_count in
           let* () =
-            store env Memory.(wasm_struct_get typ (wasm_cast typ (load f)) offset)
+            store
+              ~typ:(W.Ref { nullable = false; typ = Type env_typ })
+              env
+              Memory.(wasm_struct_get typ (wasm_cast typ (load f)) offset)
           in
-          let* typ = Type.rec_env_type ~function_count ~free_variable_count in
           snd
             (List.fold_left
                ~f:(fun (i, prev) x ->
                  ( i + 1
                  , let* () = prev in
-                   (*ZZZ Avoid cast? *)
-                   define_var x Memory.(wasm_struct_get typ (wasm_cast typ (load env)) i)
-                 ))
+                   define_var x Memory.(wasm_struct_get env_typ (load env) i) ))
                ~init:(0, return ())
                (List.map ~f:fst functions @ free_variables))
 
@@ -557,11 +559,16 @@ module Closure = struct
     return (W.StructNew (ty, [ Const (I32 1l); RefFunc f; closure; arg ]))
 
   let curry_load ~arity m closure =
+    let m = m + 1 in
     let* ty = Type.curry_type arity m in
-    (*ZZZ Remove casts*)
+    let* cl_ty =
+      if m = arity then Type.closure_type arity else Type.curry_type arity (m + 1)
+    in
+    let cast e = if m = 2 then Memory.wasm_cast ty e else e in
     return
-      ( Memory.wasm_struct_get ty (Memory.wasm_cast ty (load closure)) 2
-      , Memory.wasm_struct_get ty (Memory.wasm_cast ty (load closure)) 3 )
+      ( Memory.wasm_struct_get ty (cast (load closure)) 2
+      , Memory.wasm_struct_get ty (cast (load closure)) 3
+      , Some (W.Ref { nullable = false; typ = Type cl_ty }) )
 end
 
 module Stack = struct

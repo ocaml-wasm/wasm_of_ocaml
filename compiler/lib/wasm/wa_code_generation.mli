@@ -71,9 +71,9 @@ val cast : ?nullable:bool -> Wa_ast.heap_type -> expression -> expression
 
 val load : Wa_ast.var -> expression
 
-val tee : Wa_ast.var -> expression -> expression
+val tee : ?typ:Wa_ast.value_type -> Wa_ast.var -> expression -> expression
 
-val store : ?always:bool -> Wa_ast.var -> expression -> unit t
+val store : ?always:bool -> ?typ:Wa_ast.value_type -> Wa_ast.var -> expression -> unit t
 
 val assign : Wa_ast.var -> expression -> unit t
 
@@ -87,7 +87,7 @@ val if_ : Wa_ast.func_type -> expression -> unit t -> unit t -> unit t
 
 val try_ : Wa_ast.func_type -> unit t -> string -> unit t -> unit t
 
-val add_var : Wa_ast.var -> int t
+val add_var : ?typ:Wa_ast.value_type -> Wa_ast.var -> int t
 
 val define_var : Wa_ast.var -> expression -> unit t
 
@@ -125,4 +125,8 @@ val need_apply_fun : arity:int -> Code.Var.t t
 val need_curry_fun : arity:int -> Code.Var.t t
 
 val function_body :
-  context:context -> param_count:int -> body:unit t -> int * Wa_ast.instruction list
+     context:context
+  -> value_type:Wa_ast.value_type
+  -> param_count:int
+  -> body:unit t
+  -> Wa_ast.value_type list * Wa_ast.instruction list

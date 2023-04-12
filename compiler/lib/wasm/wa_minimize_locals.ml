@@ -1,9 +1,15 @@
 (* Reuse locals so as not to use too many of them *)
 
+(* ZZZZ
+   A variable set outside of a loop remains live to the end of
+   the loop if used in the loop
+*)
+
 open Stdlib
 
 type ctx =
-  { mutable position : int
+  { local_types : Wa_ast.value_type option array
+  ; mutable position : int
   ; last_use : int array
   ; mapping : int array
   ; assignemnt_count : int array
@@ -105,25 +111,31 @@ let assignment ctx v e =
     else
       match e with
       | Wa_ast.LocalGet v0 when IntSet.mem ctx.mapping.(v0) ctx.free_variables ->
-          (* Reuse the same register to eliminate the assignment *)
+          (* We are assigning the value of an existing local variable
+             which is no longer used. We can reuse the same local
+             variable to eliminate the assignment. *)
           let v' = ctx.mapping.(v0) in
           ctx.free_variables <- IntSet.remove v' ctx.free_variables;
           ctx.mapping.(v) <- v';
           v'
       | Wa_ast.LocalGet v0
         when ctx.last_use.(v0) >= ctx.last_use.(v) && ctx.assignemnt_count.(v) = 1 ->
-          (* Reuse the same register to eliminate the assignment *)
+          (* We are assigning the value of an existing local variable
+             which has a longer scope. We can reuse the same local
+             variable to eliminate the assignment. *)
           ctx.last_use.(v) <- ctx.last_use.(v0);
           let v' = ctx.mapping.(v0) in
           ctx.mapping.(v) <- v';
           v'
       | _ -> (
           match IntSet.min_elt_opt ctx.free_variables with
-          | Some v' ->
+          | Some v' when Option.is_none ctx.local_types.(v) ->
+              (* For now, we reuse local variables only when they are of
+                 the default type *)
               ctx.free_variables <- IntSet.remove v' ctx.free_variables;
               ctx.mapping.(v) <- v';
               v'
-          | None ->
+          | _ ->
               let v' = ctx.largest_used + 1 in
               ctx.largest_used <- v';
               ctx.mapping.(v) <- v';
@@ -262,9 +274,11 @@ and rewrite_instruction ctx i =
 
 and rewrite_instructions ctx l = List.map ~f:(fun i -> rewrite_instruction ctx i) l
 
-let f ~param_count ~local_count instrs =
+let f ~param_count ~local_types instrs =
+  let local_count = Array.length local_types in
   let ctx =
-    { position = 0
+    { local_types
+    ; position = 0
     ; last_use = Array.make (max param_count local_count) (-1)
     ; mapping = Array.make (max param_count local_count) (-1)
     ; assignemnt_count = Array.make (max param_count local_count) 0
@@ -281,10 +295,15 @@ let f ~param_count ~local_count instrs =
   done;
   ctx.position <- 0;
   let instrs = rewrite_instructions ctx instrs in
+  let local_types' = Array.make (ctx.largest_used + 1) None in
+  for i = 0 to local_count - 1 do
+    let j = ctx.mapping.(i) in
+    if j <> -1 then local_types'.(j) <- local_types.(i)
+  done;
   (*
   Format.eprintf
     "ZZZZ %d ==> %d@."
     (local_count - param_count)
     (ctx.largest_used + 1 - param_count);
 *)
-  ctx.largest_used + 1, instrs
+  local_types', instrs
