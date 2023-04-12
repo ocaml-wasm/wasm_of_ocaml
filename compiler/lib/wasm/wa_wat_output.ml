@@ -198,6 +198,8 @@ let lookup_symbol ctx (symb : symbol) =
           ctx.function_count <- ctx.function_count + 1;
           i))
 
+let remove_nops l = List.filter ~f:(fun i -> not (Poly.equal i Nop)) l
+
 let expression_or_instructions ctx in_function =
   let rec expression e =
     match e with
@@ -349,10 +351,11 @@ let expression_or_instructions ctx in_function =
             (Atom "if"
             :: (block_type ty
                @ expression e
-               @ (if Poly.equal target `Binaryen && List.is_empty l1
+               @ (let l1 = remove_nops l1 in
+                  if Poly.equal target `Binaryen && List.is_empty l1
                   then [ List [ Atom "then"; Atom "nop" ] ]
                   else list ~always:true "then" instructions l1)
-               @ list "else" instructions l2))
+               @ list "else" instructions (remove_nops l2)))
         ]
     | Try (ty, body, catches, catch_all) ->
         [ List

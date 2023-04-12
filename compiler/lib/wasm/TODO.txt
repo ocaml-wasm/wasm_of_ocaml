@@ -26,6 +26,8 @@ Simple improvements
 - GC: large constants should be generated at runtime
   (in particular, more compact strings using a data segment)
 
+  ==> V8: Requested length 28877 for array.new_fixed too large, maximum is 10000
+
 - GC: caml_{alloc,update}_dummy
 
 =======
@@ -226,8 +228,10 @@ GC + exceptions
 
 ====================
 
-OCAMLRUNPARAM=b=1 dune exec -- js_of_ocaml --pretty /tmp/a.out  > /tmp/a.wat
-~/sources/binaryen/bin/wasm-opt --enable-gc --enable-exception-handling --enable-reference-types --enable-tail-call /tmp/a.wat -o /tmp/a.wasm
+dune exec -- js_of_ocaml --pretty `which ocamlc.byte` > /tmp/a.wat
+
+dune exec -- js_of_ocaml --pretty /tmp/a.out  > /tmp/a.wat
+~/sources/binaryen/bin/wasm-opt --enable-gc --enable-exception-handling --enable-reference-types --enable-tail-call /tmp/a.wat -n -o /tmp/a.wasm
 snap run node --print-wasm-code --experimental-wasm-gc /tmp/launch.js |& less
 
 const fs = require('fs');

@@ -102,48 +102,50 @@ and scan_instruction ctx i =
 
 and scan_instructions ctx l = List.iter ~f:(fun i -> scan_instruction ctx i) l
 
-let assignment ctx v e =
-  ctx.position <- ctx.position + 1;
-  let v' =
-    let v' = ctx.mapping.(v) in
-    if v' <> -1
-    then v'
-    else
-      match e with
-      | Wa_ast.LocalGet v0 when IntSet.mem ctx.mapping.(v0) ctx.free_variables ->
-          (* We are assigning the value of an existing local variable
-             which is no longer used. We can reuse the same local
-             variable to eliminate the assignment. *)
-          let v' = ctx.mapping.(v0) in
-          ctx.free_variables <- IntSet.remove v' ctx.free_variables;
-          ctx.mapping.(v) <- v';
-          v'
-      | Wa_ast.LocalGet v0
-        when ctx.last_use.(v0) >= ctx.last_use.(v) && ctx.assignemnt_count.(v) = 1 ->
-          (* We are assigning the value of an existing local variable
-             which has a longer scope. We can reuse the same local
-             variable to eliminate the assignment. *)
-          ctx.last_use.(v) <- ctx.last_use.(v0);
-          let v' = ctx.mapping.(v0) in
-          ctx.mapping.(v) <- v';
-          v'
-      | _ -> (
-          match IntSet.min_elt_opt ctx.free_variables with
-          | Some v' when Option.is_none ctx.local_types.(v) ->
-              (* For now, we reuse local variables only when they are of
-                 the default type *)
-              ctx.free_variables <- IntSet.remove v' ctx.free_variables;
-              ctx.mapping.(v) <- v';
-              v'
-          | _ ->
-              let v' = ctx.largest_used + 1 in
-              ctx.largest_used <- v';
-              ctx.mapping.(v) <- v';
-              v')
-  in
-  if ctx.last_use.(v) = ctx.position
+let use ctx v =
+  let v' = ctx.mapping.(v) in
+  assert (v' <> -1);
+  if ctx.position = ctx.last_use.(v) && Option.is_none ctx.local_types.(v)
   then ctx.free_variables <- IntSet.add v' ctx.free_variables;
   v'
+
+let assignment ctx v e =
+  ctx.position <- ctx.position + 1;
+  (let v' = ctx.mapping.(v) in
+   if v' = -1
+   then
+     match e with
+     | Wa_ast.LocalGet v0 when ctx.last_use.(v0) + 1 = ctx.position ->
+         (* We are assigning the value of an existing local variable
+            which is no longer used. We can reuse the same local
+            variable to eliminate the assignment. *)
+         assert (
+           IntSet.mem ctx.mapping.(v0) ctx.free_variables
+           || Option.is_some ctx.local_types.(v0)
+              && Poly.equal ctx.local_types.(v) ctx.local_types.(v0));
+         let v' = ctx.mapping.(v0) in
+         ctx.free_variables <- IntSet.remove v' ctx.free_variables;
+         ctx.mapping.(v) <- v'
+     | Wa_ast.LocalGet v0
+       when ctx.last_use.(v0) >= ctx.last_use.(v) && ctx.assignemnt_count.(v) = 1 ->
+         (* We are assigning the value of an existing local variable
+            which has a longer scope. We can reuse the same local
+            variable to eliminate the assignment. *)
+         ctx.last_use.(v) <- ctx.last_use.(v0);
+         let v' = ctx.mapping.(v0) in
+         ctx.mapping.(v) <- v'
+     | _ -> (
+         match IntSet.min_elt_opt ctx.free_variables with
+         | Some v' when Option.is_none ctx.local_types.(v) ->
+             (* For now, we reuse local variables only when they are of
+                the default type *)
+             ctx.free_variables <- IntSet.remove v' ctx.free_variables;
+             ctx.mapping.(v) <- v'
+         | _ ->
+             let v' = ctx.largest_used + 1 in
+             ctx.largest_used <- v';
+             ctx.mapping.(v) <- v'));
+  use ctx v
 
 let rec rewrite_expression ctx e =
   match e with
@@ -156,10 +158,7 @@ let rec rewrite_expression ctx e =
   | Load (op, e') -> Load (op, rewrite_expression ctx e')
   | Load8 (s, op, e') -> Load8 (s, op, rewrite_expression ctx e')
   | LocalGet v ->
-      let v' = ctx.mapping.(v) in
-      assert (v' <> -1);
-      if ctx.position = ctx.last_use.(v)
-      then ctx.free_variables <- IntSet.add v' ctx.free_variables;
+      let v' = use ctx v in
       LocalGet v'
   | LocalTee (v, e0) -> (
       let e' = rewrite_expression ctx e0 in
