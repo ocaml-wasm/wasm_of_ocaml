@@ -113,7 +113,7 @@ let signage op (s : Wa_ast.signage) =
   ^
   match s with
   | S -> "_s"
-  | U -> "_"
+  | U -> "_u"
 
 let int_bin_op (op : int_bin_op) =
   match op with
@@ -290,7 +290,7 @@ let expression_or_instructions ctx in_function =
             :: index (V symb)
             :: (expression e @ expression e'))
         ]
-    | ArrayLength e -> [ List (Atom "array.length" :: expression e) ]
+    | ArrayLen e -> [ List (Atom "array.len" :: expression e) ]
     | StructNew (symb, l) ->
         [ List
             (Atom "struct.new" :: index (V symb) :: List.concat (List.map ~f:expression l))

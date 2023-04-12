@@ -321,7 +321,9 @@ let seq l e =
 let drop e =
   let* e = e in
   match e with
-  | W.Seq (l, Const _) -> instrs l
+  | W.Seq (l, e') ->
+      let* b = is_small_constant e' in
+      if b then instrs l else instr (Drop e)
   | _ -> instr (Drop e)
 
 let loop ty l =

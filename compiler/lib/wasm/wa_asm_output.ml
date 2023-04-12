@@ -286,7 +286,7 @@ module Output () = struct
     | ArrayNewFixed _
     | ArrayNewData _
     | ArrayGet _
-    | ArrayLength _
+    | ArrayLen _
     | StructNew _
     | StructGet _
     | RefCast _

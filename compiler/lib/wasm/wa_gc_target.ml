@@ -209,7 +209,7 @@ module Value = struct
     let* i = i in
     return (W.RefTest ({ nullable = false; typ = I31 }, i))
 
-  let not = Arith.eqz
+  let not i = val_int (Arith.eqz (int_val i))
 
   let binop op i i' = val_int (op (int_val i) (int_val i'))
 
@@ -303,19 +303,22 @@ module Memory = struct
     let* e'' = e'' in
     instr (W.ArraySet (None, ty, e, e', e''))
 
-  let tag e = wasm_array_get e (Arith.const 0l)
+  let tag e = Value.int_val (wasm_array_get e (Arith.const 0l))
 
   let block_length e =
-    let* e = e in
-    Value.int_val (return (W.ArrayLength e))
+    let* ty = Type.block_type in
+    let* e = wasm_cast ty e in
+    Value.val_int (return (W.ArrayLen e))
 
   let array_get e e' = wasm_array_get e Arith.(Value.int_val e' + const 1l)
 
   let array_set e e' e'' = wasm_array_set e Arith.(Value.int_val e' + const 1l) e''
 
-  let bytes_get e e' = wasm_array_get ~ty:Type.string_type e (Value.int_val e')
+  let bytes_get e e' =
+    Value.val_int (wasm_array_get ~ty:Type.string_type e (Value.int_val e'))
 
-  let bytes_set e e' e'' = wasm_array_set ~ty:Type.string_type e (Value.int_val e') e''
+  let bytes_set e e' e'' =
+    wasm_array_set ~ty:Type.string_type e (Value.int_val e') (Value.int_val e'')
 
   let field e idx = wasm_array_get e (Arith.const (Int32.of_int (idx + 1)))
 
@@ -566,8 +569,8 @@ module Closure = struct
     in
     let cast e = if m = 2 then Memory.wasm_cast ty e else e in
     return
-      ( Memory.wasm_struct_get ty (cast (load closure)) 2
-      , Memory.wasm_struct_get ty (cast (load closure)) 3
+      ( Memory.wasm_struct_get ty (cast (load closure)) 3
+      , Memory.wasm_struct_get ty (cast (load closure)) 2
       , Some (W.Ref { nullable = false; typ = Type cl_ty }) )
 end
 

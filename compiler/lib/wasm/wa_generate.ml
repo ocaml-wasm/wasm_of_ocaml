@@ -151,7 +151,8 @@ module Generate (Target : Wa_target_sig.S) = struct
         Memory.set_field
           (load x)
           0
-          Arith.(Memory.field (load x) 0 + const (Int32.of_int n'))
+          (Value.val_int
+             Arith.(Value.int_val (Memory.field (load x) 0) + const (Int32.of_int n')))
     | Array_set (x, y, z) -> Memory.array_set (load x) (load y) (load z)
 
   and translate_instrs ctx stack_ctx l =
@@ -365,14 +366,14 @@ module Generate (Target : Wa_target_sig.S) = struct
                 | [] -> (
                     match a1, a2 with
                     | [||], _ -> br_table (Memory.tag (load x)) a2 context
-                    | _, [||] -> br_table (load x) a1 context
+                    | _, [||] -> br_table (Value.int_val (load x)) a1 context
                     | _ ->
                         (*ZZZ Use Br_on_cast *)
                         let context' = extend_context fall_through context in
                         if_
                           { params = []; result = result_typ }
                           (Value.check_is_int (load x))
-                          (br_table (load x) a1 context')
+                          (br_table (Value.int_val (load x)) a1 context')
                           (br_table (Memory.tag (load x)) a2 context'))
               in
               nest l context

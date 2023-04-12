@@ -137,7 +137,7 @@ type expression =
   | ArrayNewFixed of var * expression list
   | ArrayNewData of var * var * expression * expression
   | ArrayGet of signage option * var * expression * expression
-  | ArrayLength of expression
+  | ArrayLen of expression
   | StructNew of var * expression list
   | StructGet of signage option * var * int * expression
   | RefCast of ref_type * expression
