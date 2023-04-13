@@ -147,12 +147,11 @@ module Generate (Target : Wa_target_sig.S) = struct
         else store x (translate_expr ctx stack_ctx x e)
     | Set_field (x, n, y) -> Memory.set_field (load x) n (load y)
     | Offset_ref (x, n) ->
-        let n' = 2 * n in
         Memory.set_field
           (load x)
           0
           (Value.val_int
-             Arith.(Value.int_val (Memory.field (load x) 0) + const (Int32.of_int n')))
+             Arith.(Value.int_val (Memory.field (load x) 0) + const (Int32.of_int n)))
     | Array_set (x, y, z) -> Memory.array_set (load x) (load y) (load z)
 
   and translate_instrs ctx stack_ctx l =
