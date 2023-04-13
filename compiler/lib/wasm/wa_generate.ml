@@ -453,6 +453,7 @@ module Generate (Target : Wa_target_sig.S) = struct
            let* () = Stack.perform_spilling stack_ctx `Function in
            translate_branch [ Value.value ] `Return (-1) cont [] stack_ctx)
     in
+    let body = post_process_function_body ~param_count body in
     W.Function
       { name =
           (match name_opt with

@@ -604,4 +604,6 @@ module Stack = struct
   let stack_adjustment_needed _ ~src:_ ~dst:_ = false
 end
 
+let post_process_function_body = Wa_initialize_locals.f
+
 let entry_point ~register_primitive:_ = return ()

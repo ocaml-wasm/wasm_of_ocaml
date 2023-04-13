@@ -169,6 +169,9 @@ module type S = sig
       -> (expression * expression * Wa_ast.value_type option) Wa_code_generation.t
   end
 
+  val post_process_function_body :
+    param_count:int -> Wa_ast.instruction list -> Wa_ast.instruction list
+
   val entry_point :
     register_primitive:(string -> Wa_ast.func_type -> unit) -> unit Wa_code_generation.t
 end

@@ -231,7 +231,10 @@ GC + exceptions
 dune exec -- js_of_ocaml --pretty `which ocamlc.byte` > /tmp/a.wat
 
 dune exec -- js_of_ocaml --pretty /tmp/a.out  > /tmp/a.wat
-~/sources/binaryen/bin/wasm-opt --enable-gc --enable-exception-handling --enable-reference-types --enable-tail-call /tmp/a.wat -n -o /tmp/a.wasm
+
+~/sources/binaryen/bin/wasm-as --enable-gc --enable-exception-handling --enable-reference-types --enable-tail-call  /tmp/a.wat   -o /tmp/a.wasm
+
+~/sources/binaryen/bin/wasm-opt --enable-gc --enable-exception-handling --enable-reference-types --enable-tail-call /tmp/a.wat -o /tmp/a.wasm
 snap run node --print-wasm-code --experimental-wasm-gc /tmp/launch.js |& less
 
 const fs = require('fs');
