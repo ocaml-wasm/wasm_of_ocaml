@@ -156,19 +156,19 @@ and instruction =
   | Loop of func_type * instruction list
   | Block of func_type * instruction list
   | If of func_type * expression * instruction list * instruction list
+  | Br_table of expression * int list * int
+  | Br of int * expression option
+  | Return of expression option
+  | CallInstr of symbol * expression list
+  | Nop
+  | Push of expression
   | Try of
       func_type
       * instruction list
       * (string * instruction list) list
       * instruction list option
-  | Br_table of expression * int list * int
-  | Br of int * expression option
-  | Return of expression option
   | Throw of string * expression
   | Rethrow of int
-  | CallInstr of symbol * expression list
-  | Nop
-  | Push of expression
   | ArraySet of signage option * var * expression * expression * expression
   | StructSet of signage option * var * int * expression * expression
   | Br_on_cast of int * ref_type * ref_type * expression

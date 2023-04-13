@@ -183,20 +183,7 @@ module Make (Target : Wa_target_sig.S) = struct
                let* () = store y' (call ~arity:1 y [ x ]) in
                build_applies (load y') rem
          in
-         build_applies (load f) l
-         (*
-         let* y =
-           List.fold_left
-             ~f:(fun y (x, y') ->
-               let* () = Stack.perform_spilling stack_ctx (`Instr y') in
-               let* x = load x in
-               Stack.kill_variables stack_ctx;
-               let* () = store y' (call ~arity:1 y [ x ]) in
-               load y')
-             ~init:(load f)
-             l
-         in
-         instr (Push y)*))
+         build_applies (load f) l)
     in
     let locals, body =
       function_body ~context ~value_type:Value.value ~param_count:(arity + 1) ~body
