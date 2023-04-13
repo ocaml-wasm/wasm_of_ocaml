@@ -29,6 +29,7 @@ type context =
   ; mutable use_exceptions : bool
   ; mutable apply_funs : Var.t IntMap.t
   ; mutable curry_funs : Var.t IntMap.t
+  ; mutable init_code : W.instruction list
   }
 
 let make_context () =
@@ -41,6 +42,7 @@ let make_context () =
   ; use_exceptions = false
   ; apply_funs = IntMap.empty
   ; curry_funs = IntMap.empty
+  ; init_code = []
   }
 
 type var =
@@ -135,6 +137,12 @@ let get_global (name : Wa_ast.symbol) =
         (match Var.Map.find_opt name ctx.constant_globals with
         | Some { init; _ } -> init
         | _ -> None)
+
+let register_init_code code st =
+  let st' = { var_count = 0; vars = Var.Map.empty; instrs = []; context = st.context } in
+  let (), st' = code st' in
+  st.context.init_code <- st'.instrs @ st.context.init_code;
+  (), st
 
 let set_closure_env f env st =
   st.context.closure_envs <- Var.Map.add f env st.context.closure_envs;
@@ -368,6 +376,8 @@ let need_curry_fun ~arity st =
        ctx.curry_funs <- IntMap.add arity x ctx.curry_funs;
        x)
   , st )
+
+let init_code context = instrs context.init_code
 
 let function_body ~context ~value_type ~param_count ~body =
   let st = { var_count = 0; vars = Var.Map.empty; instrs = []; context } in

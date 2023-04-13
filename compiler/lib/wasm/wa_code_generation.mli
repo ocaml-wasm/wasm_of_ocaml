@@ -11,6 +11,7 @@ type context =
   ; mutable use_exceptions : bool
   ; mutable apply_funs : Code.Var.t Stdlib.IntMap.t
   ; mutable curry_funs : Code.Var.t Stdlib.IntMap.t
+  ; mutable init_code : Wa_ast.instruction list
   }
 
 val make_context : unit -> context
@@ -109,6 +110,10 @@ val get_global : Wa_ast.symbol -> Wa_ast.expression option t
 val register_data_segment : Code.Var.t -> active:bool -> Wa_ast.data list -> unit t
 
 val get_data_segment : Code.Var.t -> (bool * Wa_ast.data list) t
+
+val register_init_code : unit t -> unit t
+
+val init_code : context -> unit t
 
 val get_context : context t
 

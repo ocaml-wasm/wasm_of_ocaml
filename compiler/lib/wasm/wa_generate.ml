@@ -468,7 +468,11 @@ module Generate (Target : Wa_target_sig.S) = struct
 
   let entry_point ctx toplevel_fun entry_name =
     let body =
-      let* () = entry_point ~register_primitive:(register_primitive ctx) in
+      let* () =
+        entry_point
+          ~context:ctx.global_context
+          ~register_primitive:(register_primitive ctx)
+      in
       drop (return (W.Call (V toplevel_fun, [])))
     in
     let locals, body =
@@ -510,7 +514,6 @@ module Generate (Target : Wa_target_sig.S) = struct
       }
     in
     let toplevel_name = Var.fresh_n "toplevel" in
-    let start_function = entry_point ctx toplevel_name "kernel_run" in
     let functions =
       Code.fold_closures_outermost_first
         p
@@ -530,6 +533,7 @@ module Generate (Target : Wa_target_sig.S) = struct
         (Var.Map.bindings ctx.global_context.data_segments)
     in
     Curry.f ~context:ctx.global_context;
+    let start_function = entry_point ctx toplevel_name "kernel_run" in
     let fields =
       List.rev_append
         ctx.global_context.other_fields

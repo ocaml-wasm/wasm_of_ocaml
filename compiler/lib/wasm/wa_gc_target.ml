@@ -337,9 +337,16 @@ module Memory = struct
 end
 
 module Constant = struct
+  let string_length_threshold = 100
+
+  let store_in_global c =
+    let name = Code.Var.fresh_n "const" in
+    let* () = register_global (V name) { mut = false; typ = Type.value } c in
+    return (W.GlobalGet (V name))
+
   let rec translate_rec c =
     match c with
-    | Code.Int i -> return (W.I31New (Const (I32 i))) (*ZZZ 32 bit integers *)
+    | Code.Int i -> return (true, W.I31New (Const (I32 i))) (*ZZZ 32 bit integers *)
     | Tuple (tag, a, _) ->
         let* ty = Type.block_type in
         let* l =
@@ -351,49 +358,87 @@ module Constant = struct
             ~init:(return [])
             a
         in
-        return
-          (W.ArrayNewFixed (ty, I31New (Const (I32 (Int32.of_int tag))) :: List.rev l))
+        let l' =
+          List.map ~f:(fun (const, v) -> if const then v else W.I31New (Const (I32 0l))) l
+        in
+        let c =
+          W.ArrayNewFixed (ty, I31New (Const (I32 (Int32.of_int tag))) :: List.rev l')
+        in
+        if List.exists ~f:(fun (const, _) -> not const) l
+        then
+          let* c = store_in_global c in
+          let* () =
+            register_init_code
+              (snd
+                 (List.fold_left
+                    ~f:(fun (i, before) (const, v) ->
+                      ( i + 1
+                      , let* () = before in
+                        if const
+                        then return ()
+                        else
+                          Memory.wasm_array_set
+                            (return c)
+                            (Arith.const (Int32.of_int i))
+                            (return v) ))
+                    ~init:(1, return ())
+                    l))
+          in
+          return (true, c)
+        else return (true, c)
     | NativeString (Byte s | Utf (Utf8 s)) | String s ->
         let* ty = Type.string_type in
-        (*ZZZ Use this for long strings
+        if String.length s > string_length_threshold
+        then
           let name = Code.Var.fresh_n "string" in
-          let* () = register_data_segment name [ DataBytes s ] in
+          let* () = register_data_segment name ~active:false [ DataBytes s ] in
           return
-            (W.ArrayNewData
-               (ty, name, Const (I32 0l), Const (I32 (Int32.of_int (String.length s)))))
-        *)
-        let l =
-          String.fold_right
-            ~f:(fun c r -> W.Const (I32 (Int32.of_int (Char.code c))) :: r)
-            s
-            ~init:[]
-        in
-        return (W.ArrayNewFixed (ty, l))
+            ( false
+            , W.ArrayNewData
+                (ty, name, Const (I32 0l), Const (I32 (Int32.of_int (String.length s))))
+            )
+        else
+          let l =
+            String.fold_right
+              ~f:(fun c r -> W.Const (I32 (Int32.of_int (Char.code c))) :: r)
+              s
+              ~init:[]
+          in
+          return (true, W.ArrayNewFixed (ty, l))
     | Float f ->
         let* ty = Type.float_type in
-        return (W.StructNew (ty, [ Const (F64 f) ]))
+        return (true, W.StructNew (ty, [ Const (F64 f) ]))
     | Float_array l ->
         let l = Array.to_list l in
         let* bl_ty = Type.block_type in
         let* ty = Type.float_type in
         (*ZZZ Boxed array? *)
         return
-          (W.ArrayNewFixed
-             ( bl_ty
-             , I31New (Const (I32 (Int32.of_int Obj.double_array_tag)))
-               :: List.map ~f:(fun f -> W.StructNew (ty, [ Const (F64 f) ])) l ))
+          ( true
+          , W.ArrayNewFixed
+              ( bl_ty
+              , I31New (Const (I32 (Int32.of_int Obj.double_array_tag)))
+                :: List.map ~f:(fun f -> W.StructNew (ty, [ Const (F64 f) ])) l ) )
     | Int64 i ->
         let* ty = Type.int64_type in
-        return (W.StructNew (ty, [ Const (I64 i) ]))
+        return (true, W.StructNew (ty, [ Const (I64 i) ]))
 
   let translate c =
-    let* c = translate_rec c in
-    let* b = is_small_constant c in
-    if b
-    then return c
+    let* const, c = translate_rec c in
+    if const
+    then
+      let* b = is_small_constant c in
+      if b then return c else store_in_global c
     else
       let name = Code.Var.fresh_n "const" in
-      let* () = register_global (V name) { mut = false; typ = Type.value } c in
+      let* () =
+        register_global
+          ~constant:true
+          (V name)
+          { mut = true; typ = Type.value }
+          (W.I31New (Const (I32 0l)))
+      in
+      let* () = register_init_code (instr (W.GlobalSet (V name, c))) in
       return (W.GlobalGet (V name))
 end
 
@@ -606,4 +651,4 @@ end
 
 let post_process_function_body = Wa_initialize_locals.f
 
-let entry_point ~register_primitive:_ = return ()
+let entry_point ~context ~register_primitive:_ = init_code context

@@ -381,7 +381,7 @@ end
 
 let post_process_function_body ~param_count:_ instrs = instrs
 
-let entry_point ~register_primitive =
+let entry_point ~context:_ ~register_primitive =
   let declare_global name =
     register_global (S name) { mut = true; typ = I32 } (Const (I32 0l))
   in
