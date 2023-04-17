@@ -534,7 +534,7 @@ let type_field { name; typ; supertype; final } =
         :: str_type typ
         ::
         (match supertype with
-        | Some supertype -> [ List [ Atom "extend"; index (V supertype) ] ]
+        | Some supertype -> [ List [ Atom "extends"; index (V supertype) ] ]
         | None -> []))
   | `Reference ->
       List

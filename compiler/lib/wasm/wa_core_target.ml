@@ -152,6 +152,10 @@ module Value = struct
 
   let int_mul i i' = val_int Arith.(int_val i * int_val i')
 
+  let int_div i i' = val_int Arith.(int_val i / int_val i')
+
+  let int_mod i i' = val_int Arith.(int_val i mod int_val i')
+
   let int_neg i = Arith.(const 2l - i)
 
   let int_or i i' = Arith.(i lor i')

@@ -7,6 +7,8 @@ fix wa_minimize_locals (loops)
 => a variable set outside of a loop is live to the end of the loop if
    used in the loop
 
+fix liveness (exceptions)
+
 =======
 
 Simple improvements

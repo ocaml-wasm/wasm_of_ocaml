@@ -231,6 +231,10 @@ module Arith = struct
 
   let ( * ) = binary Mul
 
+  let ( / ) = binary (Div S)
+
+  let ( mod ) = binary (Rem S)
+
   let ( lsl ) e e' =
     let* e = e in
     let* e' = e' in

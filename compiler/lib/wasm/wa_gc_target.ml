@@ -239,6 +239,10 @@ module Value = struct
 
   let int_mul = binop Arith.( * )
 
+  let int_div = binop Arith.( / )
+
+  let int_mod = binop Arith.( mod )
+
   let int_neg i = val_int Arith.(const 0l - int_val i)
 
   let int_or = binop Arith.( lor )
@@ -308,7 +312,7 @@ module Memory = struct
   let block_length e =
     let* ty = Type.block_type in
     let* e = wasm_cast ty e in
-    Value.val_int (return (W.ArrayLen e))
+    Value.val_int Arith.(return (W.ArrayLen e) - const 1l)
 
   let array_get e e' = wasm_array_get e Arith.(Value.int_val e' + const 1l)
 
@@ -506,6 +510,7 @@ module Closure = struct
               let* () = set_closure_env f env in
               let* l = expression_list load free_variables in
               tee
+                ~typ:(W.Ref { nullable = false; typ = Type env_typ })
                 env
                 (return
                    (W.StructNew
@@ -520,7 +525,7 @@ module Closure = struct
           in
           let* typ = Type.rec_closure_type ~arity ~function_count ~free_variable_count in
           let res =
-            let* env = (*ZZZ remove *) Memory.wasm_cast env_typ env in
+            let* env = env in
             return
               (W.StructNew
                  ( typ
@@ -543,7 +548,7 @@ module Closure = struct
                       , let* () = prev in
                         Memory.wasm_struct_set
                           env_typ
-                          (Memory.wasm_cast env_typ env)
+                          env
                           i
                           (if Code.Var.equal f g then tee f res else load g) ))
                     ~init:(0, return ())

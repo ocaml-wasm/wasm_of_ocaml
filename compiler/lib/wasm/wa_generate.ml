@@ -102,7 +102,9 @@ module Generate (Target : Wa_target_sig.S) = struct
             seq (Memory.bytes_set x y z) Value.unit
         | Extern "%int_add", [ x; y ] -> Value.int_add x y
         | Extern "%int_sub", [ x; y ] -> Value.int_sub x y
-        | Extern "%int_mul", [ x; y ] -> Value.int_mul x y
+        | Extern ("%int_mul" | "%direct_int_mul"), [ x; y ] -> Value.int_mul x y
+        | Extern "%direct_int_div", [ x; y ] -> Value.int_div x y
+        | Extern "%direct_int_mod", [ x; y ] -> Value.int_mod x y
         | Extern "%int_neg", [ x ] -> Value.int_neg x
         | Extern "%int_or", [ x; y ] -> Value.int_or x y
         | Extern "%int_and", [ x; y ] -> Value.int_and x y
