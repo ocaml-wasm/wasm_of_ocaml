@@ -28,7 +28,7 @@ module Type = struct
         return
           { supertype = None
           ; final = true
-          ; typ = W.Struct [ { mut = true; typ = Value F64 } ]
+          ; typ = W.Struct [ { mut = false; typ = Value F64 } ]
           })
 
   let int64_type =
@@ -36,7 +36,7 @@ module Type = struct
         return
           { supertype = None
           ; final = true
-          ; typ = W.Struct [ { mut = true; typ = Value I64 } ]
+          ; typ = W.Struct [ { mut = false; typ = Value I64 } ]
           })
 
   let func_type n =
@@ -312,7 +312,7 @@ module Memory = struct
   let block_length e =
     let* ty = Type.block_type in
     let* e = wasm_cast ty e in
-    Value.val_int Arith.(return (W.ArrayLen e) - const 1l)
+    Arith.(return (W.ArrayLen e) - const 1l)
 
   let array_get e e' = wasm_array_get e Arith.(Value.int_val e' + const 1l)
 

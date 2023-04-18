@@ -112,6 +112,16 @@ module Generate (Target : Wa_target_sig.S) = struct
         | Extern "%int_lsl", [ x; y ] -> Value.int_lsl x y
         | Extern "%int_lsr", [ x; y ] -> Value.int_lsr x y
         | Extern "%int_asr", [ x; y ] -> Value.int_asr x y
+        | Extern "caml_check_bound", [ x; y ] ->
+            let nm = "caml_array_bound_error" in
+            register_primitive ctx nm { params = []; result = [] };
+            seq
+              (if_
+                 { params = []; result = [] }
+                 (Arith.uge (Value.int_val y) (Memory.block_length x))
+                 (instr (CallInstr (S nm, [])))
+                 (return ()))
+              x
         | Extern nm, l ->
             (*ZZZ Different calling convention when large number of parameters *)
             register_primitive ctx nm (func_type (List.length l));
@@ -134,7 +144,7 @@ module Generate (Target : Wa_target_sig.S) = struct
         | Ult, [ x; y ] -> Value.ult x y
         | Array_get, [ x; y ] -> Memory.array_get x y
         | IsInt, [ x ] -> Value.is_int x
-        | Vectlength, [ x ] -> Memory.block_length x
+        | Vectlength, [ x ] -> Value.val_int (Memory.block_length x)
         | (Not | Lt | Le | Eq | Neq | Ult | Array_get | IsInt | Vectlength), _ ->
             assert false)
 

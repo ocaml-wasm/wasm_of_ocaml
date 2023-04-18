@@ -27,6 +27,8 @@ Simple improvements
 
 - GC: caml_{alloc,update}_dummy
 
+- optimize array bound checks (compute index once)
+
 =======
 
 Optimization phases
@@ -77,6 +79,7 @@ Remarks
 - performance of casts (v8):
  --experimental-wasm-assume-ref-cast-succeeds
  --experimental-wasm-skip-null-checks
+ --experimental-wasm-skip-bounds-checks
 
 - we have a problem with large number of variable during the
   initialization phase, which could be an issue for the GC
@@ -239,3 +242,14 @@ const wasmBuffer = fs.readFileSync('/tmp/a.wasm');
 function f(){console.log('ZZZ'); return 0}
 function toto(x,y){console.log('AAA', x, y); return 0}
 WebAssembly.instantiate(wasmBuffer, {env:{caml_fs_init:f,caml_ml_flush:f,caml_ml_open_descriptor_in:f,caml_ml_open_descriptor_out:f,caml_ml_out_channels_list:f,caml_register_global:f,caml_register_named_value:f,toto:toto}}).then(wasmModule => {wasmModule.instance.exports.kernel_run()});
+
+~/sources/binaryen/bin/wasm-opt --enable-gc --enable-exception-handling --enable-reference-types --enable-tail-call runtime.wat -O -o runtime.wasm
+
+===================
+
+strings / format_float (splay)
+floats (raytrace)
+trigonometry? (almabench, fft, nucleic)
+    ==> import from javascript
+
+caml_alloc/update_dummy, int64 (hamming)

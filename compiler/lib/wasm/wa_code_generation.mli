@@ -69,6 +69,8 @@ module Arith : sig
 
   val ult : expression -> expression -> expression
 
+  val uge : expression -> expression -> expression
+
   val eqz : expression -> expression
 end
 

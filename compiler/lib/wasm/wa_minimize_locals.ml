@@ -115,14 +115,15 @@ let assignment ctx v e =
    if v' = -1
    then
      match e with
-     | Wa_ast.LocalGet v0 when ctx.last_use.(v0) + 1 = ctx.position ->
+     | Wa_ast.LocalGet v0
+       when ctx.last_use.(v0) + 1 = ctx.position
+            && Poly.equal ctx.local_types.(v) ctx.local_types.(v0) ->
          (* We are assigning the value of an existing local variable
             which is no longer used. We can reuse the same local
             variable to eliminate the assignment. *)
          assert (
            IntSet.mem ctx.mapping.(v0) ctx.free_variables
-           || Option.is_some ctx.local_types.(v0)
-              && Poly.equal ctx.local_types.(v) ctx.local_types.(v0));
+           || Option.is_some ctx.local_types.(v0));
          let v' = ctx.mapping.(v0) in
          ctx.free_variables <- IntSet.remove v' ctx.free_variables;
          ctx.mapping.(v) <- v'

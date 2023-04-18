@@ -264,6 +264,8 @@ module Arith = struct
 
   let ult = binary (Lt U)
 
+  let uge = binary (Ge U)
+
   let eqz = unary Eqz
 
   let const n = return (W.Const (I32 n))
@@ -396,7 +398,7 @@ let function_body ~context ~value_type ~param_count ~body =
     st.vars;
   let body = Wa_tail_call.f body in
   let local_types, body =
-    if false
+    if true
     then local_types, body
     else Wa_minimize_locals.f ~param_count ~local_types body
   in
