@@ -338,6 +338,15 @@ module Memory = struct
   let load_function_arity closure =
     let* ty = Type.closure_type_1 in
     wasm_struct_get ty (wasm_cast ty closure) 0
+
+  let box_float _ _ e =
+    let* ty = Type.float_type in
+    let* e = e in
+    return (W.StructNew (ty, [ e ]))
+
+  let unbox_float e =
+    let* ty = Type.float_type in
+    wasm_struct_get ty (wasm_cast ty e) 0
 end
 
 module Constant = struct

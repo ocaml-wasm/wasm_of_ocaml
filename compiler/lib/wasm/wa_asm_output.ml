@@ -147,19 +147,20 @@ module Output () = struct
     | I64 _ -> string "i64."
     | F64 _ -> string "f64."
 
-  let int_un_op op =
-    match op with
-    | Clz -> "clz"
-    | Ctz -> "ctz"
-    | Popcnt -> "popcnt"
-    | Eqz -> "eqz"
-
   let signage op (s : Wa_ast.signage) =
     op
     ^
     match s with
     | S -> "_s"
     | U -> "_u"
+
+  let int_un_op op =
+    match op with
+    | Clz -> "clz"
+    | Ctz -> "ctz"
+    | Popcnt -> "popcnt"
+    | Eqz -> "eqz"
+    | TruncF64 s -> signage "trunc_f64" s
 
   let int_bin_op (op : int_bin_op) =
     match op with
@@ -191,6 +192,8 @@ module Output () = struct
     | Trunc -> "trunc"
     | Nearest -> "nearest"
     | Sqrt -> "sqrt"
+    | ConvertI32 s -> signage "convert_i32" s
+    | ConvertI64 s -> signage "convert_i64" s
 
   let float_bin_op op =
     match op with

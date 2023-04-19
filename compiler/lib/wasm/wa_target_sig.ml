@@ -82,6 +82,10 @@ module type S = sig
     val bytes_set : expression -> expression -> expression -> unit Wa_code_generation.t
 
     val block_length : expression -> expression
+
+    val box_float : Stack.ctx -> Code.Var.t -> expression -> expression
+
+    val unbox_float : expression -> expression
   end
 
   module Value : sig
