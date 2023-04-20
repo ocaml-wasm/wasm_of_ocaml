@@ -184,13 +184,15 @@ let lookup_symbol ctx (x : symbol) =
 
 let remove_nops l = List.filter ~f:(fun i -> not (Poly.equal i Nop)) l
 
+let float64 f = Printf.sprintf "%h" f (*ZZZ*)
+
 let expression_or_instructions ctx in_function =
   let rec expression e =
     match e with
     | Const op ->
         [ List
             [ Atom (type_prefix op "const")
-            ; Atom (select Int32.to_string Int64.to_string string_of_float (*ZZZ*) op)
+            ; Atom (select Int32.to_string Int64.to_string float64 op)
             ]
         ]
     | ConstSym (symb, ofs) ->

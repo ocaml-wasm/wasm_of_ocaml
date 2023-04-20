@@ -226,6 +226,8 @@ module Output () = struct
        then Int64.to_string i
        else Printf.sprintf "0x%Lx" i)
 
+  let float64 f = string (Printf.sprintf "%h" f) (*ZZZ*)
+
   let index name = string (Code.Var.to_string name)
 
   let symbol name offset =
@@ -241,11 +243,7 @@ module Output () = struct
   let rec expression e =
     match e with
     | Const op ->
-        line
-          (type_prefix op
-          ^^ string "const "
-          ^^ select integer32 integer64 (fun f -> string (Printf.sprintf "%h" f)) op)
-        (*ZZZ*)
+        line (type_prefix op ^^ string "const " ^^ select integer32 integer64 float64 op)
     | ConstSym (name, offset) ->
         line (type_prefix (I32 ()) ^^ string "const " ^^ symbol name offset)
     | UnOp (op, e') ->
