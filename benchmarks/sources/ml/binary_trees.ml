@@ -23,8 +23,10 @@ let rec check = function
 
 let min_depth = 4
 
+let max n m : int = if n >= m then n else m
+
 let max_depth =
-  let n = try int_of_string Sys.argv.(1) with _ -> 10 in
+  let n = (*try int_of_string Sys.argv.(1) with _ ->*) 10 in
   max (min_depth + 2) n
 
 let stretch_depth = max_depth + 1

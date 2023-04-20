@@ -384,6 +384,7 @@ module Engine = struct
         in
         let h = Vector.normalize (Vector.subtract e lv) in
         let gloss_weight =
+          let max x y : float = if x >= y then x else y in
           max (Vector.dot info.Intersection_info.normal h) 0. ** shininess
         in
         color := Color.add (Color.multiply_scalar light.Light.color gloss_weight) !color

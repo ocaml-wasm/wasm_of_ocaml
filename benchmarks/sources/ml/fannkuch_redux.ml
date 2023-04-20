@@ -37,6 +37,7 @@ let fannkuch n =
       k := perm.(0);
       flips := !flips + 1
     done;
+    let max x y : int = if x >= y then x else y in
     maxflips := max !maxflips !flips;
     checksum := !checksum + (!flips * (1 - ((!nperm land 1) lsl 1)));
     let go = ref true in
