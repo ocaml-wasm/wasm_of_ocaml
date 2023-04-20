@@ -620,13 +620,16 @@ let rec find_in_stack x stack =
   | Some y :: rem when Var.equal x y -> List.length rem
   | _ :: rem -> find_in_stack x rem
 
+let global_sp = register_import ~name:"sp" (Global { mut = true; typ = I32 })
+
 let load_sp ctx =
   match !ctx.loaded_sp with
   | Some sp -> return sp
   | None ->
       let sp = Var.fresh_n "sp" in
       ctx := { !ctx with loaded_sp = Some sp };
-      let* () = store sp (return (W.GlobalGet (S "sp"))) in
+      let* global_sp = global_sp in
+      let* () = store sp (return (W.GlobalGet global_sp)) in
       return sp
 
 let perform_reloads ctx l =
@@ -700,7 +703,8 @@ let perform_spilling ctx loc =
             let delta = -4 * spilling.depth_change in
             let* sp = tee sp' Arith.(load sp + const (Int32.of_int delta)) in
             ctx := { !ctx with loaded_sp = Some sp' };
-            let* () = instr (W.GlobalSet (S "sp", sp)) in
+            let* global_sp = global_sp in
+            let* () = instr (W.GlobalSet (global_sp, sp)) in
             return sp'
         in
         let* () =
@@ -729,7 +733,8 @@ let adjust_stack ctx ~src ~dst =
     let* sp = load_sp ctx in
     let delta = -4 * delta in
     let* sp = Arith.(load sp + const (Int32.of_int delta)) in
-    instr (W.GlobalSet (S "sp", sp))
+    let* global_sp = global_sp in
+    instr (W.GlobalSet (global_sp, sp))
 
 let stack_adjustment_needed ctx ~src ~dst =
   let src_stack =

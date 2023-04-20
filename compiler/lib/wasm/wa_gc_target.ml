@@ -354,8 +354,8 @@ module Constant = struct
 
   let store_in_global c =
     let name = Code.Var.fresh_n "const" in
-    let* () = register_global (V name) { mut = false; typ = Type.value } c in
-    return (W.GlobalGet (V name))
+    let* () = register_global name { mut = false; typ = Type.value } c in
+    return (W.GlobalGet name)
 
   let rec translate_rec c =
     match c with
@@ -447,12 +447,12 @@ module Constant = struct
       let* () =
         register_global
           ~constant:true
-          (V name)
+          name
           { mut = true; typ = Type.value }
           (W.I31New (Const (I32 0l)))
       in
-      let* () = register_init_code (instr (W.GlobalSet (V name, c))) in
-      return (W.GlobalGet (V name))
+      let* () = register_init_code (instr (W.GlobalSet (name, c))) in
+      return (W.GlobalGet name)
 end
 
 module Closure = struct
@@ -478,19 +478,15 @@ module Closure = struct
       let name = Code.Var.fresh_n "closure" in
       let* () =
         register_global
-          (V name)
+          name
           { mut = false; typ = Type.value }
           (W.StructNew
              ( typ
              , if arity = 1
-               then [ Const (I32 1l); RefFunc (V f) ]
-               else
-                 [ Const (I32 (Int32.of_int arity))
-                 ; RefFunc (V curry_fun)
-                 ; RefFunc (V f)
-                 ] ))
+               then [ Const (I32 1l); RefFunc f ]
+               else [ Const (I32 (Int32.of_int arity)); RefFunc curry_fun; RefFunc f ] ))
       in
-      return (W.GlobalGet (V name))
+      return (W.GlobalGet name)
     else
       let free_variable_count = List.length free_variables in
       match info.Wa_closure_conversion.functions with
@@ -502,12 +498,8 @@ module Closure = struct
             (W.StructNew
                ( typ
                , (if arity = 1
-                  then [ W.Const (I32 1l); RefFunc (V f) ]
-                  else
-                    [ Const (I32 (Int32.of_int arity))
-                    ; RefFunc (V curry_fun)
-                    ; RefFunc (V f)
-                    ])
+                  then [ W.Const (I32 1l); RefFunc f ]
+                  else [ Const (I32 (Int32.of_int arity)); RefFunc curry_fun; RefFunc f ])
                  @ l ))
       | (g, _) :: _ as functions ->
           let function_count = List.length functions in
@@ -539,12 +531,9 @@ module Closure = struct
               (W.StructNew
                  ( typ
                  , (if arity = 1
-                    then [ W.Const (I32 1l); RefFunc (V f) ]
+                    then [ W.Const (I32 1l); RefFunc f ]
                     else
-                      [ Const (I32 (Int32.of_int arity))
-                      ; RefFunc (V curry_fun)
-                      ; RefFunc (V f)
-                      ])
+                      [ Const (I32 (Int32.of_int arity)); RefFunc curry_fun; RefFunc f ])
                    @ [ env ] ))
           in
           if is_last_fun functions f
@@ -663,6 +652,34 @@ module Stack = struct
   let stack_adjustment_needed _ ~src:_ ~dst:_ = false
 end
 
+module Math = struct
+  let float_func_type n =
+    { W.params = List.init ~len:n ~f:(fun _ : W.value_type -> F64); result = [ F64 ] }
+
+  let unary name x =
+    let* f = register_import ~import_module:"Math" ~name (Fun (float_func_type 1)) in
+    let* x = x in
+    return (W.Call (f, [ x ]))
+
+  let cos f = unary "cos" f
+
+  let sin f = unary "sin" f
+
+  let asin f = unary "asin" f
+
+  let binary name x y =
+    let* f = register_import ~import_module:"Math" ~name (Fun (float_func_type 2)) in
+    let* x = x in
+    let* y = y in
+    return (W.Call (f, [ x; y ]))
+
+  let atan2 f g = binary "atan2" f g
+
+  let power f g = binary "pow" f g
+
+  let fmod f g = binary "fmod" f g
+end
+
 let post_process_function_body = Wa_initialize_locals.f
 
-let entry_point ~context ~register_primitive:_ = init_code context
+let entry_point ~context = init_code context

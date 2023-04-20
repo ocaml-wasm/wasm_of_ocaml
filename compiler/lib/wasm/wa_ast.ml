@@ -113,10 +113,6 @@ type float_bin_op =
 
 type memarg = int32
 
-type type_use =
-  | Typ of var
-  | Decl of func_type
-
 type expression =
   | Const of (int32, int64, float) op
   | ConstSym of symbol * int
@@ -126,13 +122,13 @@ type expression =
   | Load8 of signage * (memarg, memarg, memarg) op * expression
   | LocalGet of int
   | LocalTee of int * expression
-  | GlobalGet of symbol
-  | Call_indirect of type_use * expression * expression list
-  | Call of symbol * expression list
+  | GlobalGet of var
+  | Call_indirect of func_type * expression * expression list
+  | Call of var * expression list
   | MemoryGrow of int * expression
   | Seq of instruction list * expression
   | Pop of value_type
-  | RefFunc of symbol
+  | RefFunc of var
   | Call_ref of var * expression * expression list
   | I31New of expression
   | I31Get of signage * expression
@@ -155,41 +151,42 @@ and instruction =
   | Store of (memarg, memarg, memarg) op * expression * expression
   | Store8 of signage * (memarg, memarg, memarg) op * expression * expression
   | LocalSet of int * expression
-  | GlobalSet of symbol * expression
+  | GlobalSet of var * expression
   | Loop of func_type * instruction list
   | Block of func_type * instruction list
   | If of func_type * expression * instruction list * instruction list
   | Br_table of expression * int list * int
   | Br of int * expression option
   | Return of expression option
-  | CallInstr of symbol * expression list
+  | CallInstr of var * expression list
   | Nop
   | Push of expression
   | Try of
       func_type
       * instruction list
-      * (string * instruction list) list
+      * (var * instruction list) list
       * instruction list option
-  | Throw of string * expression
+  | Throw of var * expression
   | Rethrow of int
   | ArraySet of signage option * var * expression * expression * expression
   | StructSet of signage option * var * int * expression * expression
   | Br_on_cast of int * ref_type * ref_type * expression
   | Br_on_cast_fail of int * ref_type * ref_type * expression
-  | Return_call_indirect of type_use * expression * expression list
-  | Return_call of symbol * expression list
+  | Return_call_indirect of func_type * expression * expression list
+  | Return_call of var * expression list
   | Return_call_ref of var * expression * expression list
 
 type import_desc =
-  | Fun of type_use
+  | Fun of func_type
   | Global of global_type
+  | Tag of value_type
 
 type data =
   | DataI8 of int
   | DataI32 of int32
   | DataI64 of int64
   | DataBytes of string
-  | DataSym of symbol * int
+  | DataSym of var * int
   | DataSpace of int
 
 type type_field =
@@ -203,7 +200,7 @@ type module_field =
   | Function of
       { name : var
       ; exported_name : string option
-      ; typ : type_use
+      ; typ : func_type
       ; locals : value_type list
       ; body : instruction list
       }
@@ -214,16 +211,18 @@ type module_field =
       ; contents : data list
       }
   | Global of
-      { name : symbol
+      { name : var
       ; typ : global_type
       ; init : expression
       }
   | Tag of
-      { name : symbol
+      { name : var
       ; typ : value_type
       }
   | Import of
-      { name : string
+      { import_module : string
+      ; import_name : string
+      ; name : var
       ; desc : import_desc
       }
   | Type of type_field list

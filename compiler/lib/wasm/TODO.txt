@@ -237,11 +237,6 @@ dune exec -- js_of_ocaml --pretty /tmp/a.out  > /tmp/a.wat
 ~/sources/binaryen/bin/wasm-opt --enable-gc --enable-exception-handling --enable-reference-types --enable-tail-call --enable-bulk-memory /tmp/a.wat -o /tmp/a.wasm
 snap run node --print-wasm-code --experimental-wasm-gc /tmp/launch.js |& less
 
-const fs = require('fs');
-const wasmBuffer = fs.readFileSync('/tmp/a.wasm');
-function f(){console.log('ZZZ'); return 0}
-function toto(x,y){console.log('AAA', x, y); return 0}
-WebAssembly.instantiate(wasmBuffer, {env:{caml_fs_init:f,caml_ml_flush:f,caml_ml_open_descriptor_in:f,caml_ml_open_descriptor_out:f,caml_ml_out_channels_list:f,caml_register_global:f,caml_register_named_value:f,toto:toto}}).then(wasmModule => {wasmModule.instance.exports.kernel_run()});
 
 ~/sources/binaryen/bin/wasm-opt --enable-gc --enable-exception-handling --enable-reference-types --enable-tail-call runtime.wat -O -o runtime.wasm
 

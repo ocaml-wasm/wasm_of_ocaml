@@ -128,11 +128,6 @@ module Output () = struct
     ^^ separate_map (string ", ") value_type result
     ^^ string ")"
 
-  let type_use ty =
-    match ty with
-    | Typ _ -> assert false (* Not supported *)
-    | Decl ty -> func_type ty
-
   let block_type ty =
     match ty with
     | { params = []; result = [] } -> empty
@@ -231,6 +226,8 @@ module Output () = struct
        then Int64.to_string i
        else Printf.sprintf "0x%Lx" i)
 
+  let index name = string (Code.Var.to_string name)
+
   let symbol name offset =
     string
       (match name with
@@ -247,7 +244,8 @@ module Output () = struct
         line
           (type_prefix op
           ^^ string "const "
-          ^^ select integer32 integer64 (fun f -> string (string_of_float f (*ZZZ*))) op)
+          ^^ select integer32 integer64 (fun f -> string (Printf.sprintf "%h" f)) op)
+        (*ZZZ*)
     | ConstSym (name, offset) ->
         line (type_prefix (I32 ()) ^^ string "const " ^^ symbol name offset)
     | UnOp (op, e') ->
@@ -272,12 +270,12 @@ module Output () = struct
              ^^ string (select Int32.to_string Int32.to_string Int32.to_string offset))
     | LocalGet i -> line (string "local.get " ^^ integer i)
     | LocalTee (i, e') -> expression e' ^^ line (string "local.tee " ^^ integer i)
-    | GlobalGet nm -> line (string "global.get " ^^ symbol nm 0)
+    | GlobalGet nm -> line (string "global.get " ^^ index nm)
     | Call_indirect (typ, f, l) ->
         concat_map expression l
         ^^ expression f
-        ^^ line (string "call_indirect " ^^ type_use typ)
-    | Call (x, l) -> concat_map expression l ^^ line (string "call " ^^ symbol x 0)
+        ^^ line (string "call_indirect " ^^ func_type typ)
+    | Call (x, l) -> concat_map expression l ^^ line (string "call " ^^ index x)
     | MemoryGrow (mem, e) -> expression e ^^ line (string "memory.grow " ^^ integer mem)
     | Seq (l, e') -> concat_map instruction l ^^ expression e'
     | Pop _ -> empty
@@ -318,7 +316,7 @@ module Output () = struct
              ^^ string " "
              ^^ string (select Int32.to_string Int32.to_string Int32.to_string offset))
     | LocalSet (i, e) -> expression e ^^ line (string "local.set " ^^ integer i)
-    | GlobalSet (nm, e) -> expression e ^^ line (string "global.set " ^^ symbol nm 0)
+    | GlobalSet (nm, e) -> expression e ^^ line (string "global.set " ^^ index nm)
     | Loop (ty, l) ->
         line (string "loop" ^^ block_type ty)
         ^^ indent (concat_map instruction l)
@@ -340,7 +338,7 @@ module Output () = struct
         ^^ indent (concat_map instruction body)
         ^^ concat_map
              (fun (tag, l) ->
-               line (string "catch " ^^ string tag) ^^ indent (concat_map instruction l))
+               line (string "catch " ^^ index tag) ^^ indent (concat_map instruction l))
              catches
         ^^ (match catch_all with
            | None -> empty
@@ -358,21 +356,21 @@ module Output () = struct
     | Return None -> line (string "return")
     | Throw (i, e) ->
         Feature.require exception_handling;
-        expression e ^^ line (string "throw " ^^ symbol (S i) 0)
+        expression e ^^ line (string "throw " ^^ index i)
     | Rethrow i ->
         Feature.require exception_handling;
         line (string "rethrow " ^^ integer i)
-    | CallInstr (x, l) -> concat_map expression l ^^ line (string "call " ^^ symbol x 0)
+    | CallInstr (x, l) -> concat_map expression l ^^ line (string "call " ^^ index x)
     | Nop -> empty
     | Push e -> expression e
     | Return_call_indirect (typ, f, l) ->
         Feature.require tail_call;
         concat_map expression l
         ^^ expression f
-        ^^ line (string "return_call_indirect " ^^ type_use typ)
+        ^^ line (string "return_call_indirect " ^^ func_type typ)
     | Return_call (x, l) ->
         Feature.require tail_call;
-        concat_map expression l ^^ line (string "return_call " ^^ symbol x 0)
+        concat_map expression l ^^ line (string "return_call " ^^ index x)
     | ArraySet _ | StructSet _ | Br_on_cast _ | Br_on_cast_fail _ | Return_call_ref _ ->
         assert false (* Not supported *)
 
@@ -388,7 +386,11 @@ module Output () = struct
 
   let section_header kind name =
     line
-      (string ".section ." ^^ string kind ^^ string "." ^^ string name ^^ string ",\"\",@")
+      (string ".section ."
+      ^^ string kind
+      ^^ string "."
+      ^^ symbol name 0
+      ^^ string ",\"\",@")
 
   let vector l =
     line (string ".int8 " ^^ integer (List.length l)) ^^ concat_map (fun x -> x) l
@@ -401,7 +403,7 @@ module Output () = struct
     delayed
     @@ fun () ->
     indent
-      (section_header "custom_section" "producers"
+      (section_header "custom_section" (S "producers")
       ^^ vector
            [ len_string "language"
              ^^ vector [ len_string "OCaml" ^^ len_string Sys.ocaml_version ]
@@ -419,69 +421,84 @@ module Output () = struct
     delayed
     @@ fun () ->
     indent
-      (section_header "custom_section" "target_features"
+      (section_header "custom_section" (S "target_features")
       ^^ vector
            (List.map
               ~f:(fun f -> line (string ".ascii \"+\"") ^^ len_string f)
               (Feature.get features)))
 
   let f fields =
-    List.iter
-      ~f:(fun f ->
-        match f with
-        | Import { name; _ } -> Var_printer.add_reserved name
-        | Function _ | Data _ | Global _ | Tag _ | Type _ -> ())
-      fields;
     to_channel stdout
     @@
     let types =
       List.filter_map
         ~f:(fun f ->
           match f with
-          | Function { name; typ; _ } -> Some (Code.Var.to_string name, typ)
-          | Import { name; desc = Fun typ } -> Some (name, typ)
-          | Import { desc = Global _; _ } | Data _ | Global _ | Tag _ | Type _ -> None)
+          | Function { name; typ; _ } -> Some (name, typ, None)
+          | Import { import_module; import_name; name; desc = Fun typ } ->
+              Some (name, typ, Some (import_module, import_name))
+          | Import { desc = Global _ | Tag _; _ } | Data _ | Global _ | Tag _ | Type _ ->
+              None)
         fields
     in
     let globals =
       List.filter_map
         ~f:(fun f ->
           match f with
-          | Function _ | Import { desc = Fun _; _ } | Data _ | Tag _ | Type _ -> None
-          | Import { name; desc = Global typ; _ } ->
+          | Function _ | Import { desc = Fun _ | Tag _; _ } | Data _ | Tag _ | Type _ ->
+              None
+          | Import { import_module; import_name; name; desc = Global typ } ->
               if typ.mut then Feature.require mutable_globals;
-              Some ((S name : Wa_ast.symbol), typ)
+              Some (name, typ, Some (import_module, import_name))
           | Global { name; typ; init } ->
               assert (Poly.equal init (Const (I32 0l)));
-              Some (name, typ))
+              Some (name, typ, None))
         fields
     in
     let tags =
       List.filter_map
         ~f:(fun f ->
           match f with
-          | Function _ | Import _ | Data _ | Global _ | Type _ -> None
+          | Function _
+          | Import { desc = Fun _ | Global _; _ }
+          | Data _ | Global _ | Type _ -> None
+          | Import { import_module; import_name; name; desc = Tag typ } ->
+              Some (name, typ, Some (import_module, import_name))
           | Tag { name; typ } ->
               Feature.require exception_handling;
-              Some (name, typ))
+              Some (name, typ, None))
         fields
     in
     let define_symbol name =
-      line (string ".hidden " ^^ string name) ^^ line (string ".globl " ^^ string name)
+      line (string ".hidden " ^^ index name) ^^ line (string ".globl " ^^ index name)
     in
-    let declare_global name { mut; typ } =
+    let name_import name import =
+      (match import with
+      | None | Some ("env", _) -> empty
+      | Some (m, _) ->
+          line (string ".import_module " ^^ index name ^^ string ", " ^^ string m))
+      ^^
+      match import with
+      | None -> empty
+      | Some (_, nm) ->
+          line (string ".import_name " ^^ index name ^^ string ", " ^^ string nm)
+    in
+    let declare_global name { mut; typ } import =
       line
         (string ".globaltype "
-        ^^ symbol name 0
+        ^^ index name
         ^^ string ", "
         ^^ value_type typ
         ^^ if mut then empty else string ", immutable")
+      ^^ name_import name import
     in
-    let declare_tag name typ =
-      line (string ".tagtype " ^^ symbol name 0 ^^ string " " ^^ value_type typ)
+    let declare_tag name typ import =
+      line (string ".tagtype " ^^ index name ^^ string " " ^^ value_type typ)
+      ^^ name_import name import
     in
-    let declare_func_type name typ =
-      line (string ".functype " ^^ string name ^^ string " " ^^ type_use typ)
+    let declare_func_type name typ import =
+      line (string ".functype " ^^ index name ^^ string " " ^^ func_type typ)
+      ^^ name_import name import
     in
     let data_sections =
       concat_map
@@ -491,7 +508,6 @@ module Output () = struct
           | Data { name; read_only; active; contents } ->
               assert active;
               (* Not supported *)
-              let name = Code.Var.to_string name in
               let size =
                 List.fold_left
                   ~init:0
@@ -507,11 +523,11 @@ module Output () = struct
                   contents
               in
               indent
-                (section_header (if read_only then "rodata" else "data") name
+                (section_header (if read_only then "rodata" else "data") (V name)
                 ^^ define_symbol name
                 ^^ line (string ".p2align 2")
-                ^^ line (string ".size " ^^ string name ^^ string ", " ^^ integer size))
-              ^^ line (string name ^^ string ":")
+                ^^ line (string ".size " ^^ index name ^^ string ", " ^^ integer size))
+              ^^ line (index name ^^ string ":")
               ^^ indent
                    (concat_map
                       (fun d ->
@@ -525,17 +541,12 @@ module Output () = struct
                               ^^ string (escape_string b)
                               ^^ string "\""
                           | DataSym (name, offset) ->
-                              string ".int32 " ^^ symbol name offset
+                              string ".int32 " ^^ symbol (V name) offset
                           | DataSpace n -> string ".space " ^^ integer n))
                       contents)
           | Global { name; _ } | Tag { name; _ } ->
-              let name =
-                match name with
-                | V name -> Code.Var.to_string name
-                | S name -> name
-              in
-              indent (section_header "data" name ^^ define_symbol name)
-              ^^ line (string name ^^ string ":"))
+              indent (section_header "data" (V name) ^^ define_symbol name)
+              ^^ line (index name ^^ string ":"))
         fields
     in
     let function_section =
@@ -543,9 +554,8 @@ module Output () = struct
         (fun f ->
           match f with
           | Function { name; exported_name; typ; locals; body } ->
-              let name = Code.Var.to_string name in
               indent
-                (section_header "text" name
+                (section_header "text" (V name)
                 ^^ define_symbol name
                 ^^
                 match exported_name with
@@ -553,12 +563,12 @@ module Output () = struct
                 | Some exported_name ->
                     line
                       (string ".export_name "
-                      ^^ string name
+                      ^^ index name
                       ^^ string ","
                       ^^ string exported_name))
-              ^^ line (string name ^^ string ":")
+              ^^ line (index name ^^ string ":")
               ^^ indent
-                   (declare_func_type name typ
+                   (declare_func_type name typ None
                    ^^ (if List.is_empty locals
                        then empty
                        else
@@ -571,9 +581,9 @@ module Output () = struct
         fields
     in
     indent
-      (concat_map (fun (name, typ) -> declare_global name typ) globals
-      ^^ concat_map (fun (name, typ) -> declare_func_type name typ) types
-      ^^ concat_map (fun (name, typ) -> declare_tag name typ) tags)
+      (concat_map (fun (name, typ, import) -> declare_global name typ import) globals
+      ^^ concat_map (fun (name, typ, import) -> declare_func_type name typ import) types
+      ^^ concat_map (fun (name, typ, import) -> declare_tag name typ import) tags)
     ^^ function_section
     ^^ data_sections
     ^^ producer_section

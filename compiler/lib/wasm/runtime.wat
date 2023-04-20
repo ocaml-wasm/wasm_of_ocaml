@@ -1,4 +1,6 @@
 (module
+   (tag (export "ocaml_exception") (param (ref eq)))
+
    (type $block (array (mut (ref eq))))
    (type $string (array (mut i8)))
    (func (export "caml_make_vect")
@@ -137,7 +139,7 @@
            (struct.get $float 0 (ref.cast $float (local.get 0)))
            (struct.get $float 0 (ref.cast $float (local.get 1))))))
 
-  (import "Math" "mod" (func $math_mod (param f64) (param f64) (result f64)))
+  (import "Math" "fmod" (func $math_mod (param f64) (param f64) (result f64)))
   (func (export "caml_fmod_float")
      (param $x (ref eq)) (param $y (ref eq)) (result (ref eq))
      (struct.new $float

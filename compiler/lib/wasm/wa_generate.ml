@@ -30,22 +30,22 @@ module Generate (Target : Wa_target_sig.S) = struct
     { live : int array
     ; blocks : block Addr.Map.t
     ; closures : Wa_closure_conversion.closure Var.Map.t
-    ; mutable primitives : W.func_type StringMap.t
     ; global_context : Wa_code_generation.context
     }
 
-  let register_primitive ctx nm typ =
-    (*ZZZ check type*)
-    if not (StringMap.mem nm ctx.primitives)
-    then ctx.primitives <- StringMap.add nm typ ctx.primitives
-
   let func_type n =
     { W.params = List.init ~len:n ~f:(fun _ -> Value.value); result = [ Value.value ] }
+
+  let float_bin_op' stack_ctx x op f g =
+    Memory.box_float stack_ctx x (op (Memory.unbox_float f) (Memory.unbox_float g))
 
   let float_bin_op stack_ctx x op f g =
     let* f = Memory.unbox_float f in
     let* g = Memory.unbox_float g in
     Memory.box_float stack_ctx x (return (W.BinOp (F64 op, f, g)))
+
+  let float_un_op' stack_ctx x op f =
+    Memory.box_float stack_ctx x (op (Memory.unbox_float f))
 
   let float_un_op stack_ctx x op f =
     let* f = Memory.unbox_float f in
@@ -70,17 +70,17 @@ module Generate (Target : Wa_target_sig.S) = struct
               Stack.kill_variables stack_ctx;
               let* b = is_closure f in
               if b
-              then return (W.Call (V f, List.rev (closure :: acc)))
+              then return (W.Call (f, List.rev (closure :: acc)))
               else
                 match kind, funct with
-                | `Index, W.ConstSym (g, 0) | `Ref _, W.RefFunc g ->
+                | `Index, W.ConstSym (V g, 0) | `Ref _, W.RefFunc g ->
                     (* Functions with constant closures ignore their
                        environment *)
                     return (W.Call (g, List.rev (W.I31New (Const (I32 0l)) :: acc)))
                 | `Index, _ ->
                     return
                       (W.Call_indirect
-                         (Decl (func_type (arity + 1)), funct, List.rev (closure :: acc)))
+                         (func_type (arity + 1), funct, List.rev (closure :: acc)))
                 | `Ref ty, _ -> return (W.Call_ref (ty, funct, List.rev (closure :: acc)))
               )
           | x :: r ->
@@ -94,7 +94,7 @@ module Generate (Target : Wa_target_sig.S) = struct
         let* args = expression_list load args in
         let* closure = load f in
         Stack.kill_variables stack_ctx;
-        return (W.Call (V apply, args @ [ closure ]))
+        return (W.Call (apply, args @ [ closure ]))
     | Block (tag, a, _) ->
         Memory.allocate stack_ctx x ~tag (List.map ~f:(fun x -> `Var x) (Array.to_list a))
     | Field (x, n) -> Memory.field (load x) n
@@ -119,13 +119,16 @@ module Generate (Target : Wa_target_sig.S) = struct
         | Extern ("%int_mul" | "%direct_int_mul"), [ x; y ] -> Value.int_mul x y
         | Extern "%direct_int_div", [ x; y ] -> Value.int_div x y
         | Extern "%int_div", [ x; y ] ->
-            let nm = "caml_raise_zero_divide" in
-            register_primitive ctx nm { params = []; result = [] };
+            let* f =
+              register_import
+                ~name:"caml_raise_zero_divide"
+                (Fun { params = []; result = [] })
+            in
             seq
               (if_
                  { params = []; result = [] }
                  (Arith.eqz (Value.int_val y))
-                 (instr (CallInstr (S nm, [])))
+                 (instr (CallInstr (f, [])))
                  (return ()))
               (Value.int_div x y)
         | Extern "%direct_int_mod", [ x; y ] -> Value.int_mod x y
@@ -137,13 +140,16 @@ module Generate (Target : Wa_target_sig.S) = struct
         | Extern "%int_lsr", [ x; y ] -> Value.int_lsr x y
         | Extern "%int_asr", [ x; y ] -> Value.int_asr x y
         | Extern "caml_check_bound", [ x; y ] ->
-            let nm = "caml_array_bound_error" in
-            register_primitive ctx nm { params = []; result = [] };
+            let* f =
+              register_import
+                ~name:"caml_array_bound_error"
+                (Fun { params = []; result = [] })
+            in
             seq
               (if_
                  { params = []; result = [] }
                  (Arith.uge (Value.int_val y) (Memory.block_length x))
-                 (instr (CallInstr (S nm, [])))
+                 (instr (CallInstr (f, [])))
                  (return ()))
               x
         | Extern "caml_add_float", [ f; g ] -> float_bin_op stack_ctx x Add f g
@@ -170,15 +176,21 @@ module Generate (Target : Wa_target_sig.S) = struct
         | Extern "caml_float_of_int", [ n ] ->
             let* n = Value.int_val n in
             Memory.box_float stack_ctx x (return (W.UnOp (F64 (ConvertI32 S), n)))
-        | Extern nm, l ->
+        | Extern "caml_cos_float", [ f ] -> float_un_op' stack_ctx x Math.cos f
+        | Extern "caml_sin_float", [ f ] -> float_un_op' stack_ctx x Math.sin f
+        | Extern "caml_asin_float", [ f ] -> float_un_op' stack_ctx x Math.asin f
+        | Extern "caml_atan2_float", [ f; g ] -> float_bin_op' stack_ctx x Math.atan2 f g
+        | Extern "caml_power_float", [ f; g ] -> float_bin_op' stack_ctx x Math.power f g
+        | Extern "caml_fmod_float", [ f; g ] -> float_bin_op' stack_ctx x Math.fmod f g
+        | Extern name, l ->
             (*ZZZ Different calling convention when large number of parameters *)
-            register_primitive ctx nm (func_type (List.length l));
+            let* f = register_import ~name (Fun (func_type (List.length l))) in
             let* () = Stack.perform_spilling stack_ctx (`Instr x) in
             let rec loop acc l =
               match l with
               | [] ->
                   Stack.kill_variables stack_ctx;
-                  return (W.Call (S nm, List.rev acc))
+                  return (W.Call (f, List.rev acc))
               | x :: r ->
                   let* x = x in
                   loop (x :: acc) r
@@ -437,16 +449,16 @@ module Generate (Target : Wa_target_sig.S) = struct
               in
               nest l context
           | Raise (x, _) ->
-              let* () = use_exceptions in
               let* e = load x in
-              instr (Throw (exception_name, e))
+              let* tag = register_import ~name:exception_name (Tag Value.value) in
+              instr (Throw (tag, e))
           | Pushtrap (cont, x, cont', _) ->
               let context' = extend_context fall_through context in
-              let* () = use_exceptions in
+              let* tag = register_import ~name:exception_name (Tag Value.value) in
               try_
                 { params = []; result = result_typ }
                 (translate_branch result_typ fall_through pc cont context' stack_ctx)
-                exception_name
+                tag
                 (let* () = store ~always:true x (return (W.Pop Value.value)) in
                  translate_branch result_typ fall_through pc cont' context' stack_ctx)
           | Poptrap cont ->
@@ -519,7 +531,7 @@ module Generate (Target : Wa_target_sig.S) = struct
           | None -> toplevel_name
           | Some x -> x)
       ; exported_name = None
-      ; typ = Decl (func_type param_count)
+      ; typ = func_type param_count
       ; locals
       ; body
       }
@@ -527,12 +539,8 @@ module Generate (Target : Wa_target_sig.S) = struct
 
   let entry_point ctx toplevel_fun entry_name =
     let body =
-      let* () =
-        entry_point
-          ~context:ctx.global_context
-          ~register_primitive:(register_primitive ctx)
-      in
-      drop (return (W.Call (V toplevel_fun, [])))
+      let* () = entry_point ~context:ctx.global_context in
+      drop (return (W.Call (toplevel_fun, [])))
     in
     let locals, body =
       function_body
@@ -544,7 +552,7 @@ module Generate (Target : Wa_target_sig.S) = struct
     W.Function
       { name = Var.fresh_n "entry_point"
       ; exported_name = Some entry_name
-      ; typ = Decl { W.params = []; result = [] }
+      ; typ = { W.params = []; result = [] }
       ; locals
       ; body
       }
@@ -565,12 +573,7 @@ module Generate (Target : Wa_target_sig.S) = struct
   Code.Print.program (fun _ _ -> "") p;
 *)
     let ctx =
-      { live = live_vars
-      ; blocks = p.blocks
-      ; closures
-      ; primitives = StringMap.empty
-      ; global_context = make_context ()
-      }
+      { live = live_vars; blocks = p.blocks; closures; global_context = make_context () }
     in
     let toplevel_name = Var.fresh_n "toplevel" in
     let functions =
@@ -580,10 +583,15 @@ module Generate (Target : Wa_target_sig.S) = struct
           translate_function p ctx name_opt toplevel_name params cont)
         []
     in
-    let primitives =
-      List.map
-        ~f:(fun (name, ty) -> W.Import { name; desc = Fun (Decl ty) })
-        (StringMap.bindings ctx.primitives)
+    let imports =
+      List.concat
+        (List.map
+           ~f:(fun (import_module, m) ->
+             List.map
+               ~f:(fun (import_name, (name, desc)) ->
+                 W.Import { import_module; import_name; name; desc })
+               (StringMap.bindings m))
+           (StringMap.bindings ctx.global_context.imports))
     in
     let constant_data =
       List.map
@@ -593,14 +601,9 @@ module Generate (Target : Wa_target_sig.S) = struct
     in
     Curry.f ~context:ctx.global_context;
     let start_function = entry_point ctx toplevel_name "kernel_run" in
-    let fields =
-      List.rev_append
-        ctx.global_context.other_fields
-        (primitives @ functions @ (start_function :: constant_data))
-    in
-    if ctx.global_context.use_exceptions
-    then W.Tag { name = S exception_name; typ = Value.value } :: fields
-    else fields
+    List.rev_append
+      ctx.global_context.other_fields
+      (imports @ functions @ (start_function :: constant_data))
 end
 
 let f (p : Code.program) ~live_vars =

@@ -165,7 +165,7 @@ module type S = sig
       -> x:Code.Var.t
       -> arity:int
       -> int
-      -> f:Wa_ast.symbol
+      -> f:Code.Var.t
       -> closure:Code.Var.t
       -> arg:Code.Var.t
       -> Wa_ast.expression Wa_code_generation.t
@@ -177,11 +177,22 @@ module type S = sig
       -> (expression * expression * Wa_ast.value_type option) Wa_code_generation.t
   end
 
+  module Math : sig
+    val cos : expression -> expression
+
+    val sin : expression -> expression
+
+    val asin : expression -> expression
+
+    val atan2 : expression -> expression -> expression
+
+    val power : expression -> expression -> expression
+
+    val fmod : expression -> expression -> expression
+  end
+
   val post_process_function_body :
     param_count:int -> Wa_ast.instruction list -> Wa_ast.instruction list
 
-  val entry_point :
-       context:Wa_code_generation.context
-    -> register_primitive:(string -> Wa_ast.func_type -> unit)
-    -> unit Wa_code_generation.t
+  val entry_point : context:Wa_code_generation.context -> unit Wa_code_generation.t
 end

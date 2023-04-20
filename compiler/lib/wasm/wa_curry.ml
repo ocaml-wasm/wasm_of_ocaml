@@ -28,8 +28,7 @@ module Make (Target : Wa_target_sig.S) = struct
       Memory.load_function_pointer ~arity ~skip_cast:(Option.is_some typ) (load funct)
     in
     match kind with
-    | `Index ->
-        return (W.Call_indirect (Decl (func_type (List.length args)), funct, args))
+    | `Index -> return (W.Call_indirect (func_type (List.length args), funct, args))
     | `Ref ty -> return (W.Call_ref (ty, funct, args))
 
   let curry_app_name n m = Printf.sprintf "curry_app %d_%d" n m
@@ -75,7 +74,7 @@ module Make (Target : Wa_target_sig.S) = struct
     let locals, body =
       function_body ~context ~value_type:Value.value ~param_count:2 ~body
     in
-    W.Function { name; exported_name = None; typ = Decl (func_type 1); locals; body }
+    W.Function { name; exported_name = None; typ = func_type 1; locals; body }
 
   let curry_name n m = Printf.sprintf "curry_%d_%d" n m
 
@@ -119,7 +118,7 @@ module Make (Target : Wa_target_sig.S) = struct
       in
       let stack_ctx = Stack.start_function ~context stack_info in
       let* e =
-        Closure.curry_allocate ~stack_ctx ~x:res ~arity m ~f:(V name') ~closure:f ~arg:x
+        Closure.curry_allocate ~stack_ctx ~x:res ~arity m ~f:name' ~closure:f ~arg:x
       in
       let* () = instr (Push e) in
       Stack.perform_spilling stack_ctx (`Instr ret)
@@ -127,7 +126,7 @@ module Make (Target : Wa_target_sig.S) = struct
     let locals, body =
       function_body ~context ~value_type:Value.value ~param_count:2 ~body
     in
-    W.Function { name; exported_name = None; typ = Decl (func_type 1); locals; body }
+    W.Function { name; exported_name = None; typ = func_type 1; locals; body }
     :: functions
 
   let curry ~arity ~name = curry ~arity arity ~name
@@ -188,7 +187,7 @@ module Make (Target : Wa_target_sig.S) = struct
     let locals, body =
       function_body ~context ~value_type:Value.value ~param_count:(arity + 1) ~body
     in
-    W.Function { name; exported_name = None; typ = Decl (func_type arity); locals; body }
+    W.Function { name; exported_name = None; typ = func_type arity; locals; body }
 
   let f ~context =
     IntMap.iter
