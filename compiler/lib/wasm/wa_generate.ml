@@ -600,7 +600,7 @@ module Generate (Target : Wa_target_sig.S) = struct
         (Var.Map.bindings ctx.global_context.data_segments)
     in
     Curry.f ~context:ctx.global_context;
-    let start_function = entry_point ctx toplevel_name "kernel_run" in
+    let start_function = entry_point ctx toplevel_name "_initialize" in
     List.rev_append
       ctx.global_context.other_fields
       (imports @ functions @ (start_function :: constant_data))
