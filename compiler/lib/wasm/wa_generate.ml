@@ -76,7 +76,8 @@ module Generate (Target : Wa_target_sig.S) = struct
                 | `Index, W.ConstSym (V g, 0) | `Ref _, W.RefFunc g ->
                     (* Functions with constant closures ignore their
                        environment *)
-                    return (W.Call (g, List.rev (W.I31New (Const (I32 0l)) :: acc)))
+                    let* unit = Value.unit in
+                    return (W.Call (g, List.rev (unit :: acc)))
                 | `Index, _ ->
                     return
                       (W.Call_indirect

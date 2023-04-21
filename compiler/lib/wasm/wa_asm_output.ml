@@ -118,7 +118,7 @@ module Output () = struct
       | I32 -> "i32"
       | I64 -> "i64"
       | F64 -> "f64"
-      | _ -> assert false (* Not supported *))
+      | Ref _ -> assert false (* Not supported *))
 
   let func_type { params; result } =
     if List.length result > 1 then Feature.require multivalue;
@@ -226,7 +226,7 @@ module Output () = struct
        then Int64.to_string i
        else Printf.sprintf "0x%Lx" i)
 
-  let float64 f = string (Printf.sprintf "%h" f) (*ZZZ*)
+  let float64 f = string (Printf.sprintf "%h" f) (*ZZZ nan with payload*)
 
   let index name = string (Code.Var.to_string name)
 
@@ -330,6 +330,19 @@ module Output () = struct
         ^^ line (string "else")
         ^^ indent (concat_map instruction l2)
         ^^ line (string "end_if")
+    | Br_table (e, l, i) ->
+        expression e
+        ^^ line
+             (string "br_table {"
+             ^^ separate_map (string ", ") integer (l @ [ i ])
+             ^^ string "}")
+    | Br (i, Some e) -> expression e ^^ instruction (Br (i, None))
+    | Br (i, None) -> line (string "br " ^^ integer i)
+    | Return (Some e) -> expression e ^^ instruction (Return None)
+    | Return None -> line (string "return")
+    | CallInstr (x, l) -> concat_map expression l ^^ line (string "call " ^^ index x)
+    | Nop -> empty
+    | Push e -> expression e
     | Try (ty, body, catches, catch_all) ->
         Feature.require exception_handling;
         line (string "try" ^^ block_type ty)
@@ -342,25 +355,12 @@ module Output () = struct
            | None -> empty
            | Some l -> line (string "catch_all") ^^ indent (concat_map instruction l))
         ^^ line (string "end_try")
-    | Br_table (e, l, i) ->
-        expression e
-        ^^ line
-             (string "br_table {"
-             ^^ separate_map (string ", ") integer (l @ [ i ])
-             ^^ string "}")
-    | Br (i, Some e) -> expression e ^^ instruction (Br (i, None))
-    | Br (i, None) -> line (string "br " ^^ integer i)
-    | Return (Some e) -> expression e ^^ instruction (Return None)
-    | Return None -> line (string "return")
     | Throw (i, e) ->
         Feature.require exception_handling;
         expression e ^^ line (string "throw " ^^ index i)
     | Rethrow i ->
         Feature.require exception_handling;
         line (string "rethrow " ^^ integer i)
-    | CallInstr (x, l) -> concat_map expression l ^^ line (string "call " ^^ index x)
-    | Nop -> empty
-    | Push e -> expression e
     | Return_call_indirect (typ, f, l) ->
         Feature.require tail_call;
         concat_map expression l

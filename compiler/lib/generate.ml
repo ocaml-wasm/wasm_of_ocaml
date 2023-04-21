@@ -2167,7 +2167,7 @@ let init () =
     ; "caml_int64_to_int", "caml_int64_to_int32"
     ; "caml_int64_of_nativeint", "caml_int64_of_int32"
     ; "caml_int64_to_nativeint", "caml_int64_to_int32"
-      (* ZZZZ
+      (* ZZZ
           ; "caml_float_of_int", "%identity"
       *)
     ; "caml_array_get_float", "caml_array_get"
