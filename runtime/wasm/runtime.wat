@@ -2,7 +2,9 @@
    (tag (export "ocaml_exception") (param (ref eq)))
 
    (type $block (array (mut (ref eq))))
+
    (type $string (array (mut i8)))
+
    (func (export "caml_make_vect")
       (param $n (ref eq)) (param $v (ref eq)) (result (ref eq))
       ;; ZZZ check that $n >= 0
@@ -101,49 +103,4 @@
                (local.set $i (i32.add (local.get $i) (i32.const 1)))
                (br $loop))))
       (i31.new (i32.const 1)))
-
-  (type $float (struct (field f64)))
-
-  (import "Math" "cos" (func $math_cos (param f64) (result f64)))
-  (func (export "caml_cos_float") (param $x (ref eq)) (result (ref eq))
-     (struct.new $float
-        (call $math_cos
-           (struct.get $float 0 (ref.cast $float (local.get 0))))))
-
-  (import "Math" "sin" (func $math_sin (param f64) (result f64)))
-  (func (export "caml_sin_float") (param $x (ref eq)) (result (ref eq))
-     (struct.new $float
-        (call $math_sin
-           (struct.get $float 0 (ref.cast $float (local.get 0))))))
-
-  (import "Math" "asin" (func $math_asin (param f64) (result f64)))
-  (func (export "caml_asin_float") (param $x (ref eq)) (result (ref eq))
-     (struct.new $float
-        (call $math_asin
-           (struct.get $float 0 (ref.cast $float (local.get 0))))))
-
-  (import "Math" "atan2"
-     (func $math_atan2 (param f64) (param f64) (result f64)))
-  (func (export "caml_atan2_float")
-     (param $x (ref eq)) (param $y (ref eq)) (result (ref eq))
-     (struct.new $float
-        (call $math_atan2
-           (struct.get $float 0 (ref.cast $float (local.get 0)))
-           (struct.get $float 0 (ref.cast $float (local.get 1))))))
-
-  (import "Math" "pow" (func $math_pow (param f64) (param f64) (result f64)))
-  (func (export "caml_power_float")
-     (param $x (ref eq)) (param $y (ref eq)) (result (ref eq))
-     (struct.new $float
-        (call $math_pow
-           (struct.get $float 0 (ref.cast $float (local.get 0)))
-           (struct.get $float 0 (ref.cast $float (local.get 1))))))
-
-  (import "Math" "fmod" (func $math_mod (param f64) (param f64) (result f64)))
-  (func (export "caml_fmod_float")
-     (param $x (ref eq)) (param $y (ref eq)) (result (ref eq))
-     (struct.new $float
-        (call $math_mod
-           (struct.get $float 0 (ref.cast $float (local.get 0)))
-           (struct.get $float 0 (ref.cast $float (local.get 1))))))
 )
