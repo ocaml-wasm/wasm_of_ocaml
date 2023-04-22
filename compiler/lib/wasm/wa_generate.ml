@@ -173,7 +173,7 @@ module Generate (Target : Wa_target_sig.S) = struct
         | Extern "caml_lt_float", [ f; g ] -> float_comparison Lt f g
         | Extern "caml_int_of_float", [ f ] ->
             let* f = Memory.unbox_float f in
-            Value.val_int (return (W.UnOp (I32 (TruncF64 S), f)))
+            Value.val_int (return (W.UnOp (I32 (TruncSatF64 S), f)))
         | Extern "caml_float_of_int", [ n ] ->
             let* n = Value.int_val n in
             Memory.box_float stack_ctx x (return (W.UnOp (F64 (ConvertI32 S), n)))

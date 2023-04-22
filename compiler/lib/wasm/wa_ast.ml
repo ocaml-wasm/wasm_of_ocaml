@@ -63,7 +63,7 @@ type int_un_op =
   | Ctz
   | Popcnt
   | Eqz
-  | TruncF64 of signage
+  | TruncSatF64 of signage
 
 type int_bin_op =
   | Add

@@ -103,7 +103,7 @@ let int_un_op op =
   | Ctz -> "ctz"
   | Popcnt -> "popcnt"
   | Eqz -> "eqz"
-  | TruncF64 s -> signage "trunc_f64" s
+  | TruncSatF64 s -> signage "trunc_sat_f64" s
 
 let int_bin_op (op : int_bin_op) =
   match op with

@@ -106,6 +106,8 @@ module Output () = struct
 
   let mutable_globals = Feature.register features "mutable-globals"
 
+  let nontrapping_fptoint = Feature.register features "nontrapping-fptoint"
+
   let multivalue = Feature.register features "multivalue"
 
   let exception_handling = Feature.register features "exception-handling"
@@ -155,7 +157,9 @@ module Output () = struct
     | Ctz -> "ctz"
     | Popcnt -> "popcnt"
     | Eqz -> "eqz"
-    | TruncF64 s -> signage "trunc_f64" s
+    | TruncSatF64 s ->
+        Feature.require nontrapping_fptoint;
+        signage "trunc_sat_f64" s
 
   let int_bin_op (op : int_bin_op) =
     match op with
