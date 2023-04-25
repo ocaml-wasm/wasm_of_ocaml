@@ -118,21 +118,32 @@ module Generate (Target : Wa_target_sig.S) = struct
         | Extern "%int_add", [ x; y ] -> Value.int_add x y
         | Extern "%int_sub", [ x; y ] -> Value.int_sub x y
         | Extern ("%int_mul" | "%direct_int_mul"), [ x; y ] -> Value.int_mul x y
-        | Extern "%direct_int_div", [ x; y ] -> Value.int_div x y
+        | Extern "%direct_int_div", [ x; y ] ->
+            (*ZZZ should only be when y <> -1 *) Value.int_div x y
         | Extern "%int_div", [ x; y ] ->
             let* f =
               register_import
                 ~name:"caml_raise_zero_divide"
                 (Fun { params = []; result = [] })
             in
+            let res = Var.fresh () in
+            (*ZZZ Can we do better?*)
             seq
-              (if_
-                 { params = []; result = [] }
-                 (Arith.eqz (Value.int_val y))
-                 (instr (CallInstr (f, [])))
-                 (return ()))
-              (Value.int_div x y)
-        | Extern "%direct_int_mod", [ x; y ] -> Value.int_mod x y
+              (let* () =
+                 if_
+                   { params = []; result = [] }
+                   (Arith.eqz (Value.int_val y))
+                   (instr (CallInstr (f, [])))
+                   (return ())
+               in
+               if_
+                 { params = []; result = [ Value.value ] }
+                 Arith.((y = const (-1l)) land (x = const Int32.min_int))
+                 (store ~always:true res (Arith.const Int32.min_int))
+                 (store ~always:true res (Value.int_div x y)))
+              (load res)
+        | Extern "%direct_int_mod", [ x; y ] ->
+            (*ZZZ should only be when y <> -1 *) Value.int_mod x y
         | Extern "%int_neg", [ x ] -> Value.int_neg x
         | Extern "%int_or", [ x; y ] -> Value.int_or x y
         | Extern "%int_and", [ x; y ] -> Value.int_and x y
