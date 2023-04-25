@@ -88,6 +88,8 @@ val assign : Wa_ast.var -> expression -> unit t
 
 val drop : expression -> unit t
 
+val push : expression -> unit t
+
 val loop : Wa_ast.func_type -> unit t -> unit t
 
 val block : Wa_ast.func_type -> unit t -> unit t

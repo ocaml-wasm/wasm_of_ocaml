@@ -353,8 +353,17 @@ let drop e =
   match e with
   | W.Seq (l, e') ->
       let* b = is_small_constant e' in
-      if b then instrs l else instr (Drop e)
+      let* () = instrs l in
+      if b then return () else instr (Drop e')
   | _ -> instr (Drop e)
+
+let push e =
+  let* e = e in
+  match e with
+  | W.Seq (l, e') ->
+      let* () = instrs l in
+      instr (Push e')
+  | _ -> instr (Push e)
 
 let loop ty l =
   let* instrs = blk l in
@@ -409,6 +418,9 @@ let function_body ~context ~value_type ~param_count ~body =
       | Expr _ -> ())
     st.vars;
   let body = Wa_tail_call.f body in
+  (*
+  let body = Wa_stackify.f body in
+*)
   let local_types, body =
     if true
     then local_types, body

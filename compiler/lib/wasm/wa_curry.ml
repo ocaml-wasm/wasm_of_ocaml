@@ -117,10 +117,10 @@ module Make (Target : Wa_target_sig.S) = struct
           ~spilled_vars:Var.Set.empty
       in
       let stack_ctx = Stack.start_function ~context stack_info in
-      let* e =
-        Closure.curry_allocate ~stack_ctx ~x:res ~arity m ~f:name' ~closure:f ~arg:x
+      let* () =
+        push
+          (Closure.curry_allocate ~stack_ctx ~x:res ~arity m ~f:name' ~closure:f ~arg:x)
       in
-      let* () = instr (Push e) in
       Stack.perform_spilling stack_ctx (`Instr ret)
     in
     let locals, body =

@@ -1,5 +1,5 @@
 
-https://dfinity.org/grants/
+Get rid of Wa_ast.Seq?
 
 =======
 
@@ -243,6 +243,10 @@ snap run node --print-wasm-code --experimental-wasm-gc /tmp/launch.js |& less
 ==================
 
 Division by -1 can trap (min_int / -1)
+
+====================
+
+We have unused globals (small constants / known closures)
 
 ===================
 

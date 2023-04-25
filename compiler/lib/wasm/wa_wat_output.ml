@@ -236,7 +236,9 @@ let expression_or_instructions ctx in_function =
     | Call (f, l) ->
         [ List (Atom "call" :: index f :: List.concat (List.map ~f:expression l)) ]
     | MemoryGrow (_, e) -> [ List (Atom "memory.grow" :: expression e) ]
-    | Seq (l, e) -> instructions l @ expression e
+    | Seq (l, e) ->
+        ignore (l, e);
+        assert false (*instructions l @ expression e*)
     | Pop ty -> (
         match target with
         | `Binaryen -> [ List [ Atom "pop"; value_type ty ] ]
