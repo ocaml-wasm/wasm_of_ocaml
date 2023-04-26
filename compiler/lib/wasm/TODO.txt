@@ -234,7 +234,7 @@ dune exec -- js_of_ocaml --pretty /tmp/a.out  > /tmp/a.wat
 
 ~/sources/binaryen/bin/wasm-as --enable-gc --enable-exception-handling --enable-reference-types --enable-tail-call --enable-bulk-memory /tmp/a.wat   -o /tmp/a.wasm
 
-~/sources/binaryen/bin/wasm-opt --enable-gc --enable-exception-handling --enable-reference-types --enable-tail-call --enable-bulk-memory /tmp/a.wat -o /tmp/a.wasm
+~/sources/binaryen/bin/wasm-opt --enable-gc --enable-exception-handling --enable-reference-types --enable-tail-call --enable-bulk-memory --enable-nontrapping-float-to-int /tmp/a.wat -o /tmp/a.wasm
 snap run node --print-wasm-code --experimental-wasm-gc /tmp/launch.js |& less
 
 

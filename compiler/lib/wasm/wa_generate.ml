@@ -137,9 +137,11 @@ module Generate (Target : Wa_target_sig.S) = struct
                    (return ())
                in
                if_
-                 { params = []; result = [ Value.value ] }
-                 Arith.((y = const (-1l)) land (x = const Int32.min_int))
-                 (store ~always:true res (Arith.const Int32.min_int))
+                 { params = []; result = [] }
+                 Arith.(
+                   (Value.int_val y = const (-1l))
+                   land (Value.int_val x = const Int32.min_int))
+                 (store ~always:true res (Value.val_int (Arith.const Int32.min_int)))
                  (store ~always:true res (Value.int_div x y)))
               (load res)
         | Extern "%direct_int_mod", [ x; y ] ->
