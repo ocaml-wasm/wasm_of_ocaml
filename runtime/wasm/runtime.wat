@@ -354,13 +354,27 @@
    (func $compare_val
       (param $v1 (ref eq)) (param $v2 (ref eq)) (param $total i32)
       (result i32)
-      (local $stack (ref $compare_stack))
+      (local $stack (ref $compare_stack)) (local $i i32) (local $res i32)
       (local.set $stack (global.get $default_compare_stack))
       (struct.set $compare_stack 0 (local.get $stack) (i32.const -1))
-      (call $do_compare_val
-         (local.get $stack) (local.get $v1) (local.get $v2) (local.get $total))
-      ;; ZZZ clear stack
-      )
+      (local.set $res
+         (call $do_compare_val
+            (local.get $stack) (local.get $v1) (local.get $v2)
+            (local.get $total)))
+      (local.set $i (struct.get $compare_stack 0 (local.get $stack)))
+      ;; clear stack (to avoid memory leaks)
+      (loop $loop
+         (if (i32.ge_s (local.get $i) (i32.const 0))
+            (then
+               (array.set $block_array
+                  (struct.get $compare_stack 1 (local.get $stack))
+                  (local.get $i) (global.get $dummy_block))
+               (array.set $block_array
+                  (struct.get $compare_stack 2 (local.get $stack))
+                  (local.get $i) (global.get $dummy_block))
+               (local.set $i (i32.sub (local.get $i) (i32.const 1)))
+               (br $loop))))
+      (local.get $res))
 
    (func $do_compare_val
       (param $stack (ref $compare_stack))
