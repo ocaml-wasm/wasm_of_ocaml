@@ -255,9 +255,9 @@
    (type $int_array (array (mut i32)))
    (type $block_array (array (mut (ref $block))))
    (type $compare_stack
-      (struct (field (mut i32)) ;; position in stack
+      (struct (field (mut i32))          ;; position in stack
               (field (ref $block_array)) ;; first value
-              (field (ref $block_array))     ;; second value
+              (field (ref $block_array)) ;; second value
               (field (ref $int_array)))) ;; position in value
 
    (global $dummy_block (ref $block)
@@ -314,6 +314,7 @@
       (if (i32.ge_u (local.get $i)
              (array.len (struct.get $compare_stack 1 (local.get $stack))))
          (then (unreachable)))
+      (struct.set $compare_stack 0 (local.get $stack) (local.get $i))
       (array.set $block_array (struct.get $compare_stack 1 (local.get $stack))
          (local.get $i) (local.get $v1))
       (array.set $block_array (struct.get $compare_stack 2 (local.get $stack))
