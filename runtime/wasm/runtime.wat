@@ -216,7 +216,7 @@
       (local.set $src (ref.cast $block (local.get $newval)))
       (local.set $dst (ref.cast $block (local.get $dummy)))
       (local.set $len (array.len (local.get $dst)))
-      (local.set $i (i32.const 1))
+      (local.set $i (i32.const 0))
       (loop $loop
          (if (i32.lt_s (local.get $i) (local.get $len))
             (then
