@@ -104,6 +104,7 @@ let int_un_op op =
   | Popcnt -> "popcnt"
   | Eqz -> "eqz"
   | TruncSatF64 s -> signage "trunc_sat_f64" s
+  | ReinterpretF64 -> "reinterpret_f64"
 
 let int_bin_op (op : int_bin_op) =
   match op with
@@ -135,8 +136,10 @@ let float_un_op op =
   | Trunc -> "trunc"
   | Nearest -> "nearest"
   | Sqrt -> "sqrt"
-  | ConvertI32 s -> signage "convert_i32" s
-  | ConvertI64 s -> signage "convert_i64" s
+  | Convert (`I32, s) -> signage "convert_i32" s
+  | Convert (`I64, s) -> signage "convert_i64" s
+  | Reinterpret `I32 -> "reinterpret_i32"
+  | Reinterpret `I64 -> "reinterpret_i64"
 
 let float_bin_op op =
   match op with
@@ -208,6 +211,8 @@ let expression_or_instructions ctx in_function =
             (Atom (type_prefix op (select int_bin_op int_bin_op float_bin_op op))
             :: (expression e1 @ expression e2))
         ]
+    | I32WrapI64 e -> [ List (Atom "i32.wrap_i64" :: expression e) ]
+    | I64ExtendI32 (s, e) -> [ List (Atom (signage "i64.extend_i32" s) :: expression e) ]
     | Load (offset, e') ->
         let offs i =
           if Int32.equal i 0l then [] else [ Atom (Printf.sprintf "offset=%ld" i) ]
@@ -236,9 +241,7 @@ let expression_or_instructions ctx in_function =
     | Call (f, l) ->
         [ List (Atom "call" :: index f :: List.concat (List.map ~f:expression l)) ]
     | MemoryGrow (_, e) -> [ List (Atom "memory.grow" :: expression e) ]
-    | Seq (l, e) ->
-        ignore (l, e);
-        assert false (*instructions l @ expression e*)
+    | Seq (l, e) -> instructions l @ expression e
     | Pop ty -> (
         match target with
         | `Binaryen -> [ List [ Atom "pop"; value_type ty ] ]
@@ -315,12 +318,12 @@ let expression_or_instructions ctx in_function =
             (Atom (type_prefix offset "store")
             :: (select offs offs offs offset @ expression e1 @ expression e2))
         ]
-    | Store8 (s, offset, e1, e2) ->
+    | Store8 (offset, e1, e2) ->
         let offs i =
           if Int32.equal i 0l then [] else [ Atom (Printf.sprintf "offset=%ld" i) ]
         in
         [ List
-            (Atom (type_prefix offset (signage "store8" s))
+            (Atom (type_prefix offset "store8")
             :: (select offs offs offs offset @ expression e1 @ expression e2))
         ]
     | LocalSet (i, Seq (l, e)) when Poly.equal target `Binaryen ->
@@ -384,28 +387,15 @@ let expression_or_instructions ctx in_function =
         [ List (Atom "call" :: index f :: List.concat (List.map ~f:expression l)) ]
     | Nop -> []
     | Push e -> expression e
-    | ArraySet (None, typ, e, e', e'') ->
+    | ArraySet (typ, e, e', e'') ->
         [ List
             (Atom "array.set"
             :: index typ
             :: (expression e @ expression e' @ expression e''))
         ]
-    | ArraySet (Some s, typ, e, e', e'') ->
-        [ List
-            (Atom (signage "array.set" s)
-            :: index typ
-            :: (expression e @ expression e' @ expression e''))
-        ]
-    | StructSet (None, typ, i, e, e') ->
+    | StructSet (typ, i, e, e') ->
         [ List
             (Atom "struct.set"
-            :: index typ
-            :: Atom (string_of_int i)
-            :: (expression e @ expression e'))
-        ]
-    | StructSet (Some s, typ, i, e, e') ->
-        [ List
-            (Atom (signage "struct.set" s)
             :: index typ
             :: Atom (string_of_int i)
             :: (expression e @ expression e'))

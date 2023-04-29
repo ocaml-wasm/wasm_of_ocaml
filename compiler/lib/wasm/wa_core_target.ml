@@ -111,7 +111,7 @@ module Memory = struct
   let bytes_set e e' e'' =
     let* addr = Arith.(e + e' - const 1l) in
     let* e'' = e'' in
-    instr (W.Store8 (U, I32 (Int32.of_int 0), addr, e''))
+    instr (W.Store8 (I32 (Int32.of_int 0), addr, e''))
 
   let field e idx = mem_load ~offset:(4 * idx) e
 
@@ -138,6 +138,7 @@ module Memory = struct
        let* () = Stack.perform_reloads stack_ctx (`Vars Code.Var.Set.empty) in
        let* p = load p in
        let* e = e in
+       (*ZZZ aligned?*)
        instr (Store (F64 (Int32.of_int 4), p, e)))
       Arith.(load p + const 4l)
 
@@ -152,7 +153,43 @@ module Memory = struct
         in
         let* _, l = get_data_segment x in
         return (get_data l)
-    | _ -> return (W.Load (F64 0l, e))
+    | _ ->
+        (*ZZZ aligned?*)
+        return (W.Load (F64 0l, e))
+
+  let box_int64 stack_ctx x e =
+    let p = Code.Var.fresh_n "p" in
+    let size = 16 in
+    seq
+      (let* () = Stack.perform_spilling stack_ctx (`Instr x) in
+       let* young_ptr = young_ptr in
+       let* v =
+         tee p Arith.(return (W.GlobalGet young_ptr) - const (Int32.of_int size))
+       in
+       let* () = instr (W.GlobalSet (young_ptr, v)) in
+       let* () = mem_init (load p) (Arith.const (header ~tag:Obj.double_tag ~len:2 ())) in
+       Stack.kill_variables stack_ctx;
+       let* () = Stack.perform_reloads stack_ctx (`Vars Code.Var.Set.empty) in
+       let* p = load p in
+       (* ZZZ int64_ops *)
+       let* () = instr (Store (I32 4l, p, Const (I32 0l))) in
+       let* e = e in
+       (*ZZZ aligned?*)
+       instr (Store (I64 8l, p, e)))
+      Arith.(load p + const 4l)
+
+  let unbox_int64 e =
+    let* e = e in
+    match e with
+    | W.ConstSym (V x, 4) ->
+        let get_data l =
+          match l with
+          | [ W.DataI32 _; (W.DataI32 _ | W.DataSym _); W.DataI64 f ] -> W.Const (I64 f)
+          | _ -> assert false
+        in
+        let* _, l = get_data_segment x in
+        return (get_data l)
+    | _ -> (*ZZZ aligned?*) return (W.Load (F64 4l, e))
 end
 
 module Value = struct
@@ -449,7 +486,7 @@ module Math = struct
   let fmod f g = binary "fmod" f g
 end
 
-let post_process_function_body ~param_count:_ instrs = instrs
+let post_process_function_body ~param_count:_ ~locals:_ instrs = instrs
 
 let entry_point ~context:_ =
   let* call_ctors =

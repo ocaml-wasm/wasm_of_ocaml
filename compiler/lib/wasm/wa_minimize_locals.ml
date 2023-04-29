@@ -30,6 +30,8 @@ let rec scan_expression ctx e =
   match e with
   | Wa_ast.Const _ | ConstSym _ | GlobalGet _ | Pop _ | RefFunc _ | RefNull -> ()
   | UnOp (_, e')
+  | I32WrapI64 e'
+  | I64ExtendI32 (_, e')
   | Load (_, e')
   | Load8 (_, _, e')
   | MemoryGrow (_, e')
@@ -74,7 +76,7 @@ and scan_instruction ctx i =
   | Push e
   | Br_on_cast (_, _, _, e)
   | Br_on_cast_fail (_, _, _, e) -> scan_expression ctx e
-  | Store (_, e, e') | Store8 (_, _, e, e') | StructSet (_, _, _, e, e') ->
+  | Store (_, e, e') | Store8 (_, e, e') | StructSet (_, _, e, e') ->
       scan_expression ctx e;
       scan_expression ctx e'
   | LocalSet (i, e) ->
@@ -92,7 +94,7 @@ and scan_instruction ctx i =
       Option.iter ~f:(fun l -> scan_instructions ctx l) catch_all
   | CallInstr (_, l) | Return_call (_, l) -> scan_expressions ctx l
   | Br (_, None) | Return None | Rethrow _ | Nop -> ()
-  | ArraySet (_, _, e, e', e'') ->
+  | ArraySet (_, e, e', e'') ->
       scan_expression ctx e;
       scan_expression ctx e';
       scan_expression ctx e''
@@ -152,6 +154,8 @@ let rec rewrite_expression ctx e =
   match e with
   | Wa_ast.Const _ | ConstSym _ | GlobalGet _ | Pop _ | RefFunc _ | RefNull -> e
   | UnOp (op, e') -> UnOp (op, rewrite_expression ctx e')
+  | I32WrapI64 e' -> I32WrapI64 (rewrite_expression ctx e')
+  | I64ExtendI32 (s, e') -> I64ExtendI32 (s, rewrite_expression ctx e')
   | BinOp (op, e', e'') ->
       let e' = rewrite_expression ctx e' in
       let e'' = rewrite_expression ctx e'' in
@@ -213,10 +217,10 @@ and rewrite_instruction ctx i =
       let e = rewrite_expression ctx e in
       let e' = rewrite_expression ctx e' in
       Store (op, e, e')
-  | Store8 (s, op, e, e') ->
+  | Store8 (op, e, e') ->
       let e = rewrite_expression ctx e in
       let e' = rewrite_expression ctx e' in
-      Store8 (s, op, e, e')
+      Store8 (op, e, e')
   | LocalSet (v, e0) -> (
       let e = rewrite_expression ctx e0 in
       if ctx.last_use.(v) = -1
@@ -249,15 +253,14 @@ and rewrite_instruction ctx i =
   | Throw (i, e) -> Throw (i, rewrite_expression ctx e)
   | CallInstr (f, l) -> CallInstr (f, List.map ~f:(fun e -> rewrite_expression ctx e) l)
   | Push e -> Push (rewrite_expression ctx e)
-  | ArraySet (s, symb, e, e', e'') ->
+  | ArraySet (symb, e, e', e'') ->
       ArraySet
-        ( s
-        , symb
+        ( symb
         , rewrite_expression ctx e
         , rewrite_expression ctx e'
         , rewrite_expression ctx e'' )
-  | StructSet (s, symb, i, e, e') ->
-      StructSet (s, symb, i, rewrite_expression ctx e, rewrite_expression ctx e')
+  | StructSet (symb, i, e, e') ->
+      StructSet (symb, i, rewrite_expression ctx e, rewrite_expression ctx e')
   | Br_on_cast (i, ty, ty', e) -> Br_on_cast (i, ty, ty', rewrite_expression ctx e)
   | Br_on_cast_fail (i, ty, ty', e) ->
       Br_on_cast_fail (i, ty, ty', rewrite_expression ctx e)

@@ -56,6 +56,11 @@ module Generate (Target : Wa_target_sig.S) = struct
     let* g = Memory.unbox_float g in
     Value.val_int (return (W.BinOp (F64 op, f, g)))
 
+  let int64_bin_op stack_ctx x op f g =
+    let* f = Memory.unbox_int64 f in
+    let* g = Memory.unbox_int64 g in
+    Memory.box_int64 stack_ctx x (return (W.BinOp (I64 op, f, g)))
+
   let rec translate_expr ctx stack_ctx x e =
     match e with
     | Apply { f; args; exact } when exact || List.length args = 1 ->
@@ -118,34 +123,34 @@ module Generate (Target : Wa_target_sig.S) = struct
         | Extern "%int_add", [ x; y ] -> Value.int_add x y
         | Extern "%int_sub", [ x; y ] -> Value.int_sub x y
         | Extern ("%int_mul" | "%direct_int_mul"), [ x; y ] -> Value.int_mul x y
-        | Extern "%direct_int_div", [ x; y ] ->
-            (*ZZZ should only be when y <> -1 *) Value.int_div x y
+        | Extern "%direct_int_div", [ x; y ] -> Value.int_div x y
         | Extern "%int_div", [ x; y ] ->
             let* f =
               register_import
                 ~name:"caml_raise_zero_divide"
                 (Fun { params = []; result = [] })
             in
-            let res = Var.fresh () in
-            (*ZZZ Can we do better?*)
             seq
-              (let* () =
-                 if_
-                   { params = []; result = [] }
-                   (Arith.eqz (Value.int_val y))
-                   (instr (CallInstr (f, [])))
-                   (return ())
-               in
-               if_
+              (if_
                  { params = []; result = [] }
-                 Arith.(
-                   (Value.int_val y = const (-1l))
-                   land (Value.int_val x = const Int32.min_int))
-                 (store ~always:true res (Value.val_int (Arith.const Int32.min_int)))
-                 (store ~always:true res (Value.int_div x y)))
-              (load res)
-        | Extern "%direct_int_mod", [ x; y ] ->
-            (*ZZZ should only be when y <> -1 *) Value.int_mod x y
+                 (Arith.eqz (Value.int_val y))
+                 (instr (CallInstr (f, [])))
+                 (return ()))
+              (Value.int_div x y)
+        | Extern "%int_mod", [ x; y ] ->
+            let* f =
+              register_import
+                ~name:"caml_raise_zero_divide"
+                (Fun { params = []; result = [] })
+            in
+            seq
+              (if_
+                 { params = []; result = [] }
+                 (Arith.eqz (Value.int_val y))
+                 (instr (CallInstr (f, [])))
+                 (return ()))
+              (Value.int_mod x y)
+        | Extern "%direct_int_mod", [ x; y ] -> Value.int_mod x y
         | Extern "%int_neg", [ x ] -> Value.int_neg x
         | Extern "%int_or", [ x; y ] -> Value.int_or x y
         | Extern "%int_and", [ x; y ] -> Value.int_and x y
@@ -189,13 +194,79 @@ module Generate (Target : Wa_target_sig.S) = struct
             Value.val_int (return (W.UnOp (I32 (TruncSatF64 S), f)))
         | Extern "caml_float_of_int", [ n ] ->
             let* n = Value.int_val n in
-            Memory.box_float stack_ctx x (return (W.UnOp (F64 (ConvertI32 S), n)))
+            Memory.box_float stack_ctx x (return (W.UnOp (F64 (Convert (`I32, S)), n)))
         | Extern "caml_cos_float", [ f ] -> float_un_op' stack_ctx x Math.cos f
         | Extern "caml_sin_float", [ f ] -> float_un_op' stack_ctx x Math.sin f
         | Extern "caml_asin_float", [ f ] -> float_un_op' stack_ctx x Math.asin f
         | Extern "caml_atan2_float", [ f; g ] -> float_bin_op' stack_ctx x Math.atan2 f g
         | Extern "caml_power_float", [ f; g ] -> float_bin_op' stack_ctx x Math.power f g
         | Extern "caml_fmod_float", [ f; g ] -> float_bin_op' stack_ctx x Math.fmod f g
+        | Extern "caml_int64_add", [ i; j ] -> int64_bin_op stack_ctx x Add i j
+        | Extern "caml_int64_mul", [ i; j ] -> int64_bin_op stack_ctx x Mul i j
+        | Extern "caml_int64_div", [ i; j ] ->
+            let* f =
+              register_import
+                ~name:"caml_raise_zero_divide"
+                (Fun { params = []; result = [] })
+            in
+            let res = Var.fresh () in
+            (*ZZZ Can we do better?*)
+            let i' = Var.fresh () in
+            let j' = Var.fresh () in
+            seq
+              (let* () = store ~typ:I64 j' (Memory.unbox_int64 j) in
+               let* () =
+                 if_
+                   { params = []; result = [] }
+                   (let* j = load j' in
+                    return (W.UnOp (I64 Eqz, j)))
+                   (instr (CallInstr (f, [])))
+                   (return ())
+               in
+               let* () = store ~typ:I64 i' (Memory.unbox_int64 i) in
+               if_
+                 { params = []; result = [] }
+                 Arith.(
+                   (let* j = load j' in
+                    return (W.BinOp (I64 Eq, j, Const (I64 (-1L)))))
+                   land let* i = load i' in
+                        return (W.BinOp (I64 Eq, i, Const (I64 Int64.min_int))))
+                 (store ~always:true ~typ:I64 res (return (W.Const (I64 Int64.min_int))))
+                 (store
+                    ~always:true
+                    ~typ:I64
+                    res
+                    (let* i = load i' in
+                     let* j = load j' in
+                     return (W.BinOp (I64 (Div S), i, j)))))
+              (Memory.box_int64 stack_ctx x (load res))
+        | Extern "caml_int64_mod", [ i; j ] ->
+            let* f =
+              register_import
+                ~name:"caml_raise_zero_divide"
+                (Fun { params = []; result = [] })
+            in
+            let j' = Var.fresh () in
+            seq
+              (let* () = store ~typ:I64 j' (Memory.unbox_int64 j) in
+               if_
+                 { params = []; result = [] }
+                 (let* j = load j' in
+                  return (W.UnOp (I64 Eqz, j)))
+                 (instr (CallInstr (f, [])))
+                 (return ()))
+              (let* i = Memory.unbox_int64 i in
+               let* j = load j' in
+               Memory.box_int64 stack_ctx x (return (W.BinOp (I64 (Rem S), i, j))))
+        | Extern "caml_int64_of_int", [ i ] ->
+            let* i = Value.int_val i in
+            Memory.box_int64
+              stack_ctx
+              x
+              (return
+                 (match i with
+                 | Const (I32 i) -> W.Const (I64 (Int64.of_int32 i))
+                 | _ -> W.I64ExtendI32 (S, i)))
         | Extern name, l ->
             (*ZZZ Different calling convention when large number of parameters *)
             let* f = register_import ~name (Fun (func_type (List.length l))) in
@@ -538,7 +609,7 @@ module Generate (Target : Wa_target_sig.S) = struct
            let* () = Stack.perform_spilling stack_ctx `Function in
            translate_branch [ Value.value ] `Return (-1) cont [] stack_ctx)
     in
-    let body = post_process_function_body ~param_count body in
+    let body = post_process_function_body ~param_count ~locals body in
     W.Function
       { name =
           (match name_opt with

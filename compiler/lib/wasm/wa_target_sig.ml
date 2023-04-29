@@ -86,6 +86,10 @@ module type S = sig
     val box_float : Stack.ctx -> Code.Var.t -> expression -> expression
 
     val unbox_float : expression -> expression
+
+    val box_int64 : Stack.ctx -> Code.Var.t -> expression -> expression
+
+    val unbox_int64 : expression -> expression
   end
 
   module Value : sig
@@ -192,7 +196,10 @@ module type S = sig
   end
 
   val post_process_function_body :
-    param_count:int -> Wa_ast.instruction list -> Wa_ast.instruction list
+       param_count:int
+    -> locals:Wa_ast.value_type list
+    -> Wa_ast.instruction list
+    -> Wa_ast.instruction list
 
   val entry_point : context:Wa_code_generation.context -> unit Wa_code_generation.t
 end

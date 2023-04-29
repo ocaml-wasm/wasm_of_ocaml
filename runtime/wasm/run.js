@@ -8,7 +8,8 @@ async function main() {
     const code = fs.readFile(process.argv[2]);
     let math =
         {cos:Math.cos, sin:Math.sin, asin:Math.asin, atan2:Math.atan2,
-         pow:Math.pow, fmod:(x, y) => x%y}
+         pow:Math.pow, fmod:(x, y) => x%y,
+         log:(x)=>console.log(x)}
     const runtimeModule =
           await WebAssembly.instantiate(await runtime, {Math:math});
     const wasmModule =

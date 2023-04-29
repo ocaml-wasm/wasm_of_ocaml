@@ -17,6 +17,8 @@ let rec scan_expression ctx e =
   match e with
   | Wa_ast.Const _ | ConstSym _ | GlobalGet _ | Pop _ | RefFunc _ | RefNull -> ()
   | UnOp (_, e')
+  | I32WrapI64 e'
+  | I64ExtendI32 (_, e')
   | Load (_, e')
   | Load8 (_, _, e')
   | MemoryGrow (_, e')
@@ -60,7 +62,7 @@ and scan_instruction ctx i =
   | Push e
   | Br_on_cast (_, _, _, e)
   | Br_on_cast_fail (_, _, _, e) -> scan_expression ctx e
-  | Store (_, e, e') | Store8 (_, _, e, e') | StructSet (_, _, _, e, e') ->
+  | Store (_, e, e') | Store8 (_, e, e') | StructSet (_, _, e, e') ->
       scan_expression ctx e;
       scan_expression ctx e'
   | LocalSet (i, e) ->
@@ -77,7 +79,7 @@ and scan_instruction ctx i =
       Option.iter ~f:(fun l -> scan_instructions ctx l) catch_all
   | CallInstr (_, l) | Return_call (_, l) -> scan_expressions ctx l
   | Br (_, None) | Return None | Rethrow _ | Nop -> ()
-  | ArraySet (_, _, e, e', e'') ->
+  | ArraySet (_, e, e', e'') ->
       scan_expression ctx e;
       scan_expression ctx e';
       scan_expression ctx e''
@@ -89,11 +91,18 @@ and scan_instructions ctx l =
   let ctx = fork_context ctx in
   List.iter ~f:(fun i -> scan_instruction ctx i) l
 
-let f ~param_count instrs =
+let f ~param_count ~locals instrs =
   let ctx = { initialized = IntSet.empty; uninitialized = ref IntSet.empty } in
   for i = 0 to param_count - 1 do
     mark_initialized ctx i
   done;
+  List.iteri
+    ~f:(fun i typ ->
+      match (typ : Wa_ast.value_type) with
+      | I32 | I64 | F64 | Ref { nullable = true; _ } ->
+          mark_initialized ctx (i + param_count)
+      | Ref { nullable = false; _ } -> ())
+    locals;
   scan_instructions ctx instrs;
   List.map
     ~f:(fun i -> Wa_ast.LocalSet (i, I31New (Const (I32 0l))))
