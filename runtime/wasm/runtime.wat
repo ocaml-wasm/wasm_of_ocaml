@@ -39,13 +39,6 @@
    (func $caml_copy_int64 (param $i i64) (result (ref eq))
       (struct.new $int64 (global.get $int64_ops) (local.get $i)))
 
-   (func (export "caml_int64_div")
-      (param $i1 (ref eq)) (param $i2 (ref eq)) (result (ref eq))
-      ;; ZZZ division by -1 or 0
-      (return_call $caml_copy_int64
-         (i64.div_s (struct.get $int64 1 (ref.cast $int64 (local.get $i1)))
-                    (struct.get $int64 1 (ref.cast $int64 (local.get $i2))))))
-
    (func (export "caml_int64_of_string") (param $v (ref eq)) (result (ref eq))
       (local $s (ref $string)) (local $i i32) (local $len i32)
       (local $res i64)
@@ -69,10 +62,11 @@
 
    (func (export "caml_make_vect")
       (param $n (ref eq)) (param $v (ref eq)) (result (ref eq))
-      ;; ZZZ check that $n >= 0
       (local $sz i32) (local $b (ref $block))
       (local.set $sz (i32.add (i31.get_s (ref.cast i31 (local.get $n)))
                               (i32.const 1)))
+      (if (i32.lt_s (local.get $sz) (i32.const 1))
+         (then (unreachable))) ;; ZZZ caml_invalid_argument("Array.make")
       (local.set $b (array.new $block (local.get $v) (local.get $sz)))
       (array.set $block (local.get $b) (i32.const 0) (i31.new (i32.const 0)))
       (local.get $b))
@@ -352,7 +346,7 @@
       (local.set $i
          (i32.add (struct.get $compare_stack 0 (local.get $stack))
             (i32.const 1)))
-      ;; ZZZ Reallocate a larger stack if necessary
+      ;; ZZZ Allocate a larger stack if necessary
       (if (i32.ge_u (local.get $i)
              (array.len (struct.get $compare_stack 1 (local.get $stack))))
          (then (unreachable)))
