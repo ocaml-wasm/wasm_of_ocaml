@@ -19,6 +19,7 @@
    (type $custom_operations
       (struct
          (field (ref $compare_ext))
+         ;; ZZZ
       ))
 
    (global $int64_ops (export "int64_ops") (ref $custom_operations)
@@ -27,7 +28,7 @@
    (type $custom (struct (field (ref $custom_operations))))
 
    (type $int64
-      (struct (field (ref $custom_operations)) (field i64)) (extends $custom))
+      (sub $custom (struct (field (ref $custom_operations)) (field i64))))
 
    (func $int64_cmp (param $v1 (ref eq)) (param $v2 (ref eq)) (result i32)
       (local $i1 i64) (local $i2 i64)

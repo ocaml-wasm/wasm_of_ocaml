@@ -326,8 +326,7 @@ let expression_or_instructions ctx in_function =
             (Atom (type_prefix offset "store8")
             :: (select offs offs offs offset @ expression e1 @ expression e2))
         ]
-    | LocalSet (i, Seq (l, e)) when Poly.equal target `Binaryen ->
-        instructions (l @ [ LocalSet (i, e) ])
+    | LocalSet (i, Seq (l, e)) -> instructions (l @ [ LocalSet (i, e) ])
     | LocalSet (i, e) ->
         [ List (Atom "local.set" :: Atom (string_of_int i) :: expression e) ]
     | GlobalSet (nm, e) -> [ List (Atom "global.set" :: index nm :: expression e) ]
@@ -502,22 +501,15 @@ let data_contents ctx contents =
 
 let type_field { name; typ; supertype; final } =
   match target with
-  | `Binaryen ->
-      List
-        (Atom "type"
-        :: index name
-        :: str_type typ
-        ::
-        (match supertype with
-        | Some supertype -> [ List [ Atom "extends"; index supertype ] ]
-        | None -> []))
-  | `Reference ->
+  | `Binaryen when Option.is_none supertype ->
+      List [ Atom "type"; index name; str_type typ ]
+  | _ ->
       List
         [ Atom "type"
         ; index name
         ; List
             (Atom "sub"
-            :: ((if final then [ Atom "final" ] else [])
+            :: ((if final && Poly.(target <> `Binaryen) then [ Atom "final" ] else [])
                @ (match supertype with
                  | Some supertype -> [ index supertype ]
                  | None -> [])
