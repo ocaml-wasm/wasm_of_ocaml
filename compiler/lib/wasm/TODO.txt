@@ -242,17 +242,8 @@ snap run node --print-wasm-code --experimental-wasm-gc /tmp/launch.js |& less
 
 ==================
 
-Division by -1 can trap (min_int / -1)
-
-====================
-
 We have unused globals (small constants / known closures)
 
 ===================
 
-strings / format_float (splay)
-floats (raytrace)
-trigonometry? (almabench, fft, nucleic)
-    ==> import from javascript
-
-caml_alloc/update_dummy, int64 (hamming)
+format_float (splay)
