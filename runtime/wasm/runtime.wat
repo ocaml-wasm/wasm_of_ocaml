@@ -213,6 +213,9 @@
          (then (return (i31.new (global.get $closure_tag)))))
       ;; ZZZ float array
       ;; ZZZ others?
+      (if (ref.test $js (local.get $v))
+         (then (return (i31.new (global.get $custom_tag))))) ;; ZZZ ???
+      (call $log (i32.const 0))
       (unreachable))
 
    (func (export "caml_obj_make_forward")
@@ -420,7 +423,8 @@
       ;; ZZZ Allocate a larger stack if necessary
       (if (i32.ge_u (local.get $i)
              (array.len (struct.get $compare_stack 1 (local.get $stack))))
-         (then (unreachable)))
+         (then       (call $log (i32.const 1))
+(unreachable)))
       (struct.set $compare_stack 0 (local.get $stack) (local.get $i))
       (array.set $block_array (struct.get $compare_stack 1 (local.get $stack))
          (local.get $i) (local.get $v1))
@@ -637,12 +641,14 @@
                   (br $next_item)))
                ;; ZZZ forward tag
                ;; ZZZ float array
+      (call $log (i32.const 2))
                (unreachable)
                (return (i32.const 1))))
             (if (ref.test $float (local.get $v2))
                (then
                   ;; ZZZ forward tag
                   ;; ZZZ float array
+      (call $log (i32.const 3))
                   (unreachable)
                   (return (i32.const -1))))
             (drop (block $v1_not_string (result (ref eq))
@@ -658,6 +664,7 @@
                   (return (local.get $res))))
                ;; ZZZ forward tag
                ;; ZZZ float array
+      (call $log (i32.const 4))
                (unreachable)
                (return (i32.const 1))))
             (drop (block $v1_not_custom (result (ref eq))
@@ -678,8 +685,10 @@
                   (return (local.get $res))))
                ;; ZZZ forward tag
                ;; ZZZ float array
+      (call $log (i32.const 5))
                (unreachable)
                (return (i32.const 1))))
+      (call $log (i32.const 6))
             (unreachable)
             ;; ZZZ forward tag
             ;; ZZZ float array
@@ -813,13 +822,16 @@
    (import "bindings" "identity" (func $from_float (param f64) (result anyref)))
    (import "bindings" "identity" (func $to_bool (param anyref) (result i32)))
    (import "bindings" "from_bool" (func $from_bool (param i32) (result anyref)))
+   (import "bindings" "eval" (func $eval (param anyref) (result anyref)))
+   (import "bindings" "get" (func $get (param anyref) (param anyref) (result anyref)))
 
+   ;; ZZZ We should generate JavaScript code instead of using 'eval'
    (export "caml_pure_js_expr" (func $caml_js_expr))
    (func $caml_js_expr (export "caml_js_expr")
       (param (ref eq)) (result (ref eq))
-(unreachable)
-      ;; ZZZ
-      (i31.new (i32.const 0)))
+      (local $s (ref $string))
+      (local.set $s (ref.cast $string (local.get 0)))
+      (call $wrap (call $eval (string.new_wtf8_array wtf8 (local.get $s) (i32.const 0) (array.len (local.get $s))))))
 
    (func (export "caml_js_to_float") (param (ref eq)) (result (ref eq))
       (struct.new $float (call $to_float (call $unwrap (local.get 0)))))
@@ -836,60 +848,85 @@
       (struct.new $js
          (call $from_bool (i31.get_s (ref.cast i31 (local.get 0))))))
 
-
    (func (export "caml_js_fun_call")
       (param (ref eq)) (param (ref eq)) (result (ref eq))
       ;; ZZZ
+      (call $log (i32.const 10))
+(unreachable)
       (i31.new (i32.const 0)))
 
    (func (export "caml_js_meth_call")
       (param (ref eq)) (param (ref eq)) (param (ref eq)) (result (ref eq))
       ;; ZZZ
+      (call $log (i32.const 11))
+(unreachable)
       (i31.new (i32.const 0)))
 
    (func (export "caml_js_get")
       (param (ref eq)) (param (ref eq)) (result (ref eq))
-      ;; ZZZ
-      (i31.new (i32.const 0)))
+      (if (ref.test $string (local.get 1))
+         (then
+            ;; ZZZ jsbytes
+            (local.set 1 (call $caml_jsstring_of_string (local.get 1)))))
+      (call $wrap
+         (call $get (call $unwrap (local.get 0)) (call $unwrap (local.get 1)))))
 
    (func (export "caml_js_set")
       (param (ref eq)) (param (ref eq)) (param (ref eq)) (result (ref eq))
       ;; ZZZ
+      (call $log (i32.const 13))
+(unreachable)
       (i31.new (i32.const 0)))
 
    (func (export "caml_js_new")
       (param (ref eq)) (param (ref eq)) (result (ref eq))
       ;; ZZZ
+      (call $log (i32.const 14))
+(unreachable)
       (i31.new (i32.const 0)))
 
    (func (export "caml_js_object")
       (param (ref eq)) (result (ref eq))
       ;; ZZZ
+      (call $log (i32.const 15))
+(unreachable)
       (i31.new (i32.const 0)))
 
    (func (export "caml_js_to_array")
       (param (ref eq)) (result (ref eq))
       ;; ZZZ
+      (call $log (i32.const 16))
+(unreachable)
       (i31.new (i32.const 0)))
 
    (func (export "caml_js_wrap_callback_strict")
       (param (ref eq)) (param (ref eq)) (result (ref eq))
       ;; ZZZ
+      (call $log (i32.const 17))
+(unreachable)
       (i31.new (i32.const 0)))
 
-   (func (export "caml_jsstring_of_string")
+   (func $caml_jsstring_of_string (export "caml_jsstring_of_string")
       (param (ref eq)) (result (ref eq))
+      (local $s (ref $string))
+      (local.set $s (ref.cast $string (local.get 0)))
       ;; ZZZ
-      (i31.new (i32.const 0)))
+      (struct.new $js
+         (string.new_wtf8_array wtf8 (local.get $s) (i32.const 0)
+           (array.len (local.get $s)))))
 
    (func (export "caml_string_of_jsstring")
       (param (ref eq)) (result (ref eq))
       ;; ZZZ
+      (call $log (i32.const 19))
+(unreachable)
       (i31.new (i32.const 0)))
 
    (func (export "caml_list_to_js_array")
       (param (ref eq)) (result (ref eq))
       ;; ZZZ
+      (call $log (i32.const 20))
+(unreachable)
       (i31.new (i32.const 0)))
 )
 

@@ -9,10 +9,12 @@ async function main() {
     let math =
         {cos:Math.cos, sin:Math.sin, asin:Math.asin, atan2:Math.atan2,
          pow:Math.pow, fmod:(x, y) => x%y,
-         log:(x)=>console.log(x)}
+         log:(x)=>console.log('ZZZZZ', x)}
     let bindings =
         {identity:(x)=>x,
-         from_bool:(x)=>!!x}
+         from_bool:(x)=>!!x,
+         get:(x,y)=>{console.log('GET', x, y); return x[y]},
+         eval:(x)=>{console.log('<===', x); var y = eval(x); console.log ('===>', y); return y}}
     const runtimeModule =
           await WebAssembly.instantiate(await runtime,
                                         {Math:math,bindings:bindings});
