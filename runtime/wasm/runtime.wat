@@ -55,7 +55,7 @@
 
    (data $index_out_of_bounds "index out of bounds")
 
-   (func $caml_array_bound_error (export "caml_array_bound_error")
+   (func $caml_bound_error (export "caml_bound_error")
       (call $caml_invalid_argument
          (array.new_data $string $index_out_of_bounds
             (i32.const 0) (i32.const 19))))
@@ -136,6 +136,15 @@
 
    (func (export "caml_ml_out_channels_list")
       (param (ref eq)) (result (ref eq))
+      (i31.new (i32.const 0)))
+
+   (func (export "caml_ml_output")
+      (param (ref eq)) (param (ref eq)) (param (ref eq)) (param (ref eq))
+      (result (ref eq))
+      (i31.new (i32.const 0)))
+
+   (func (export "caml_ml_output_char")
+      (param (ref eq)) (param (ref eq)) (result (ref eq))
       (i31.new (i32.const 0)))
 
    (func (export "caml_register_named_value")
@@ -266,7 +275,9 @@
          (i31.new (i32.eqz (i31.get_u (ref.cast i31
             (call $caml_string_equal (local.get $p1) (local.get $p2))))))))
 
-   (func (export "caml_string_of_bytes") (param $v (ref eq)) (result (ref eq))
+   (export "caml_bytes_of_string" (func $caml_string_of_bytes))
+   (func $caml_string_of_bytes (export "caml_string_of_bytes")
+      (param $v (ref eq)) (result (ref eq))
       (local.get $v))
 
    (func (export "caml_string_get")
@@ -275,7 +286,7 @@
       (local.set $s (ref.cast $string (local.get $v)))
       (local.set $p (i31.get_s (ref.cast i31 (local.get $i))))
       (if (i32.ge_u (local.get $p) (array.len (local.get $s)))
-         (then (call $caml_array_bound_error)))
+         (then (call $caml_bound_error)))
       (i31.new (array.get_u $string (local.get $s) (local.get $p))))
 
    (data $Bytes_create "Bytes.create")
@@ -325,10 +336,27 @@
             (br_if $return (i32.eq (local.get $i) (local.get $l)))
             (array.set $string (local.get $s2)
                (i32.add (local.get $p2) (local.get $i))
-                        (array.get_u $string (local.get $s1)
-                           (i32.add (local.get $p1) (local.get $i))))
+               (array.get_u $string (local.get $s1)
+                  (i32.add (local.get $p1) (local.get $i))))
             (local.set $i (i32.add (local.get $i) (i32.const 1)))
             (br $loop2)))
+      (i31.new (i32.const 0)))
+
+   (func (export "caml_fill_bytes")
+      (param $v (ref eq)) (param $offset (ref eq))
+      (param $len (ref eq)) (param $init (ref eq))
+      (result (ref eq))
+      (local $s (ref $string)) (local $i i32) (local $last i32) (local $c i32)
+      (local.set $s (ref.cast $string (local.get $v)))
+      (local.set $i (i31.get_u (ref.cast i31 (local.get $offset))))
+      (local.set $last (i32.add (local.get $i) (i31.get_u (ref.cast i31 (local.get $len)))))
+      (local.set $c (i31.get_u (ref.cast i31 (local.get $init))))
+      (loop $loop
+         (if (i32.le_u (local.get $i) (local.get $last))
+            (then
+               (array.set $string (local.get $s) (local.get $i) (local.get $c))
+               (local.set $i (i32.add (local.get $i) (i32.const 1)))
+               (br $loop))))
       (i31.new (i32.const 0)))
 
    (type $int_array (array (mut i32)))
@@ -714,4 +742,154 @@
       (param $v1 (ref eq)) (param $v2 (ref eq)) (result (ref eq))
       (i31.new (i32.le_s (i32.const 0)
          (call $compare_val (local.get $v1) (local.get $v2) (i32.const 0)))))
+
+   ;; ZZZ
+   (func $dummy_format_fun (param (ref eq)) (param (ref eq)) (result (ref eq))
+      (array.new_fixed $string (i32.const 64)))
+   (func (export "%caml_format_int_special") (param (ref eq)) (result (ref eq))
+      (call $dummy_format_fun (i31.new (i32.const 0)) (local.get 0)))
+   (export "caml_format_float" (func $dummy_format_fun))
+   (export "caml_format_int" (func $dummy_format_fun))
+   (export "caml_int32_format" (func $dummy_format_fun))
+   (export "caml_int64_format" (func $dummy_format_fun))
+   (export "caml_nativeint_format" (func $dummy_format_fun))
+   (func (export "caml_hexstring_of_float")
+      (param (ref eq)) (param (ref eq)) (param (ref eq)) (result (ref eq))
+      (array.new_fixed $string (i32.const 64)))
+
+   (func (export "caml_get_exception_raw_backtrace")
+      (param (ref eq)) (result (ref eq))
+      (array.new_fixed $block (i31.new (i32.const 0))))
+
+   (func (export "caml_convert_raw_backtrace")
+      (param (ref eq)) (result (ref eq))
+      (array.new_fixed $block (i31.new (i32.const 0))))
+
+   (func (export "caml_ml_debug_info_status")
+      (param (ref eq)) (result (ref eq))
+      (i31.new (i32.const 0)))
+
+   (func (export "caml_sys_const_max_wosize")
+      (param (ref eq)) (result (ref eq))
+      (i31.new (i32.const 0xfffffff)))
+
+   (func (export "caml_ba_create")
+      (param (ref eq)) (param (ref eq)) (param (ref eq)) (result (ref eq))
+      ;; ZZZ
+      (i31.new (i32.const 0)))
+
+   (func (export "caml_ba_from_typed_array") (param (ref eq)) (result (ref eq))
+      ;; ZZZ
+      (i31.new (i32.const 0)))
+
+   (func (export "caml_ba_get_1")
+      (param (ref eq)) (param (ref eq)) (result (ref eq))
+      ;; ZZZ
+      (i31.new (i32.const 0)))
+
+   (func (export "caml_ba_set_1")
+      (param (ref eq)) (param (ref eq)) (param (ref eq)) (result (ref eq))
+      ;; ZZZ
+      (i31.new (i32.const 0)))
+
+   (func (export "caml_classify_float") (param (ref eq)) (result (ref eq))
+      ;; ZZZ
+      (i31.new (i32.const 0)))
+
+
+   (type $js (struct (field anyref)))
+
+   (func $wrap (param anyref) (result (ref eq))
+      (drop (block $not_int (result anyref)
+         (return (br_on_cast_fail $not_int i31 (local.get 0)))))
+      (struct.new $js (local.get 0)))
+
+   (func $unwrap (param (ref eq)) (result anyref)
+      (drop (block $not_int (result anyref)
+         (return (br_on_cast_fail $not_int i31 (local.get 0)))))
+      (struct.get $js 0 (ref.cast $js (local.get 0))))
+
+   (import "bindings" "identity" (func $to_float (param anyref) (result f64)))
+   (import "bindings" "identity" (func $from_float (param f64) (result anyref)))
+   (import "bindings" "identity" (func $to_bool (param anyref) (result i32)))
+   (import "bindings" "from_bool" (func $from_bool (param i32) (result anyref)))
+
+   (export "caml_pure_js_expr" (func $caml_js_expr))
+   (func $caml_js_expr (export "caml_js_expr")
+      (param (ref eq)) (result (ref eq))
+(unreachable)
+      ;; ZZZ
+      (i31.new (i32.const 0)))
+
+   (func (export "caml_js_to_float") (param (ref eq)) (result (ref $float))
+      (struct.new $float (call $to_float (call $unwrap (local.get 0)))))
+
+   (func (export "caml_js_from_float") (param (ref eq)) (result (ref eq))
+      (call $wrap
+         (call $from_float
+            (struct.get $float 0 (ref.cast $float (local.get 0))))))
+
+   (func (export "caml_js_to_bool") (param (ref eq)) (result (ref eq))
+      (i31.new (call $to_bool (struct.get $js 0 (ref.cast $js (local.get 0))))))
+
+   (func (export "caml_js_from_bool") (param (ref eq)) (result (ref eq))
+      (struct.new $js
+         (call $from_bool (i31.get_s (ref.cast i31 (local.get 0))))))
+
+
+   (func (export "caml_js_fun_call")
+      (param (ref eq)) (param (ref eq)) (result (ref eq))
+      ;; ZZZ
+      (i31.new (i32.const 0)))
+
+   (func (export "caml_js_meth_call")
+      (param (ref eq)) (param (ref eq)) (param (ref eq)) (result (ref eq))
+      ;; ZZZ
+      (i31.new (i32.const 0)))
+
+   (func (export "caml_js_get")
+      (param (ref eq)) (param (ref eq)) (result (ref eq))
+      ;; ZZZ
+      (i31.new (i32.const 0)))
+
+   (func (export "caml_js_set")
+      (param (ref eq)) (param (ref eq)) (param (ref eq)) (result (ref eq))
+      ;; ZZZ
+      (i31.new (i32.const 0)))
+
+   (func (export "caml_js_new")
+      (param (ref eq)) (param (ref eq)) (result (ref eq))
+      ;; ZZZ
+      (i31.new (i32.const 0)))
+
+   (func (export "caml_js_object")
+      (param (ref eq)) (result (ref eq))
+      ;; ZZZ
+      (i31.new (i32.const 0)))
+
+   (func (export "caml_js_to_array")
+      (param (ref eq)) (result (ref eq))
+      ;; ZZZ
+      (i31.new (i32.const 0)))
+
+   (func (export "caml_js_wrap_callback_strict")
+      (param (ref eq)) (param (ref eq)) (result (ref eq))
+      ;; ZZZ
+      (i31.new (i32.const 0)))
+
+   (func (export "caml_jsstring_of_string")
+      (param (ref eq)) (result (ref eq))
+      ;; ZZZ
+      (i31.new (i32.const 0)))
+
+   (func (export "caml_string_of_jsstring")
+      (param (ref eq)) (result (ref eq))
+      ;; ZZZ
+      (i31.new (i32.const 0)))
+
+   (func (export "caml_list_to_js_array")
+      (param (ref eq)) (result (ref eq))
+      ;; ZZZ
+      (i31.new (i32.const 0)))
 )
+

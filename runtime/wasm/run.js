@@ -10,8 +10,12 @@ async function main() {
         {cos:Math.cos, sin:Math.sin, asin:Math.asin, atan2:Math.atan2,
          pow:Math.pow, fmod:(x, y) => x%y,
          log:(x)=>console.log(x)}
+    let bindings =
+        {identity:(x)=>x,
+         from_bool:(x)=>!!x}
     const runtimeModule =
-          await WebAssembly.instantiate(await runtime, {Math:math});
+          await WebAssembly.instantiate(await runtime,
+                                        {Math:math,bindings:bindings});
     const wasmModule =
           await WebAssembly.instantiate(await code,
                                         {env:runtimeModule.instance.exports,
@@ -22,6 +26,11 @@ async function main() {
         if (e instanceof WebAssembly.Exception &&
             e.is(runtimeModule.instance.exports.ocaml_exit))
             process.exit(e.getArg(runtimeModule.instance.exports.ocaml_exit, 0));
+        if (e instanceof WebAssembly.Exception &&
+            e.is(runtimeModule.instance.exports.ocaml_exception)) {
+            console.log('Uncaught exception')
+            process.exit(1)
+        }
         throw e;
     }
 }
