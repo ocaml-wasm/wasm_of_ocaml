@@ -821,7 +821,7 @@
       ;; ZZZ
       (i31.new (i32.const 0)))
 
-   (func (export "caml_js_to_float") (param (ref eq)) (result (ref $float))
+   (func (export "caml_js_to_float") (param (ref eq)) (result (ref eq))
       (struct.new $float (call $to_float (call $unwrap (local.get 0)))))
 
    (func (export "caml_js_from_float") (param (ref eq)) (result (ref eq))
