@@ -247,3 +247,10 @@ We have unused globals (small constants / known closures)
 ===================
 
 format_float (splay)
+
+===========================
+
+Bindings:
+   generate specialized JavaScript functions
+      (for instance to create a literal object)
+   optimize away unwrap(wrap(...))

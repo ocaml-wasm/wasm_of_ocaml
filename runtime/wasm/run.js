@@ -20,6 +20,10 @@ async function main() {
          fun_call:(o,f,args)=>{console.log('CALL', f, args); return f.apply(null,args)},
          meth_call:(o,f,args)=>{console.log('CALL', o, f, args); return o[f].apply(o,args)},
          new_array:(n)=>new Array(n),
+         new_obj:()=>({}),
+         new:(c,args)=>{return new c(...args)},
+         array_length:(a)=>a.length,
+         array_get:(a,i)=>a[i],
          array_set:(a,i,v)=>a[i]=v
         }
     const runtimeModule =
