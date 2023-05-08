@@ -14,7 +14,14 @@ async function main() {
         {identity:(x)=>x,
          from_bool:(x)=>!!x,
          get:(x,y)=>{console.log('GET', x, y); return x[y]},
-         eval:(x)=>{console.log('<===', x); var y = eval(x); console.log ('===>', y); return y}}
+         set:(x,y,z)=>{console.log('SET', x, y, z); x[y]=z},
+         eval:(x)=>{console.log('<===', x); var y = eval(x); console.log ('===>', y); return y},
+         strict_equals:(x,y)=>x===y,
+         fun_call:(o,f,args)=>{console.log('CALL', f, args); return f.apply(null,args)},
+         meth_call:(o,f,args)=>{console.log('CALL', o, f, args); return o[f].apply(o,args)},
+         new_array:(n)=>new Array(n),
+         array_set:(a,i,v)=>a[i]=v
+        }
     const runtimeModule =
           await WebAssembly.instantiate(await runtime,
                                         {Math:math,bindings:bindings});

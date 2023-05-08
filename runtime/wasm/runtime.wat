@@ -154,6 +154,8 @@
    (func (export "caml_int_of_string")
       (param (ref eq)) (param (ref eq)) (result (ref eq))
       ;; ZZZ
+      (call $log (i32.const 21))
+      (unreachable)
       (i31.new (i32.const 0)))
 
    (func (export "caml_sys_exit") (param (ref eq)) (result (ref eq))
@@ -785,24 +787,34 @@
    (func (export "caml_ba_create")
       (param (ref eq)) (param (ref eq)) (param (ref eq)) (result (ref eq))
       ;; ZZZ
+      (call $log (i32.const 22))
+      (unreachable)
       (i31.new (i32.const 0)))
 
    (func (export "caml_ba_from_typed_array") (param (ref eq)) (result (ref eq))
       ;; ZZZ
+      (call $log (i32.const 23))
+      (unreachable)
       (i31.new (i32.const 0)))
 
    (func (export "caml_ba_get_1")
       (param (ref eq)) (param (ref eq)) (result (ref eq))
       ;; ZZZ
+      (call $log (i32.const 24))
+      (unreachable)
       (i31.new (i32.const 0)))
 
    (func (export "caml_ba_set_1")
       (param (ref eq)) (param (ref eq)) (param (ref eq)) (result (ref eq))
       ;; ZZZ
+      (call $log (i32.const 25))
+      (unreachable)
       (i31.new (i32.const 0)))
 
    (func (export "caml_classify_float") (param (ref eq)) (result (ref eq))
       ;; ZZZ
+      (call $log (i32.const 26))
+      (unreachable)
       (i31.new (i32.const 0)))
 
 
@@ -824,6 +836,18 @@
    (import "bindings" "from_bool" (func $from_bool (param i32) (result anyref)))
    (import "bindings" "eval" (func $eval (param anyref) (result anyref)))
    (import "bindings" "get" (func $get (param anyref) (param anyref) (result anyref)))
+   (import "bindings" "set" (func $set (param anyref) (param anyref) (param anyref)))
+   (import "bindings" "strict_equals" (func $strict_equals (param anyref) (param anyref) (result i32)))
+   (import "bindings" "fun_call" (func $fun_call (param anyref) (param anyref) (result anyref)))
+   (import "bindings" "meth_call" (func $meth_call (param anyref) (param anyref) (param anyref) (result anyref)))
+   (import "bindings" "new_array" (func $new_array (param i32) (result externref)))
+   (import "bindings" "array_set"
+      (func $array_set (param externref) (param i32) (param anyref)))
+
+   (func (export "caml_js_strict_equals")
+      (param (ref eq)) (param (ref eq)) (result (ref eq))
+      (i31.new (call $strict_equals
+                  (call $unwrap (local.get 0)) (call $unwrap (local.get 1)))))
 
    ;; ZZZ We should generate JavaScript code instead of using 'eval'
    (export "caml_pure_js_expr" (func $caml_js_expr))
@@ -849,18 +873,18 @@
          (call $from_bool (i31.get_s (ref.cast i31 (local.get 0))))))
 
    (func (export "caml_js_fun_call")
-      (param (ref eq)) (param (ref eq)) (result (ref eq))
-      ;; ZZZ
-      (call $log (i32.const 10))
-(unreachable)
-      (i31.new (i32.const 0)))
+      (param $f (ref eq)) (param $args (ref eq)) (result (ref eq))
+      (call $wrap
+         (call $fun_call (call $unwrap (local.get $f))
+            (call $unwrap (call $caml_js_from_array (local.get $args))))))
 
    (func (export "caml_js_meth_call")
-      (param (ref eq)) (param (ref eq)) (param (ref eq)) (result (ref eq))
-      ;; ZZZ
-      (call $log (i32.const 11))
-(unreachable)
-      (i31.new (i32.const 0)))
+      (param $o (ref eq)) (param $f (ref eq)) (param $args (ref eq))
+      (result (ref eq))
+      (call $wrap
+         (call $meth_call (call $unwrap (local.get $o))
+            (call $unwrap (call $caml_jsstring_of_string (local.get $f)))
+            (call $unwrap (call $caml_js_from_array (local.get $args))))))
 
    (func (export "caml_js_get")
       (param (ref eq)) (param (ref eq)) (result (ref eq))
@@ -873,16 +897,19 @@
 
    (func (export "caml_js_set")
       (param (ref eq)) (param (ref eq)) (param (ref eq)) (result (ref eq))
-      ;; ZZZ
-      (call $log (i32.const 13))
-(unreachable)
+      (if (ref.test $string (local.get 1))
+         (then
+            ;; ZZZ jsbytes
+            (local.set 1 (call $caml_jsstring_of_string (local.get 1)))))
+      (call $set (call $unwrap (local.get 0)) (call $unwrap (local.get 1))
+         (call $unwrap (local.get 2)))
       (i31.new (i32.const 0)))
 
    (func (export "caml_js_new")
       (param (ref eq)) (param (ref eq)) (result (ref eq))
       ;; ZZZ
       (call $log (i32.const 14))
-(unreachable)
+;;(unreachable)
       (i31.new (i32.const 0)))
 
    (func (export "caml_js_object")
@@ -891,6 +918,24 @@
       (call $log (i32.const 15))
 (unreachable)
       (i31.new (i32.const 0)))
+
+   (func $caml_js_from_array (export "caml_js_from_array")
+      (param (ref eq)) (result (ref eq))
+      (local $a (ref $block))
+      (local $a' externref)
+      (local $i i32) (local $l i32)
+      (local.set $a (ref.cast $block (local.get 0)))
+      (local.set $l (i32.sub (array.len (local.get $a)) (i32.const 1)))
+      (local.set $a' (call $new_array (local.get $l)))
+      (local.set $i (i32.const 0))
+      (loop $loop
+         (if (i32.lt_u (local.get $i) (local.get $l))
+            (call $array_set (local.get $a') (local.get $i)
+               (call $unwrap (array.get $block (local.get $a)
+                                (i32.add (local.get $i) (i32.const 1)))))
+            (local.set $i (i32.add (local.get $i) (i32.const 1)))
+            (br $loop)))
+      (struct.new $js (extern.internalize (local.get $a'))))
 
    (func (export "caml_js_to_array")
       (param (ref eq)) (result (ref eq))

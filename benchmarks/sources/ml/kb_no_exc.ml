@@ -556,6 +556,7 @@ let kb_complete greater complete_rules rules =
   let n = check_rules complete_rules
   and eqs = List.map (fun rule -> rule.lhs, rule.rhs) rules in
   let completed_rules = kb_completion greater n complete_rules [] (n, n) eqs in
+  assert (List.length completed_rules = 24);
   print_string "Canonical set found :";
   print_newline ();
   pretty_rules (List.rev completed_rules)
