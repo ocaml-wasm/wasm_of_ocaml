@@ -849,6 +849,8 @@
       (func $array_get (param externref) (param i32) (result anyref)))
    (import "bindings" "array_set"
       (func $array_set (param externref) (param i32) (param anyref)))
+   (import "bindings" "wrap_callback_strict"
+      (func $wrap_callback_strict (param i32) (param (ref eq)) (result anyref)))
 
    (func (export "caml_js_strict_equals")
       (param (ref eq)) (param (ref eq)) (result (ref eq))
@@ -971,9 +973,8 @@
    (func (export "caml_js_wrap_callback_strict")
       (param (ref eq)) (param (ref eq)) (result (ref eq))
       ;; ZZZ
-      (call $log (i32.const 17))
-(unreachable)
-      (i31.new (i32.const 0)))
+      (call $wrap (call $wrap_callback_strict
+                     (i31.get_u (ref.cast i31 (local.get 0))) (local.get 1))))
 
    (func $caml_jsstring_of_string (export "caml_jsstring_of_string")
       (param (ref eq)) (result (ref eq))

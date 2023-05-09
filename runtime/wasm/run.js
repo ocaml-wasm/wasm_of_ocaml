@@ -2,6 +2,7 @@ const fs = require('fs/promises');
 const path = require('path');
 
 async function main() {
+    var caml_callback = () => {console.log(arguments)}
     const runtimePath =
           path.resolve(path.dirname(process.argv[1]), 'runtime.wasm');
     const runtime = fs.readFile(runtimePath);
@@ -24,7 +25,14 @@ async function main() {
          new:(c,args)=>{return new c(...args)},
          array_length:(a)=>a.length,
          array_get:(a,i)=>a[i],
-         array_set:(a,i,v)=>a[i]=v
+         array_set:(a,i,v)=>a[i]=v,
+         wrap_callback_strict:(arity,f)=>()=>{
+             var n = arguments.length;
+             var args = new Array(arity);
+             var len = Math.min(arguments.length, arity)
+             for (var i = 0; i < len; i++) args[i] = arguments[i];
+             return caml_callback(f, arity, args);
+         }
         }
     const runtimeModule =
           await WebAssembly.instantiate(await runtime,
