@@ -2,7 +2,7 @@ const fs = require('fs/promises');
 const path = require('path');
 
 async function main() {
-    var caml_callback = (f,arity,args)=> console.log("CALLBACK", f, arity,args)
+    var caml_callback;
     const runtimePath =
           path.resolve(path.dirname(process.argv[1]), 'runtime.wasm');
     const runtime = fs.readFile(runtimePath);
@@ -31,12 +31,16 @@ async function main() {
              var args = new Array(arity);
              var len = Math.min(arguments.length, arity)
              for (var i = 0; i < len; i++) args[i] = arguments[i];
+             console.log("CALLBACK", f, arity,args);
              return caml_callback(f, arity, args);
          }
         }
     const runtimeModule =
           await WebAssembly.instantiate(await runtime,
                                         {Math:math,bindings:bindings});
+
+    caml_callback = runtimeModule.instance.exports.callback;
+
     const wasmModule =
           await WebAssembly.instantiate(await code,
                                         {env:runtimeModule.instance.exports,

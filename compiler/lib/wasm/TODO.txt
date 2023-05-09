@@ -254,3 +254,8 @@ Bindings:
    generate specialized JavaScript functions
       (for instance to create a literal object)
    optimize away unwrap(wrap(...))
+
+==========================
+
+We don't need closure arity. We can use the type to check whether a
+function has a given arity.

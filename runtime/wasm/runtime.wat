@@ -3,6 +3,7 @@
    (tag $ocaml_exit (export "ocaml_exit") (param i32))
 
    (import "Math" "log" (func $log (param i32)))
+   (import "Math" "log" (func $log_js (param anyref)))
 
    (type $float (struct (field f64)))
 
@@ -835,7 +836,7 @@
    (import "bindings" "identity" (func $to_bool (param anyref) (result i32)))
    (import "bindings" "from_bool" (func $from_bool (param i32) (result anyref)))
    (import "bindings" "eval" (func $eval (param anyref) (result anyref)))
-   (import "bindings" "get" (func $get (param anyref) (param anyref) (result anyref)))
+   (import "bindings" "get" (func $get (param externref) (param anyref) (result anyref)))
    (import "bindings" "set" (func $set (param anyref) (param anyref) (param anyref)))
    (import "bindings" "strict_equals" (func $strict_equals (param anyref) (param anyref) (result i32)))
    (import "bindings" "fun_call" (func $fun_call (param anyref) (param anyref) (result anyref)))
@@ -901,7 +902,8 @@
             ;; ZZZ jsbytes
             (local.set 1 (call $caml_jsstring_of_string (local.get 1)))))
       (call $wrap
-         (call $get (call $unwrap (local.get 0)) (call $unwrap (local.get 1)))))
+         (call $get (extern.externalize (call $unwrap (local.get 0)))
+            (call $unwrap (local.get 1)))))
 
    (func (export "caml_js_set")
       (param (ref eq)) (param (ref eq)) (param (ref eq)) (result (ref eq))
@@ -975,6 +977,26 @@
       ;; ZZZ
       (call $wrap (call $wrap_callback_strict
                      (i31.get_u (ref.cast i31 (local.get 0))) (local.get 1))))
+
+   (func (export "caml_callback")
+      (param $f (ref eq)) (param $count i32) (param $args (ref extern))
+      (result anyref)
+      (local $acc (ref eq)) (local $i i32)
+      (local.set $acc (local.get $f))
+      (local.set $i (i32.const 0))
+      (loop $loop
+         (if (i32.lt_u (local.get $i) (local.get $count))
+            (then
+               (local.set $acc
+                  (call_ref $function_1
+                     (call $wrap
+                        (call $get (local.get $args) (i31.new (local.get $i))))
+                     (local.get $acc)
+                     (struct.get $closure 1
+                        (ref.cast $closure (local.get $acc)))))
+               (local.set $i (i32.add (local.get $i) (i32.const 1)))
+               (br $loop))))
+      (call $unwrap (local.get $acc)))
 
    (func $caml_jsstring_of_string (export "caml_jsstring_of_string")
       (param (ref eq)) (result (ref eq))
