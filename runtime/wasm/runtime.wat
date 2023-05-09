@@ -933,7 +933,7 @@
             (then
                (local.set $p
                   (ref.cast $block
-                     (array.get $block (local.get $a) (local.get $i)))
+                     (array.get $block (local.get $a) (local.get $i))))
                (call $set (local.get $o)
                   (call $unwrap
                      (call $caml_jsstring_of_string
@@ -941,7 +941,7 @@
                   (call $unwrap
                         (array.get $block (local.get $p) (i32.const 2))))
                (local.set $i (i32.add (local.get $i) (i32.const 1)))
-               (br $loop)))))
+               (br $loop))))
       (struct.new $js (local.get $o)))
 
    (func $caml_js_from_array (export "caml_js_from_array")

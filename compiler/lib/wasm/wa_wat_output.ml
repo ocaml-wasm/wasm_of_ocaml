@@ -192,6 +192,19 @@ let float64 f = Printf.sprintf "%h" f (*ZZZ*)
 let expression_or_instructions ctx in_function =
   let rec expression e =
     match e with
+    | RefEq (LocalGet x, I31New (Const (I32 0l))) ->
+        (*ZZZ Chrome bug *)
+        instruction
+          (If
+             ( { params = []; result = [ I32 ] }
+             , RefTest ({ nullable = false; typ = I31 }, LocalGet x)
+             , [ Push
+                   (UnOp
+                      ( I32 Eqz
+                      , I31Get (S, RefCast ({ nullable = false; typ = I31 }, LocalGet x))
+                      ))
+               ]
+             , [ Push (Const (I32 0l)) ] ))
     | Const op ->
         [ List
             [ Atom (type_prefix op "const")
