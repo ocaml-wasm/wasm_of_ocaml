@@ -940,7 +940,7 @@
                         (array.get $block (local.get $p) (i32.const 2))))
                (local.set $i (i32.add (local.get $i) (i32.const 1)))
                (br $loop)))))
-      (call $wrap (local.get $o)))
+      (struct.new $js (local.get $o)))
 
    (func $caml_js_from_array (export "caml_js_from_array")
       (param (ref eq)) (result (ref eq))
@@ -953,11 +953,12 @@
       (local.set $i (i32.const 0))
       (loop $loop
          (if (i32.lt_u (local.get $i) (local.get $l))
-            (call $array_set (local.get $a') (local.get $i)
-               (call $unwrap (array.get $block (local.get $a)
-                                (i32.add (local.get $i) (i32.const 1)))))
-            (local.set $i (i32.add (local.get $i) (i32.const 1)))
-            (br $loop)))
+            (then
+               (call $array_set (local.get $a') (local.get $i)
+                  (call $unwrap (array.get $block (local.get $a)
+                                   (i32.add (local.get $i) (i32.const 1)))))
+               (local.set $i (i32.add (local.get $i) (i32.const 1)))
+               (br $loop))))
       (struct.new $js (extern.internalize (local.get $a'))))
 
    (func (export "caml_js_to_array")
