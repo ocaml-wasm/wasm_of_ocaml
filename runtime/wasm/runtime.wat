@@ -153,14 +153,28 @@
       (i31.new (i32.const 0)))
 
    (func (export "caml_int_of_string")
-      (param (ref eq)) (param (ref eq)) (result (ref eq))
-      ;; ZZZ
-      (call $log (i32.const 21))
-      (unreachable)
-      (i31.new (i32.const 0)))
+      (param $v (ref eq)) (result (ref eq))
+      (local $s (ref $string)) (local $i i32) (local $len i32)
+      (local $res i32)
+      (local.set $s (ref.cast $string (local.get $v)))
+      (local.set $res (i32.const 0))
+      (local.set $i (i32.const 0))
+      (local.set $len (array.len (local.get $s)))
+      ;; ZZZ validation / negative numbers / ...
+      (loop $loop
+         (if (i32.lt_s (local.get $i) (local.get $len))
+            (then
+               (local.set $res
+                  (i32.add (i32.mul (local.get $res) (i32.const 10))
+                     (i32.sub
+                        (array.get_u $string (local.get $s) (local.get $i))
+                        (i32.const 48))))
+               (local.set $i (i32.add (local.get $i) (i32.const 1)))
+               (br $loop))))
+      (i31.new (local.get $res)))
 
    (func (export "caml_sys_exit") (param (ref eq)) (result (ref eq))
-      (throw $ocaml_exit (i31.get_s (ref.cast i31 (local.get $0)))))
+      (throw $ocaml_exit (i31.get_s (ref.cast i31 (local.get 0)))))
 
    (global $caml_oo_last_id (mut i32) (i32.const 0))
 
@@ -352,13 +366,13 @@
       (param $v (ref eq)) (param $offset (ref eq))
       (param $len (ref eq)) (param $init (ref eq))
       (result (ref eq))
-      (local $s (ref $string)) (local $i i32) (local $last i32) (local $c i32)
+      (local $s (ref $string)) (local $i i32) (local $limit i32) (local $c i32)
       (local.set $s (ref.cast $string (local.get $v)))
       (local.set $i (i31.get_u (ref.cast i31 (local.get $offset))))
-      (local.set $last (i32.add (local.get $i) (i31.get_u (ref.cast i31 (local.get $len)))))
+      (local.set $limit (i32.add (local.get $i) (i31.get_u (ref.cast i31 (local.get $len)))))
       (local.set $c (i31.get_u (ref.cast i31 (local.get $init))))
       (loop $loop
-         (if (i32.le_u (local.get $i) (local.get $last))
+         (if (i32.lt_u (local.get $i) (local.get $limit))
             (then
                (array.set $string (local.get $s) (local.get $i) (local.get $c))
                (local.set $i (i32.add (local.get $i) (i32.const 1)))
@@ -759,15 +773,20 @@
    (func $dummy_format_fun (param (ref eq)) (param (ref eq)) (result (ref eq))
       (array.new_fixed $string (i32.const 64)))
    (func (export "%caml_format_int_special") (param (ref eq)) (result (ref eq))
-      (call $dummy_format_fun (i31.new (i32.const 0)) (local.get 0)))
-   (export "caml_format_float" (func $dummy_format_fun))
-   (export "caml_format_int" (func $dummy_format_fun))
+      (call $caml_string_of_jsstring (call $wrap (call $format_int (local.get 0)))))
+   (func (export "caml_format_int") (param (ref eq)) (param (ref eq)) (result (ref eq))
+      (call $caml_string_of_jsstring (call $wrap (call $format_int (local.get 1)))))
    (export "caml_int32_format" (func $dummy_format_fun))
    (export "caml_int64_format" (func $dummy_format_fun))
    (export "caml_nativeint_format" (func $dummy_format_fun))
    (func (export "caml_hexstring_of_float")
       (param (ref eq)) (param (ref eq)) (param (ref eq)) (result (ref eq))
+      ;; ZZZ
       (array.new_fixed $string (i32.const 64)))
+   (func (export "caml_format_float")
+      (param (ref eq)) (param (ref eq)) (result (ref eq))
+      ;; ZZZ
+      (call $caml_string_of_jsstring (call $wrap (call $format_float (struct.get $float 0 (ref.cast $float (local.get 1)))))))
 
    (func (export "caml_get_exception_raw_backtrace")
       (param (ref eq)) (result (ref eq))
@@ -785,31 +804,88 @@
       (param (ref eq)) (result (ref eq))
       (i31.new (i32.const 0xfffffff)))
 
-   (func (export "caml_ba_create")
-      (param (ref eq)) (param (ref eq)) (param (ref eq)) (result (ref eq))
+   (global $bigarray_ops (ref $custom_operations)
       ;; ZZZ
-      (call $log (i32.const 22))
-;;      (unreachable)
-      (i31.new (i32.const 0)))
+      (struct.new $custom_operations (ref.func $int64_cmp)))
+
+   (type $bigarray
+      (sub $custom
+         (struct
+            (field (ref $custom_operations))
+            (field (ref array)) ;; data
+            (field (ref $int_array)) ;; size in each dimension
+            (field i8) ;; number of dimensions
+            (field i8) ;; kind
+            (field i8)))) ;; layout
+
+   (func (export "caml_ba_create")
+      (param $kind (ref eq)) (param $layout (ref eq)) (param $d (ref eq))
+      (result (ref eq))
+      (local $dims (ref $block))
+      (local $num_dims i32)
+      (local $len i32)
+      (local $data (ref $string))
+      (local.set $dims (ref.cast $block (local.get $d)))
+      (local.set $num_dims (i32.sub (array.len (local.get $dims)) (i32.const 1)))
+      (if (i32.eqz (i32.eq (local.get $num_dims) (i32.const 1)))
+         (then (unreachable))) ;;ZZZ
+      (local.set $len
+         (i31.get_u (ref.cast i31
+            (array.get $block (local.get $dims) (i32.const 1)))))
+      (local.set $data (array.new $string (i32.const 0) (local.get $len)))
+      (struct.new $bigarray
+         (global.get $bigarray_ops)
+         (local.get $data)
+         (array.new_fixed $int_array (i32.const 1))
+         (local.get $num_dims)
+         (i31.get_s (ref.cast i31 (local.get $kind)))
+         (i31.get_s (ref.cast i31 (local.get $layout)))))
 
    (func (export "caml_ba_from_typed_array") (param (ref eq)) (result (ref eq))
+      (local $ta externref)
+      (local $len i32) (local $i i32)
+      (local $data (ref $string))
       ;; ZZZ
-      (call $log (i32.const 23))
-      (unreachable)
-      (i31.new (i32.const 0)))
+      (local.set $ta (extern.externalize (call $unwrap (local.get 0))))
+      (local.set $len (call $array_length (local.get $ta)))
+      (local.set $data (array.new $string (i32.const 0) (local.get $len)))
+      (local.set $i (i32.const 0))
+      (loop $loop
+         (if (i32.lt_u (local.get $i) (local.get $len))
+            (then
+               (array.set $string (local.get $data) (local.get $i)
+                  (call $get_int (local.get $ta) (local.get $i)))
+               (local.set $i (i32.add (local.get $i) (i32.const 1)))
+               (br $loop))))
+      (struct.new $bigarray
+         (global.get $bigarray_ops)
+         (local.get $data)
+         (array.new_fixed $int_array (i32.const 1))
+         (i32.const 1)
+         (i32.const 0)
+         (i32.const 0)))
 
    (func (export "caml_ba_get_1")
       (param (ref eq)) (param (ref eq)) (result (ref eq))
-      ;; ZZZ
-      (call $log (i32.const 24))
-      (unreachable)
-      (i31.new (i32.const 0)))
+      (local $ba (ref $bigarray))
+      (local $i i32)
+      (local.set $ba (ref.cast $bigarray (local.get 0)))
+      (local.set $i (i31.get_u (ref.cast i31 (local.get 1))))
+      ;; ZZZ bound check / kind / layout
+      (i31.new (array.get_u $string
+                  (ref.cast $string (struct.get $bigarray 1 (local.get $ba)))
+                  (local.get $i))))
 
    (func (export "caml_ba_set_1")
       (param (ref eq)) (param (ref eq)) (param (ref eq)) (result (ref eq))
-      ;; ZZZ
-      (call $log (i32.const 25))
-      (unreachable)
+      (local $ba (ref $bigarray))
+      (local $i i32)
+      (local.set $ba (ref.cast $bigarray (local.get 0)))
+      (local.set $i (i31.get_u (ref.cast i31 (local.get 1))))
+      ;; ZZZ bound check / kind / layout
+      (array.set $string
+         (ref.cast $string (struct.get $bigarray 1 (local.get $ba)))
+         (local.get $i) (i31.get_u (ref.cast i31 (local.get 2))))
       (i31.new (i32.const 0)))
 
    (func (export "caml_classify_float") (param (ref eq)) (result (ref eq))
@@ -818,22 +894,21 @@
       (unreachable)
       (i31.new (i32.const 0)))
 
-
    (type $js (struct (field anyref)))
 
    (func $wrap (param anyref) (result (ref eq))
-      (drop (block $not_int (result anyref)
-         (return (br_on_cast_fail $not_int i31 (local.get 0)))))
-      (struct.new $js (local.get 0)))
+      (block $is_eq (result (ref eq))
+         (return (struct.new $js (br_on_cast $is_eq eq (local.get 0))))))
 
    (func $unwrap (param (ref eq)) (result anyref)
-      (drop (block $not_int (result anyref)
-         (return (br_on_cast_fail $not_int i31 (local.get 0)))))
-      (struct.get $js 0 (ref.cast $js (local.get 0))))
+      (block $not_js (result anyref)
+         (return (struct.get $js 0
+                    (br_on_cast_fail $not_js $js (local.get 0))))))
 
    (import "bindings" "identity" (func $to_float (param anyref) (result f64)))
    (import "bindings" "identity" (func $from_float (param f64) (result anyref)))
    (import "bindings" "identity" (func $to_bool (param anyref) (result i32)))
+   (import "bindings" "identity" (func $ref_cast_string (param anyref) (result stringref)))
    (import "bindings" "from_bool" (func $from_bool (param i32) (result anyref)))
    (import "bindings" "eval" (func $eval (param anyref) (result anyref)))
    (import "bindings" "get" (func $get (param externref) (param anyref) (result anyref)))
@@ -852,6 +927,9 @@
       (func $array_set (param externref) (param i32) (param anyref)))
    (import "bindings" "wrap_callback_strict"
       (func $wrap_callback_strict (param i32) (param (ref eq)) (result anyref)))
+   (import "bindings" "get_int" (func $get_int (param externref) (param i32) (result i32)))
+   (import "bindings" "format" (func $format_float (param f64) (result anyref)))
+   (import "bindings" "format" (func $format_int (param (ref eq)) (result anyref)))
 
    (func (export "caml_js_strict_equals")
       (param (ref eq)) (param (ref eq)) (result (ref eq))
@@ -1007,13 +1085,14 @@
          (string.new_wtf8_array wtf8 (local.get $s) (i32.const 0)
            (array.len (local.get $s)))))
 
-   (func (export "caml_string_of_jsstring")
+   (func $caml_string_of_jsstring (export "caml_string_of_jsstring")
       (param (ref eq)) (result (ref eq))
       (local $s stringref)
       (local $l i32)
       (local $s' (ref $string))
+      ;; ZZZ ref.cast string not yet implemented by V8
       (local.set $s
-         (ref.cast string (struct.get $js 0 (ref.cast $js (local.get 0)))))
+         (call $ref_cast_string (struct.get $js 0 (ref.cast $js (local.get 0)))))
       (local.set $l (string.measure_wtf8 wtf8 (local.get $s)))
       (local.set $s' (array.new $string (i32.const 0) (local.get $l)))
       (drop (string.encode_wtf8_array wtf8

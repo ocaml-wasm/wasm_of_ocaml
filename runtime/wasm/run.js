@@ -14,26 +14,27 @@ async function main() {
     let bindings =
         {identity:(x)=>x,
          from_bool:(x)=>!!x,
-         get:(x,y)=>{console.log('GET', x, y); return x[y]},
-         set:(x,y,z)=>{console.log('SET', x, y, z); x[y]=z},
-         eval:(x)=>{console.log('<===', x); var y = eval(x); console.log ('===>', y); return y},
+         get:(x,y)=>x[y],
+         set:(x,y,z)=>x[y]=z,
+         eval:eval,
          strict_equals:(x,y)=>x===y,
-         fun_call:(f,args)=>{console.log('CALL', f, args); return f.apply(null,args)},
-         meth_call:(o,f,args)=>{console.log('CALL', o, f, args); return o[f].apply(o,args)},
+         fun_call:(f,args)=>f.apply(null,args),
+         meth_call:(o,f,args)=>o[f].apply(o,args),
          new_array:(n)=>new Array(n),
          new_obj:()=>({}),
          new:(c,args)=>{return new c(...args)},
          array_length:(a)=>a.length,
          array_get:(a,i)=>a[i],
          array_set:(a,i,v)=>a[i]=v,
+         get_int:(a,i)=>a[i],
          wrap_callback_strict:(arity,f)=>function (){
              var n = arguments.length;
              var args = new Array(arity);
              var len = Math.min(arguments.length, arity)
              for (var i = 0; i < len; i++) args[i] = arguments[i];
-             console.log("CALLBACK", f, arity,args);
              return caml_callback(f, arity, args);
-         }
+         },
+         format:(f)=>""+f
         }
     const runtimeModule =
           await WebAssembly.instantiate(await runtime,
