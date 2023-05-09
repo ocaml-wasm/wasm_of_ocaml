@@ -1,12 +1,13 @@
-const fs = require('fs/promises');
-const path = require('path');
-
-async function main() {
-    var caml_callback;
+(async function () {
+    const fs = require('fs/promises');
+    const path = require('path');
     const runtimePath =
           path.resolve(path.dirname(process.argv[1]), 'runtime.wasm');
     const runtime = fs.readFile(runtimePath);
     const code = fs.readFile(process.argv[2]);
+
+    var caml_callback;
+
     let math =
         {cos:Math.cos, sin:Math.sin, asin:Math.asin, atan2:Math.atan2,
          pow:Math.pow, fmod:(x, y) => x%y,
@@ -40,14 +41,14 @@ async function main() {
           await WebAssembly.instantiate(await runtime,
                                         {Math:math,bindings:bindings});
 
-    caml_callback = runtimeModule.instance.exports.callback;
+    caml_callback = runtimeModule.instance.exports.caml_callback;
 
     const wasmModule =
-          await WebAssembly.instantiate(await code,
+          await WebAssembly.instantiateStreaming(await code,
                                         {env:runtimeModule.instance.exports,
                                          Math:math})
     try {
-      wasmModule.instance.exports._initialize()
+        wasmModule.instance.exports._initialize()
     } catch (e) {
         if (e instanceof WebAssembly.Exception &&
             e.is(runtimeModule.instance.exports.ocaml_exit))
@@ -59,6 +60,5 @@ async function main() {
         }
         throw e;
     }
-}
 
-main ()
+})()
