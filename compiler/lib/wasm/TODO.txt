@@ -244,10 +244,6 @@ snap run node --print-wasm-code --experimental-wasm-gc /tmp/launch.js |& less
 
 We have unused globals (small constants / known closures)
 
-===================
-
-format_float (splay)
-
 ===========================
 
 Bindings:

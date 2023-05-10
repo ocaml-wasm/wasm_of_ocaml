@@ -942,7 +942,7 @@
       (param (ref eq)) (result (ref eq))
       (local $s (ref $string))
       (local.set $s (ref.cast $string (local.get 0)))
-      (call $wrap (call $eval (string.new_wtf8_array wtf8 (local.get $s) (i32.const 0) (array.len (local.get $s))))))
+      (call $wrap (call $eval (string.new_wtf8_array replace (local.get $s) (i32.const 0) (array.len (local.get $s))))))
 
    (func (export "caml_js_to_float") (param (ref eq)) (result (ref eq))
       (struct.new $float (call $to_float (call $unwrap (local.get 0)))))
@@ -1080,9 +1080,8 @@
       (param (ref eq)) (result (ref eq))
       (local $s (ref $string))
       (local.set $s (ref.cast $string (local.get 0)))
-      ;; ZZZ string.new_wtf8_array replace
       (struct.new $js
-         (string.new_wtf8_array wtf8 (local.get $s) (i32.const 0)
+         (string.new_wtf8_array replace (local.get $s) (i32.const 0)
            (array.len (local.get $s)))))
 
    (func $caml_string_of_jsstring (export "caml_string_of_jsstring")
@@ -1095,7 +1094,7 @@
          (call $ref_cast_string (struct.get $js 0 (ref.cast $js (local.get 0)))))
       (local.set $l (string.measure_wtf8 wtf8 (local.get $s)))
       (local.set $s' (array.new $string (i32.const 0) (local.get $l)))
-      (drop (string.encode_wtf8_array wtf8
+      (drop (string.encode_wtf8_array replace
                (local.get $s) (local.get $s') (i32.const 0)))
       (local.get $s'))
 
