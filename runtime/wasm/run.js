@@ -1,3 +1,4 @@
+#!/usr/bin/env -S node --experimental-wasm-stringref  --experimental-wasm-gc
 (async function () {
     const fs = require('fs/promises');
     const path = require('path');
@@ -44,7 +45,7 @@
     caml_callback = runtimeModule.instance.exports.caml_callback;
 
     const wasmModule =
-          await WebAssembly.instantiateStreaming(await code,
+          await WebAssembly.instantiate(await code,
                                         {env:runtimeModule.instance.exports,
                                          Math:math})
     try {

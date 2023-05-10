@@ -75,6 +75,7 @@ function jsoo_create_file_extern(name,content){
       let pfs_fmt = Pretty_print.to_out_channel chan in
       let (_ : Source_map.t option) =
         Driver.f
+          ~target:`JavaScript
           ~standalone:true
           ~wrap_with_fun:`Iife
           pfs_fmt
