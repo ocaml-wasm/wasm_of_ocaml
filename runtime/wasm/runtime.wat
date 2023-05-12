@@ -189,20 +189,14 @@
       (local $orig (ref $block))
       (local $res (ref $block))
       (local $len i32)
-      (local $i i32)
       (local.set $orig (ref.cast $block (local.get 0)))
       (local.set $len (array.len (local.get $orig)))
       (local.set $res
          (array.new $block (array.get $block (local.get $orig) (i32.const 0))
             (local.get $len)))
-      (local.set $i (i32.const 1))
-      (loop $loop
-         (if (i32.lt_s (local.get $i) (local.get $len))
-            (then
-               (array.set $block (local.get $res) (local.get $i)
-                  (array.get $block (local.get $orig) (local.get $i)))
-               (local.set $i (i32.add (local.get $i) (i32.const 1)))
-               (br $loop))))
+      (array.copy $block $block
+         (local.get $res) (i32.const 1) (local.get $orig) (i32.const 1)
+         (i32.sub (local.get $len) (i32.const 1)))
       (local.get $res))
 
    (global $closure_tag i32 (i32.const 247))
@@ -251,20 +245,14 @@
 
    (func (export "caml_update_dummy")
       (param $dummy (ref eq)) (param $newval (ref eq)) (result (ref eq))
-      (local $i i32) (local $len i32)
+      (local $i i32)
       (local $dst (ref $block)) (local $src (ref $block))
       ;; ZZZ check for closure or float array
       (local.set $src (ref.cast $block (local.get $newval)))
       (local.set $dst (ref.cast $block (local.get $dummy)))
-      (local.set $len (array.len (local.get $dst)))
-      (local.set $i (i32.const 0))
-      (loop $loop
-         (if (i32.lt_s (local.get $i) (local.get $len))
-            (then
-               (array.set $block (local.get $dst) (local.get $i)
-                  (array.get $block (local.get $src) (local.get $i)))
-               (local.set $i (i32.add (local.get $i) (i32.const 1)))
-               (br $loop))))
+      (array.copy $block $block
+         (local.get $dst) (i32.const 0) (local.get $src) (i32.const 0)
+         (array.len (local.get $dst)))
       (i31.new (i32.const 0)))
 
    (func $caml_string_equal (export "caml_string_equal")
@@ -327,56 +315,22 @@
       (param $v1 (ref eq)) (param $i1 (ref eq))
       (param $v2 (ref eq)) (param $i2 (ref eq))
       (param $n (ref eq)) (result (ref eq))
-      (local $s1 (ref $string)) (local $p1 i32)
-      (local $s2 (ref $string)) (local $p2 i32)
-      (local $i i32) (local $l i32)
-      (local.set $l (i31.get_s (ref.cast i31 (local.get $n))))
-      (block $return
-         (br_if $return (i32.eqz (local.get $l)))
-         (local.set $s1 (ref.cast $string (local.get $v1)))
-         (local.set $p1 (i31.get_s (ref.cast i31 (local.get $i1))))
-         (local.set $s2 (ref.cast $string (local.get $v2)))
-         (local.set $p2 (i31.get_s (ref.cast i31 (local.get $i2))))
-         (if (ref.eq (local.get $v1) (local.get $v2))
-            (br_if $return (i32.eq (local.get $p1) (local.get $p2)))
-            (if (i32.gt_u (i32.add (local.get $p2) (local.get $l))
-                          (local.get $p1))
-               (then
-                  (local.set $i (i32.sub (local.get $l) (i32.const 1)))
-                  (loop $loop1
-                     (br_if $return (i32.lt_s (local.get $i) (i32.const 0l)))
-                     (array.set $string (local.get $s2)
-                        (i32.add (local.get $p2) (local.get $i))
-                        (array.get_u $string (local.get $s1)
-                           (i32.add (local.get $p1) (local.get $i))))
-                     (local.set $i (i32.sub (local.get $i) (i32.const 1)))
-                     (br $loop1)))))
-         (local.set $i (i32.const 0))
-         (loop $loop2
-            (br_if $return (i32.eq (local.get $i) (local.get $l)))
-            (array.set $string (local.get $s2)
-               (i32.add (local.get $p2) (local.get $i))
-               (array.get_u $string (local.get $s1)
-                  (i32.add (local.get $p1) (local.get $i))))
-            (local.set $i (i32.add (local.get $i) (i32.const 1)))
-            (br $loop2)))
+      (array.copy $string $string
+         (ref.cast $string (local.get $v2))
+         (i31.get_s (ref.cast i31 (local.get $i2)))
+         (ref.cast $string (local.get $v1))
+         (i31.get_s (ref.cast i31 (local.get $i1)))
+         (i31.get_s (ref.cast i31 (local.get $n))))
       (i31.new (i32.const 0)))
 
    (func (export "caml_fill_bytes")
       (param $v (ref eq)) (param $offset (ref eq))
       (param $len (ref eq)) (param $init (ref eq))
       (result (ref eq))
-      (local $s (ref $string)) (local $i i32) (local $limit i32) (local $c i32)
-      (local.set $s (ref.cast $string (local.get $v)))
-      (local.set $i (i31.get_u (ref.cast i31 (local.get $offset))))
-      (local.set $limit (i32.add (local.get $i) (i31.get_u (ref.cast i31 (local.get $len)))))
-      (local.set $c (i31.get_u (ref.cast i31 (local.get $init))))
-      (loop $loop
-         (if (i32.lt_u (local.get $i) (local.get $limit))
-            (then
-               (array.set $string (local.get $s) (local.get $i) (local.get $c))
-               (local.set $i (i32.add (local.get $i) (i32.const 1)))
-               (br $loop))))
+      (array.fill $string (ref.cast $string (local.get $v))
+         (i31.get_u (ref.cast i31 (local.get $offset)))
+         (i31.get_u (ref.cast i31 (local.get $init)))
+         (i31.get_u (ref.cast i31 (local.get $len))))
       (i31.new (i32.const 0)))
 
    (type $int_array (array (mut i32)))
@@ -483,7 +437,7 @@
    (func $compare_val
       (param $v1 (ref eq)) (param $v2 (ref eq)) (param $total i32)
       (result i32)
-      (local $stack (ref $compare_stack)) (local $i i32) (local $res i32)
+      (local $stack (ref $compare_stack)) (local $n i32) (local $res i32)
       (local.set $stack (global.get $default_compare_stack))
       (struct.set $compare_stack 0 (local.get $stack) (i32.const -1))
       (local.set $res
@@ -493,19 +447,17 @@
 ;;      (if (i32.gt_s (local.get $res) (i32.const 0)) (then (local.set $res (i32.const 1))))
 ;;      (if (i32.lt_s (local.get $res) (i32.const 0)) (then (local.set $res (i32.const -1))))
 ;;      (call $log (local.get $res))
-      (local.set $i (struct.get $compare_stack 0 (local.get $stack)))
       ;; clear stack (to avoid memory leaks)
-      (loop $loop
-         (if (i32.ge_s (local.get $i) (i32.const 0))
-            (then
-               (array.set $block_array
-                  (struct.get $compare_stack 1 (local.get $stack))
-                  (local.get $i) (global.get $dummy_block))
-               (array.set $block_array
-                  (struct.get $compare_stack 2 (local.get $stack))
-                  (local.get $i) (global.get $dummy_block))
-               (local.set $i (i32.sub (local.get $i) (i32.const 1)))
-               (br $loop))))
+      (local.set $n (struct.get $compare_stack 0 (local.get $stack)))
+      (if (i32.ge_s (local.get $n) (i32.const 0))
+         (then
+            (local.set $n (i32.add (local.get $n) (i32.const 1)))
+            (array.fill $block_array
+               (struct.get $compare_stack 1 (local.get $stack))
+               (i32.const 0) (global.get $dummy_block) (local.get $n))
+            (array.fill $block_array
+               (struct.get $compare_stack 1 (local.get $stack))
+               (i32.const 0) (global.get $dummy_block) (local.get $n))))
       (local.get $res))
 
    (func $do_compare_val
