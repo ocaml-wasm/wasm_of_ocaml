@@ -732,7 +732,39 @@ module Math = struct
 
   let sin f = unary "sin" f
 
+  let tan f = unary "tan" f
+
+  let acos f = unary "acos" f
+
   let asin f = unary "asin" f
+
+  let atan f = unary "atan" f
+
+  let cosh f = unary "cosh" f
+
+  let sinh f = unary "sinh" f
+
+  let tanh f = unary "tanh" f
+
+  let acosh f = unary "acosh" f
+
+  let asinh f = unary "asinh" f
+
+  let atanh f = unary "atanh" f
+
+  let cbrt f = unary "cbrt" f
+
+  let exp f = unary "exp" f
+
+  let expm1 f = unary "expm1" f
+
+  let log f = unary "log" f
+
+  let log1p f = unary "log1p" f
+
+  let log2 f = unary "log2" f
+
+  let log10 f = unary "log10" f
 
   let binary name x y =
     let* f = register_import ~import_module:"Math" ~name (Fun (float_func_type 2)) in
@@ -741,6 +773,8 @@ module Math = struct
     return (W.Call (f, [ x; y ]))
 
   let atan2 f g = binary "atan2" f g
+
+  let hypot f g = binary "hypot" f g
 
   let power f g = binary "pow" f g
 

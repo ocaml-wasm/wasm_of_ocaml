@@ -188,9 +188,43 @@ module type S = sig
 
     val sin : expression -> expression
 
+    val tan : expression -> expression
+
+    val acos : expression -> expression
+
     val asin : expression -> expression
 
+    val atan : expression -> expression
+
     val atan2 : expression -> expression -> expression
+
+    val cosh : expression -> expression
+
+    val sinh : expression -> expression
+
+    val tanh : expression -> expression
+
+    val acosh : expression -> expression
+
+    val asinh : expression -> expression
+
+    val atanh : expression -> expression
+
+    val cbrt : expression -> expression
+
+    val exp : expression -> expression
+
+    val log : expression -> expression
+
+    val expm1 : expression -> expression
+
+    val log1p : expression -> expression
+
+    val log2 : expression -> expression
+
+    val log10 : expression -> expression
+
+    val hypot : expression -> expression -> expression
 
     val power : expression -> expression -> expression
 

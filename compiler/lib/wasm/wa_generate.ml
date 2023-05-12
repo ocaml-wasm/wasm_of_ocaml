@@ -203,6 +203,10 @@ module Generate (Target : Wa_target_sig.S) = struct
         | Extern "caml_mul_float", [ f; g ] -> float_bin_op stack_ctx x Mul f g
         | Extern "caml_div_float", [ f; g ] -> float_bin_op stack_ctx x Div f g
         | Extern "caml_copysign_float", [ f; g ] -> float_bin_op stack_ctx x CopySign f g
+        | Extern "caml_signbit_float", [ f ] ->
+            let* f = Memory.unbox_float f in
+            let sign = W.BinOp (F64 CopySign, Const (F64 1.), f) in
+            Value.val_int (return (W.BinOp (F64 Lt, sign, Const (F64 0.))))
         | Extern "caml_neg_float", [ f ] -> float_un_op stack_ctx x Neg f
         | Extern "caml_abs_float", [ f ] -> float_un_op stack_ctx x Abs f
         | Extern "caml_ceil_float", [ f ] -> float_un_op stack_ctx x Ceil f
@@ -224,10 +228,33 @@ module Generate (Target : Wa_target_sig.S) = struct
             Memory.box_float stack_ctx x (return (W.UnOp (F64 (Convert (`I32, S)), n)))
         | Extern "caml_cos_float", [ f ] -> float_un_op' stack_ctx x Math.cos f
         | Extern "caml_sin_float", [ f ] -> float_un_op' stack_ctx x Math.sin f
+        | Extern "caml_tan_float", [ f ] -> float_un_op' stack_ctx x Math.tan f
+        | Extern "caml_acos_float", [ f ] -> float_un_op' stack_ctx x Math.acos f
         | Extern "caml_asin_float", [ f ] -> float_un_op' stack_ctx x Math.asin f
+        | Extern "caml_atan_float", [ f ] -> float_un_op' stack_ctx x Math.atan f
         | Extern "caml_atan2_float", [ f; g ] -> float_bin_op' stack_ctx x Math.atan2 f g
+        | Extern "caml_cosh_float", [ f ] -> float_un_op' stack_ctx x Math.cosh f
+        | Extern "caml_sinh_float", [ f ] -> float_un_op' stack_ctx x Math.sinh f
+        | Extern "caml_tanh_float", [ f ] -> float_un_op' stack_ctx x Math.tanh f
+        | Extern "caml_acosh_float", [ f ] -> float_un_op' stack_ctx x Math.acosh f
+        | Extern "caml_asinh_float", [ f ] -> float_un_op' stack_ctx x Math.asinh f
+        | Extern "caml_atanh_float", [ f ] -> float_un_op' stack_ctx x Math.atanh f
+        | Extern "caml_cbrt_float", [ f ] -> float_un_op' stack_ctx x Math.cbrt f
+        | Extern "caml_exp_float", [ f ] -> float_un_op' stack_ctx x Math.exp f
+        | Extern "caml_log_float", [ f ] -> float_un_op' stack_ctx x Math.log f
+        | Extern "caml_expm1_float", [ f ] -> float_un_op' stack_ctx x Math.expm1 f
+        | Extern "caml_log1p_float", [ f ] -> float_un_op' stack_ctx x Math.log1p f
+        | Extern "caml_log2_float", [ f ] -> float_un_op' stack_ctx x Math.log2 f
+        | Extern "caml_log10_float", [ f ] -> float_un_op' stack_ctx x Math.log10 f
         | Extern "caml_power_float", [ f; g ] -> float_bin_op' stack_ctx x Math.power f g
+        | Extern "caml_hypot_float", [ f; g ] -> float_bin_op' stack_ctx x Math.hypot f g
         | Extern "caml_fmod_float", [ f; g ] -> float_bin_op' stack_ctx x Math.fmod f g
+        | Extern "caml_int64_bits_of_float", [ f ] ->
+            let* f = Memory.unbox_float f in
+            Memory.box_int64 stack_ctx x (return (W.UnOp (F64 (Reinterpret `I64), f)))
+        | Extern "caml_int64_float_of_bits", [ i ] ->
+            let* i = Memory.unbox_int64 i in
+            Memory.box_float stack_ctx x (return (W.UnOp (I64 ReinterpretF64, i)))
         | Extern "caml_int64_add", [ i; j ] -> int64_bin_op stack_ctx x Add i j
         | Extern "caml_int64_mul", [ i; j ] -> int64_bin_op stack_ctx x Mul i j
         | Extern "caml_int64_div", [ i; j ] ->
