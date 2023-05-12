@@ -118,8 +118,56 @@
                (array.new_data $string $Array_make
                                (i32.const 0) (i32.const 10)))))
       (local.set $b (array.new $block (local.get $v) (local.get $sz)))
+      ;; ZZZ float array
       (array.set $block (local.get $b) (i32.const 0) (i31.new (i32.const 0)))
       (local.get $b))
+
+   (func (export "caml_array_sub")
+      (param $a (ref eq)) (param $i (ref eq)) (param $vlen (ref eq))
+      (result (ref eq))
+      (local $a1 (ref $block)) (local $a2 (ref $block)) (local $len i32)
+      (local.set $len (i31.get_u (ref.cast i31 (local.get $vlen))))
+      (local.set $a1 (ref.cast $block (local.get $a)))
+      (local.set $a2 (array.new $block (i31.new (i32.const 0))
+                        (i32.add (local.get $len) (i32.const 1))))
+      (array.copy $block $block
+         (local.get $a2) (i32.const 1) (local.get $a1)
+         (i32.add (i31.get_u (ref.cast i31 (local.get $i))) (i32.const 1))
+         (local.get $len))
+      (local.get $a2))
+
+   (func (export "caml_array_append")
+      (param $va1 (ref eq)) (param $va2 (ref eq)) (result (ref eq))
+      (local $a1 (ref $block)) (local $a2 (ref $block)) (local $a (ref $block))
+      (local $l1 i32) (local $l2 i32)
+      (local.set $a1 (ref.cast $block (local.get $va1)))
+      (local.set $l1 (array.len (local.get $a1)))
+      (local.set $a2 (ref.cast $block (local.get $va2)))
+      (local.set $l2 (array.len (local.get $a2)))
+      (local.set $a
+         (array.new $block (i31.new (i32.const 0))
+            (i32.sub (i32.add (local.get $l1) (local.get $l2)) (i32.const 1))))
+      ;; ZZZ float array
+      (array.copy $block $block
+         (local.get $a) (i32.const 1) (local.get $a1) (i32.const 1)
+         (i32.sub (local.get $l1) (i32.const 1)))
+      (array.copy $block $block
+         (local.get $a) (i32.const 1) (local.get $a2) (local.get $l1)
+         (i32.sub (local.get $l2) (i32.const 1)))
+      (local.get $a))
+
+   (func (export "caml_array_blit")
+      (param $a1 (ref eq)) (param $i1 (ref eq))
+      (param $a2 (ref eq)) (param $i2 (ref eq))
+      (param $len (ref eq))
+      (result (ref eq))
+      (array.copy $string $string
+         (ref.cast $string (local.get $a2))
+         (i31.get_s (ref.cast i31 (local.get $i2)))
+         (ref.cast $string (local.get $a1))
+         (i31.get_s (ref.cast i31 (local.get $i1)))
+         (i31.get_s (ref.cast i31 (local.get $len))))
+      (i31.new (i32.const 0)))
 
    (func (export "caml_fs_init") (result (ref eq))
       (i31.new (i32.const 0)))
@@ -255,6 +303,7 @@
          (array.len (local.get $dst)))
       (i31.new (i32.const 0)))
 
+   (export "caml_bytes_equal" (func $caml_string_equal))
    (func $caml_string_equal (export "caml_string_equal")
       (param $p1 (ref eq)) (param $p2 (ref eq)) (result (ref eq))
       (local $s1 (ref $string)) (local $s2 (ref $string))
@@ -277,7 +326,8 @@
                (br $loop))))
       (i31.new (i32.const 1)))
 
-   (func (export "caml_string_notequal")
+   (export "caml_bytes_notequal" (func $caml_string_notequal))
+   (func $caml_string_notequal (export "caml_string_notequal")
       (param $p1 (ref eq)) (param $p2 (ref eq)) (result (ref eq))
       (return
          (i31.new (i32.eqz (i31.get_u (ref.cast i31
@@ -865,6 +915,10 @@
    (import "bindings" "eval" (func $eval (param anyref) (result anyref)))
    (import "bindings" "get" (func $get (param externref) (param anyref) (result anyref)))
    (import "bindings" "set" (func $set (param anyref) (param anyref) (param anyref)))
+   (import "bindings" "delete" (func $delete (param anyref) (param anyref)))
+   (import "bindings" "instanceof"
+      (func $instanceof (param anyref) (param anyref) (result i32)))
+   (import "bindings" "typeof" (func $typeof (param anyref) (result anyref)))
    (import "bindings" "strict_equals" (func $strict_equals (param anyref) (param anyref) (result i32)))
    (import "bindings" "fun_call" (func $fun_call (param anyref) (param anyref) (result anyref)))
    (import "bindings" "meth_call" (func $meth_call (param anyref) (param anyref) (param anyref) (result anyref)))
@@ -890,6 +944,8 @@
 
    ;; ZZZ We should generate JavaScript code instead of using 'eval'
    (export "caml_pure_js_expr" (func $caml_js_expr))
+   (export "caml_js_var" (func $caml_js_expr))
+   (export "caml_js_eval_string" (func $caml_js_expr))
    (func $caml_js_expr (export "caml_js_expr")
       (param (ref eq)) (result (ref eq))
       (local $s (ref $string))
@@ -945,11 +1001,35 @@
          (call $unwrap (local.get 2)))
       (i31.new (i32.const 0)))
 
+   (func (export "caml_js_delete")
+      (param (ref eq)) (param (ref eq)) (result (ref eq))
+      (if (ref.test $string (local.get 1))
+         (then
+            ;; ZZZ jsbytes
+            (local.set 1 (call $caml_jsstring_of_string (local.get 1)))))
+      (call $delete (call $unwrap (local.get 0)) (call $unwrap (local.get 1)))
+      (i31.new (i32.const 0)))
+
+   (func (export "caml_js_instanceof")
+      (param (ref eq)) (param (ref eq)) (result (ref eq))
+      (i31.new (call $instanceof
+                  (call $unwrap (local.get 0)) (call $unwrap (local.get 1)))))
+
+   (func (export "caml_js_typeof")
+      (param (ref eq)) (result (ref eq))
+      (struct.new $js (call $typeof (call $unwrap (local.get 0)))))
+
    (func (export "caml_js_new")
       (param $c (ref eq)) (param $args (ref eq)) (result (ref eq))
       (call $wrap
          (call $new (call $unwrap (local.get $c))
             (call $unwrap (call $caml_js_from_array (local.get $args))))))
+
+   (func (export "caml_ojs_new_arr")
+      (param $c (ref eq)) (param $args (ref eq)) (result (ref eq))
+      (call $wrap
+         (call $new (call $unwrap (local.get $c))
+            (call $unwrap (local.get $args)))))
 
    (func (export "caml_js_object")
       (param (ref eq)) (result (ref eq))
@@ -1028,6 +1108,7 @@
                (br $loop))))
       (call $unwrap (local.get $acc)))
 
+   (export "caml_js_from_string" (func $caml_jsstring_of_string))
    (func $caml_jsstring_of_string (export "caml_jsstring_of_string")
       (param (ref eq)) (result (ref eq))
       (local $s (ref $string))
@@ -1036,6 +1117,7 @@
          (string.new_wtf8_array replace (local.get $s) (i32.const 0)
            (array.len (local.get $s)))))
 
+   (export "caml_js_to_string" (func $caml_string_of_jsstring))
    (func $caml_string_of_jsstring (export "caml_string_of_jsstring")
       (param (ref eq)) (result (ref eq))
       (local $s stringref)

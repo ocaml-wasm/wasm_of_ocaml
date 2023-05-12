@@ -170,11 +170,7 @@ let is_closure f st = Var.Map.mem f st.context.closure_envs, st
 
 let var x st =
   try Var.Map.find x st.vars, st
-  with Not_found -> (
-    try Expr (return (Hashtbl.find st.context.constants x)), st
-    with Not_found ->
-      Format.eprintf "ZZZ %a@." Var.print x;
-      Local (0, None), st)
+  with Not_found -> Expr (return (Hashtbl.find st.context.constants x)), st
 
 let add_var ?typ x ({ var_count; vars; _ } as st) =
   match Var.Map.find_opt x vars with
@@ -295,7 +291,7 @@ module Arith = struct
   let of_int31 n =
     let* n = n in
     match n with
-    | W.I31New (Const (I32 _) as c) -> return c (*ZZZ Overflow *)
+    | W.I31New (Const (I32 n)) -> return (W.Const (I32 (Int32.logand n 0x7fffffffl)))
     | _ -> return (W.I31Get (S, n))
 end
 
