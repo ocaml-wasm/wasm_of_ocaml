@@ -1194,8 +1194,10 @@ $len)))))
 
    ;; ZZZ
    (func $dummy_format_fun (param (ref eq)) (param (ref eq)) (result (ref eq))
+      (call $log_js (string.const "dummy_format_fun"))
       (array.new_fixed $string (i32.const 64)))
    (func (export "%caml_format_int_special") (param (ref eq)) (result (ref eq))
+      (call $log_js (string.const "%caml_format_int_special"))
       (call $caml_string_of_jsstring (call $wrap (call $format_int (local.get 0)))))
    (func (export "caml_format_int") (param (ref eq)) (param (ref eq)) (result (ref eq))
       (call $caml_string_of_jsstring (call $wrap (call $format_int (local.get 1)))))
