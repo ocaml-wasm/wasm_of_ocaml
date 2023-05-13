@@ -255,8 +255,13 @@ module Generate (Target : Wa_target_sig.S) = struct
         | Extern "caml_int64_float_of_bits", [ i ] ->
             let* i = Memory.unbox_int64 i in
             Memory.box_float stack_ctx x (return (W.UnOp (I64 ReinterpretF64, i)))
+        | Extern "caml_int64_neg", [ i ] ->
+            let* i = Memory.unbox_int64 i in
+            Memory.box_int64 stack_ctx x (return (W.BinOp (I64 Sub, Const (I64 0L), i)))
         | Extern "caml_int64_add", [ i; j ] -> int64_bin_op stack_ctx x Add i j
+        | Extern "caml_int64_sub", [ i; j ] -> int64_bin_op stack_ctx x Sub i j
         | Extern "caml_int64_mul", [ i; j ] -> int64_bin_op stack_ctx x Mul i j
+        | Extern "caml_int64_and", [ i; j ] -> int64_bin_op stack_ctx x And i j
         | Extern "caml_int64_div", [ i; j ] ->
             let* f =
               register_import
@@ -312,6 +317,9 @@ module Generate (Target : Wa_target_sig.S) = struct
               (let* i = Memory.unbox_int64 i in
                let* j = load j' in
                Memory.box_int64 stack_ctx x (return (W.BinOp (I64 (Rem S), i, j))))
+        | Extern "caml_int64_to_int", [ i ] ->
+            let* i = Memory.unbox_int64 i in
+            Value.val_int (return (W.I32WrapI64 i))
         | Extern "caml_int64_of_int", [ i ] ->
             let* i = Value.int_val i in
             Memory.box_int64
