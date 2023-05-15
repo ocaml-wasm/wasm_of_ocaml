@@ -32,6 +32,8 @@ let rec scan_expression ctx e =
   | UnOp (_, e')
   | I32WrapI64 e'
   | I64ExtendI32 (_, e')
+  | F32DemoteF64 e'
+  | F64PromoteF32 e'
   | Load (_, e')
   | Load8 (_, _, e')
   | MemoryGrow (_, e')
@@ -156,6 +158,8 @@ let rec rewrite_expression ctx e =
   | UnOp (op, e') -> UnOp (op, rewrite_expression ctx e')
   | I32WrapI64 e' -> I32WrapI64 (rewrite_expression ctx e')
   | I64ExtendI32 (s, e') -> I64ExtendI32 (s, rewrite_expression ctx e')
+  | F32DemoteF64 e' -> F32DemoteF64 (rewrite_expression ctx e')
+  | F64PromoteF32 e' -> F64PromoteF32 (rewrite_expression ctx e')
   | BinOp (op, e', e'') ->
       let e' = rewrite_expression ctx e' in
       let e'' = rewrite_expression ctx e'' in

@@ -35,6 +35,7 @@ let value_type (t : value_type) =
   match t with
   | I32 -> Atom "i32"
   | I64 -> Atom "i64"
+  | F32 -> Atom "f32"
   | F64 -> Atom "f64"
   | Ref ty -> ref_type ty
 
@@ -87,6 +88,7 @@ let type_prefix op nm =
   (match op with
   | I32 _ -> "i32."
   | I64 _ -> "i64."
+  | F32 _ -> "f32."
   | F64 _ -> "f64.")
   ^ nm
 
@@ -97,16 +99,16 @@ let signage op (s : Wa_ast.signage) =
   | S -> "_s"
   | U -> "_u"
 
-let int_un_op op =
+let int_un_op sz op =
   match op with
   | Clz -> "clz"
   | Ctz -> "ctz"
   | Popcnt -> "popcnt"
   | Eqz -> "eqz"
   | TruncSatF64 s -> signage "trunc_sat_f64" s
-  | ReinterpretF64 -> "reinterpret_f64"
+  | ReinterpretF -> "reinterpret_f" ^ sz
 
-let int_bin_op (op : int_bin_op) =
+let int_bin_op _ (op : int_bin_op) =
   match op with
   | Add -> "add"
   | Sub -> "sub"
@@ -127,7 +129,7 @@ let int_bin_op (op : int_bin_op) =
   | Le s -> signage "le" s
   | Ge s -> signage "ge" s
 
-let float_un_op op =
+let float_un_op sz op =
   match op with
   | Neg -> "neg"
   | Abs -> "abs"
@@ -138,10 +140,9 @@ let float_un_op op =
   | Sqrt -> "sqrt"
   | Convert (`I32, s) -> signage "convert_i32" s
   | Convert (`I64, s) -> signage "convert_i64" s
-  | Reinterpret `I32 -> "reinterpret_i32"
-  | Reinterpret `I64 -> "reinterpret_i64"
+  | ReinterpretI -> "reinterpret_i" ^ sz
 
-let float_bin_op op =
+let float_bin_op _ op =
   match op with
   | Add -> "add"
   | Sub -> "sub"
@@ -157,11 +158,12 @@ let float_bin_op op =
   | Le -> "le"
   | Ge -> "ge"
 
-let select i32 i64 f64 op =
+let select i32 i64 f32 f64 op =
   match op with
-  | I32 x -> i32 x
-  | I64 x -> i64 x
-  | F64 x -> f64 x
+  | I32 x -> i32 "32" x
+  | I64 x -> i64 "64" x
+  | F32 x -> f32 "32" x
+  | F64 x -> f64 "64" x
 
 type ctx =
   { addresses : int Code.Var.Map.t
@@ -187,7 +189,9 @@ let lookup_symbol ctx (x : symbol) =
 
 let remove_nops l = List.filter ~f:(fun i -> not (Poly.equal i Nop)) l
 
-let float64 f = Printf.sprintf "%h" f (*ZZZ*)
+let float64 _ f = Printf.sprintf "%h" f (*ZZZ*)
+
+let float32 _ f = Printf.sprintf "%h" f (*ZZZ*)
 
 let expression_or_instructions ctx in_function =
   let rec expression e =
@@ -208,7 +212,13 @@ let expression_or_instructions ctx in_function =
     | Const op ->
         [ List
             [ Atom (type_prefix op "const")
-            ; Atom (select Int32.to_string Int64.to_string float64 op)
+            ; Atom
+                (select
+                   (fun _ i -> Int32.to_string i)
+                   (fun _ i -> Int64.to_string i)
+                   float64
+                   float32
+                   op)
             ]
         ]
     | ConstSym (symb, ofs) ->
@@ -216,30 +226,36 @@ let expression_or_instructions ctx in_function =
         [ List [ Atom "i32.const"; Atom (string_of_int (i + ofs)) ] ]
     | UnOp (op, e') ->
         [ List
-            (Atom (type_prefix op (select int_un_op int_un_op float_un_op op))
+            (Atom (type_prefix op (select int_un_op int_un_op float_un_op float_un_op op))
             :: expression e')
         ]
     | BinOp (op, e1, e2) ->
         [ List
-            (Atom (type_prefix op (select int_bin_op int_bin_op float_bin_op op))
+            (Atom
+               (type_prefix
+                  op
+                  (select int_bin_op int_bin_op float_bin_op float_bin_op op))
             :: (expression e1 @ expression e2))
         ]
     | I32WrapI64 e -> [ List (Atom "i32.wrap_i64" :: expression e) ]
     | I64ExtendI32 (s, e) -> [ List (Atom (signage "i64.extend_i32" s) :: expression e) ]
+    | F32DemoteF64 e -> [ List (Atom "f32.demote_f64" :: expression e) ]
+    | F64PromoteF32 e -> [ List (Atom "f64.promote_f64" :: expression e) ]
     | Load (offset, e') ->
-        let offs i =
+        let offs _ i =
           if Int32.equal i 0l then [] else [ Atom (Printf.sprintf "offset=%ld" i) ]
         in
         [ List
-            ((Atom (type_prefix offset "load") :: select offs offs offs offset)
+            ((Atom (type_prefix offset "load") :: select offs offs offs offs offset)
             @ expression e')
         ]
     | Load8 (s, offset, e') ->
-        let offs i =
+        let offs _ i =
           if Int32.equal i 0l then [] else [ Atom (Printf.sprintf "offset=%ld" i) ]
         in
         [ List
-            ((Atom (type_prefix offset (signage "load" s)) :: select offs offs offs offset)
+            (Atom (type_prefix offset (signage "load" s))
+             :: select offs offs offs offs offset
             @ expression e')
         ]
     | LocalGet i -> [ List [ Atom "local.get"; Atom (string_of_int i) ] ]
@@ -324,20 +340,20 @@ let expression_or_instructions ctx in_function =
     match i with
     | Drop e -> [ List (Atom "drop" :: expression e) ]
     | Store (offset, e1, e2) ->
-        let offs i =
+        let offs _ i =
           if Int32.equal i 0l then [] else [ Atom (Printf.sprintf "offset=%ld" i) ]
         in
         [ List
             (Atom (type_prefix offset "store")
-            :: (select offs offs offs offset @ expression e1 @ expression e2))
+            :: (select offs offs offs offs offset @ expression e1 @ expression e2))
         ]
     | Store8 (offset, e1, e2) ->
-        let offs i =
+        let offs _ i =
           if Int32.equal i 0l then [] else [ Atom (Printf.sprintf "offset=%ld" i) ]
         in
         [ List
             (Atom (type_prefix offset "store8")
-            :: (select offs offs offs offset @ expression e1 @ expression e2))
+            :: (select offs offs offs offs offset @ expression e1 @ expression e2))
         ]
     | LocalSet (i, Seq (l, e)) -> instructions (l @ [ LocalSet (i, e) ])
     | LocalSet (i, e) ->

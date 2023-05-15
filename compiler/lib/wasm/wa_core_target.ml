@@ -164,6 +164,39 @@ module Memory = struct
         (*ZZZ aligned?*)
         return (W.Load (F64 0l, e))
 
+  let box_int32 stack_ctx x e =
+    let p = Code.Var.fresh_n "p" in
+    let size = 16 in
+    seq
+      (let* () = Stack.perform_spilling stack_ctx (`Instr x) in
+       let* young_ptr = young_ptr in
+       let* v =
+         tee p Arith.(return (W.GlobalGet young_ptr) - const (Int32.of_int size))
+       in
+       let* () = instr (W.GlobalSet (young_ptr, v)) in
+       let* () = mem_init (load p) (Arith.const (header ~tag:Obj.double_tag ~len:2 ())) in
+       Stack.kill_variables stack_ctx;
+       let* () = Stack.perform_reloads stack_ctx (`Vars Code.Var.Set.empty) in
+       let* p = load p in
+       (* ZZZ int32_ops *)
+       let* () = instr (Store (I32 4l, p, Const (I32 0l))) in
+       let* e = e in
+       instr (Store (I32 8l, p, e)))
+      Arith.(load p + const 4l)
+
+  let unbox_int32 e =
+    let* e = e in
+    match e with
+    | W.ConstSym (V x, 4) ->
+        let get_data l =
+          match l with
+          | [ W.DataI32 _; (W.DataI32 _ | W.DataSym _); W.DataI32 f ] -> W.Const (I32 f)
+          | _ -> assert false
+        in
+        let* _, l = get_data_segment x in
+        return (get_data l)
+    | _ -> return (W.Load (I32 4l, e))
+
   let box_int64 stack_ctx x e =
     let p = Code.Var.fresh_n "p" in
     let size = 16 in
@@ -197,6 +230,28 @@ module Memory = struct
         let* _, l = get_data_segment x in
         return (get_data l)
     | _ -> (*ZZZ aligned?*) return (W.Load (F64 4l, e))
+
+  let box_nativeint stack_ctx x e =
+    let p = Code.Var.fresh_n "p" in
+    let size = 16 in
+    seq
+      (let* () = Stack.perform_spilling stack_ctx (`Instr x) in
+       let* young_ptr = young_ptr in
+       let* v =
+         tee p Arith.(return (W.GlobalGet young_ptr) - const (Int32.of_int size))
+       in
+       let* () = instr (W.GlobalSet (young_ptr, v)) in
+       let* () = mem_init (load p) (Arith.const (header ~tag:Obj.double_tag ~len:2 ())) in
+       Stack.kill_variables stack_ctx;
+       let* () = Stack.perform_reloads stack_ctx (`Vars Code.Var.Set.empty) in
+       let* p = load p in
+       (* ZZZ nativeint_ops *)
+       let* () = instr (Store (I32 4l, p, Const (I32 0l))) in
+       let* e = e in
+       instr (Store (I32 8l, p, e)))
+      Arith.(load p + const 4l)
+
+  let unbox_nativeint = unbox_int32
 end
 
 module Value = struct

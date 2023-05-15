@@ -236,6 +236,12 @@ let rec rewrite_expression e =
   | I64ExtendI32 (s, e') ->
       let* e' = rewrite_expression e' in
       return (Wa_ast.I64ExtendI32 (s, e'))
+  | F32DemoteF64 e' ->
+      let* e' = rewrite_expression e' in
+      return (Wa_ast.F32DemoteF64 e')
+  | F64PromoteF32 e' ->
+      let* e' = rewrite_expression e' in
+      return (Wa_ast.F64PromoteF32 e')
   | Load (op, e') ->
       let* e' = rewrite_expression e' in
       effect (Memory, false) (Wa_ast.Load (op, e'))

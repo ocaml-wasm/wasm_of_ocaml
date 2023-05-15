@@ -49,6 +49,7 @@ module Type = struct
 
   let custom_operations_type =
     register_type "custom_operations" (fun () ->
+        let* string = string_type in
         let* compare = compare_type in
         let* hash = hash_type in
         return
@@ -57,6 +58,9 @@ module Type = struct
           ; typ =
               W.Struct
                 [ { mut = false
+                  ; typ = Value (Ref { nullable = false; typ = Type string })
+                  }
+                ; { mut = false
                   ; typ = Value (Ref { nullable = false; typ = Type compare })
                   }
                 ; { mut = false; typ = Value (Ref { nullable = true; typ = Type hash }) }
@@ -74,6 +78,22 @@ module Type = struct
                 [ { mut = false
                   ; typ = Value (Ref { nullable = false; typ = Type custom_operations })
                   }
+                ]
+          })
+
+  let int32_type =
+    register_type "int32" (fun () ->
+        let* custom_operations = custom_operations_type in
+        let* custom = custom_type in
+        return
+          { supertype = Some custom
+          ; final = false
+          ; typ =
+              W.Struct
+                [ { mut = false
+                  ; typ = Value (Ref { nullable = false; typ = Type custom_operations })
+                  }
+                ; { mut = false; typ = Value I32 }
                 ]
           })
 
@@ -407,6 +427,27 @@ module Memory = struct
     let* ty = Type.float_type in
     wasm_struct_get ty (wasm_cast ty e) 0
 
+  let make_int32 ~kind e =
+    let* custom_operations = Type.custom_operations_type in
+    let* int32_ops =
+      register_import
+        ~name:
+          (match kind with
+          | `Int32 -> "int32_ops"
+          | `Nativeint -> "nativeint_ops")
+        (Global
+           { mut = false; typ = Ref { nullable = false; typ = Type custom_operations } })
+    in
+    let* ty = Type.int32_type in
+    let* e = e in
+    return (W.StructNew (ty, [ GlobalGet int32_ops; e ]))
+
+  let box_int32 _ _ e = make_int32 ~kind:`Int32 e
+
+  let unbox_int32 e =
+    let* ty = Type.int32_type in
+    wasm_struct_get ty (wasm_cast ty e) 1
+
   let make_int64 e =
     let* custom_operations = Type.custom_operations_type in
     let* int64_ops =
@@ -423,6 +464,12 @@ module Memory = struct
 
   let unbox_int64 e =
     let* ty = Type.int64_type in
+    wasm_struct_get ty (wasm_cast ty e) 1
+
+  let box_nativeint _ _ e = make_int32 ~kind:`Nativeint e
+
+  let unbox_nativeint e =
+    let* ty = Type.int32_type in
     wasm_struct_get ty (wasm_cast ty e) 1
 end
 

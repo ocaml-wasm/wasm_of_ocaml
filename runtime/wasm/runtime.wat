@@ -23,6 +23,7 @@
 
    (type $custom_operations
       (struct
+         (field (ref $string)) ;; identifier
          (field (ref $value->value->int)) ;; compare
          (field (ref null $value->int)) ;; hash
          ;; ZZZ
@@ -91,6 +92,7 @@
 
    (global $int32_ops (export "int32_ops") (ref $custom_operations)
       (struct.new $custom_operations
+         (array.new_fixed $string (i32.const 95) (i32.const 105)) ;; "_i"
          (ref.func $int32_cmp)
          (ref.func $int32_hash)))
 
@@ -110,12 +112,6 @@
    (func $caml_copy_int32 (param $i i32) (result (ref eq))
       (struct.new $int32 (global.get $int32_ops) (local.get $i)))
 
-   (func (export "caml_int32_add")
-      (param (ref eq)) (param (ref eq)) (result (ref eq))
-      ;; ZZZ
-      (call $log_js (string.const "caml_int32_add"))
-      (unreachable))
-
    (func (export "caml_int32_bswap") (param (ref eq)) (result (ref eq))
       (local $i i32)
       (local.set $i (struct.get $int32 1 (ref.cast $int32 (local.get 0))))
@@ -125,21 +121,6 @@
                       (i32.const 8))
             (i32.rotl (i32.and (local.get $i) (i32.const 0xFF00FF00))
                       (i32.const 8)))))
-
-   (func (export "caml_int32_neg") (param (ref eq)) (result (ref eq))
-      ;; ZZZ
-      (call $log_js (string.const "caml_int32_neg"))
-      (unreachable))
-
-   (func (export "caml_int32_of_int") (param (ref eq)) (result (ref eq))
-      ;; ZZZ
-      (call $log_js (string.const "caml_int32_of_int"))
-      (i31.new (i32.const 0)))
-
-   (func (export "caml_int32_to_int") (param (ref eq)) (result (ref eq))
-      ;; ZZZ
-      (call $log_js (string.const "caml_int32_to_int"))
-      (unreachable))
 
    (func (export "caml_int32_of_string") (param (ref eq)) (result (ref eq))
       ;; ZZZ
@@ -156,6 +137,7 @@
 
    (global $int64_ops (export "int64_ops") (ref $custom_operations)
       (struct.new $custom_operations
+         (array.new_fixed $string (i32.const 95) (i32.const 106)) ;; "_j"
          (ref.func $int64_cmp)
          (ref.func $int64_hash)))
 
@@ -203,10 +185,6 @@
       (i31.new (i32.sub (i64.gt_s (local.get $i1) (local.get $i2))
                         (i64.lt_s (local.get $i1) (local.get $i2)))))
 
-   (func (export "caml_int64_of_int32") (param (ref eq)) (result (ref eq))
-      (return_call $caml_copy_int32
-         (i32.wrap_i64 (struct.get $int64 1 (ref.cast $int64 (local.get 0))))))
-
    (func (export "caml_int64_of_string") (param $v (ref eq)) (result (ref eq))
       (local $s (ref $string)) (local $i i32) (local $len i32)
       (local $res i64)
@@ -228,35 +206,11 @@
                (br $loop))))
       (return_call $caml_copy_int64 (local.get $res)))
 
-   (func (export "caml_nativeint_add")
-      (param (ref eq)) (param (ref eq)) (result (ref eq))
-      ;; ZZZ
-      (call $log_js (string.const "caml_nativeint_add"))
-      (unreachable))
-
-   (func (export "caml_nativeint_sub")
-      (param (ref eq)) (param (ref eq)) (result (ref eq))
-      ;; ZZZ
-      (call $log_js (string.const "caml_nativeint_sub"))
-      (i31.new (i32.const 0)))
-
-   (func (export "caml_nativeint_shift_left")
-      (param (ref eq)) (param (ref eq)) (result (ref eq))
-      ;; ZZZ
-      (call $log_js (string.const "caml_nativeint_shift_left"))
-      (i31.new (i32.const 0)))
-
-   (func (export "caml_nativeint_neg")
-      (param (ref eq)) (result (ref eq))
-      ;; ZZZ
-      (call $log_js (string.const "caml_nativeint_neg"))
-      (unreachable))
-
-   (func (export "caml_nativeint_of_int")
-      (param (ref eq)) (result (ref eq))
-      ;; ZZZ
-      (call $log_js (string.const "caml_nativeint_of_int"))
-      (i31.new (i32.const 0)))
+   (global $nativeint_ops (export "nativeint_ops") (ref $custom_operations)
+      (struct.new $custom_operations
+         (array.new_fixed $string (i32.const 95) (i32.const 110)) ;; "_n"
+         (ref.func $int32_cmp)
+         (ref.func $int32_hash)))
 
    (func (export "caml_nativeint_of_string")
       (param (ref eq)) (result (ref eq))
@@ -1210,7 +1164,7 @@ $len)))))
                   (local.set $res
                      (call_ref $value->value->int
                         (local.get $v1) (local.get $v2)
-                        (struct.get $custom_operations 0
+                        (struct.get $custom_operations 1
                            (struct.get $custom 0 (local.get $c1)))
                         ))
                   (br_if $next_item (i32.eqz (local.get $res)))
@@ -1457,7 +1411,7 @@ $len)))))
                         (call $caml_hash_mix_int (local.get $h)
                            (call_ref $value->int
                               (local.get $v)
-                              (struct.get $custom_operations 1
+                              (struct.get $custom_operations 2
                                  (br_on_null $loop
                                     (struct.get $custom 0
                                        (br_on_cast_fail $not_custom $custom
@@ -1539,6 +1493,10 @@ $len)))))
    (global $bigarray_ops (ref $custom_operations)
       ;; ZZZ
       (struct.new $custom_operations
+         (array.new_fixed $string ;; "_bigarr02"
+            (i32.const 95) (i32.const 98) (i32.const 105) (i32.const 103)
+            (i32.const 97) (i32.const 114) (i32.const 114) (i32.const 48)
+            (i32.const 50))
          (ref.func $int64_cmp) (ref.func $int64_hash)))
 
    (type $bigarray

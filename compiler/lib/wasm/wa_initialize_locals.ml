@@ -19,6 +19,8 @@ let rec scan_expression ctx e =
   | UnOp (_, e')
   | I32WrapI64 e'
   | I64ExtendI32 (_, e')
+  | F32DemoteF64 e'
+  | F64PromoteF32 e'
   | Load (_, e')
   | Load8 (_, _, e')
   | MemoryGrow (_, e')
@@ -99,7 +101,7 @@ let f ~param_count ~locals instrs =
   List.iteri
     ~f:(fun i typ ->
       match (typ : Wa_ast.value_type) with
-      | I32 | I64 | F64 | Ref { nullable = true; _ } ->
+      | I32 | I64 | F32 | F64 | Ref { nullable = true; _ } ->
           mark_initialized ctx (i + param_count)
       | Ref { nullable = false; _ } -> ())
     locals;

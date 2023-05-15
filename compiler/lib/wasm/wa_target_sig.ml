@@ -89,9 +89,17 @@ module type S = sig
 
     val unbox_float : expression -> expression
 
+    val box_int32 : Stack.ctx -> Code.Var.t -> expression -> expression
+
+    val unbox_int32 : expression -> expression
+
     val box_int64 : Stack.ctx -> Code.Var.t -> expression -> expression
 
     val unbox_int64 : expression -> expression
+
+    val box_nativeint : Stack.ctx -> Code.Var.t -> expression -> expression
+
+    val unbox_nativeint : expression -> expression
   end
 
   module Value : sig
