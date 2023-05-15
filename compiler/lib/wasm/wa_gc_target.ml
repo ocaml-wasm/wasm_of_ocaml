@@ -31,25 +31,35 @@ module Type = struct
           ; typ = W.Struct [ { mut = false; typ = Value F64 } ]
           })
 
-  let compare_ext_type =
-    register_type "compare_ext" (fun () ->
+  let compare_type =
+    register_type "compare" (fun () ->
         return
           { supertype = None
           ; final = true
           ; typ = W.Func { W.params = [ value; value ]; result = [ I32 ] }
           })
 
+  let hash_type =
+    register_type "hash" (fun () ->
+        return
+          { supertype = None
+          ; final = true
+          ; typ = W.Func { W.params = [ value ]; result = [ I32 ] }
+          })
+
   let custom_operations_type =
     register_type "custom_operations" (fun () ->
-        let* compare_ext = compare_ext_type in
+        let* compare = compare_type in
+        let* hash = hash_type in
         return
           { supertype = None
           ; final = true
           ; typ =
               W.Struct
                 [ { mut = false
-                  ; typ = Value (Ref { nullable = false; typ = Type compare_ext })
+                  ; typ = Value (Ref { nullable = false; typ = Type compare })
                   }
+                ; { mut = false; typ = Value (Ref { nullable = true; typ = Type hash }) }
                 ]
           })
 
