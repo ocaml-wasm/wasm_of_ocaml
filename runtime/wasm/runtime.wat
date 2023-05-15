@@ -89,6 +89,27 @@
             (i32.shr_u (i32.and (local.get $x) (i32.const 0x00FF))
                (i32.const 8)))))
 
+   (global $int32_ops (export "int32_ops") (ref $custom_operations)
+      (struct.new $custom_operations
+         (ref.func $int32_cmp)
+         (ref.func $int32_hash)))
+
+   (type $int32
+      (sub $custom (struct (field (ref $custom_operations)) (field i32))))
+
+   (func $int32_cmp (param $v1 (ref eq)) (param $v2 (ref eq)) (result i32)
+      (local $i1 i32) (local $i2 i32)
+      (local.set $i1 (struct.get $int32 1 (ref.cast $int32 (local.get $v1))))
+      (local.set $i2 (struct.get $int32 1 (ref.cast $int32 (local.get $v2))))
+      (i32.sub (i32.gt_s (local.get $i1) (local.get $i2))
+               (i32.lt_s (local.get $i1) (local.get $i2))))
+
+   (func $int32_hash (param $v (ref eq)) (result i32)
+      (struct.get $int32 1 (ref.cast $int32 (local.get $v))))
+
+   (func $caml_copy_int32 (param $i i32) (result (ref eq))
+      (struct.new $int32 (global.get $int32_ops) (local.get $i)))
+
    (func (export "caml_int32_add")
       (param (ref eq)) (param (ref eq)) (result (ref eq))
       ;; ZZZ
@@ -96,9 +117,14 @@
       (unreachable))
 
    (func (export "caml_int32_bswap") (param (ref eq)) (result (ref eq))
-      ;; ZZZ
-      (call $log_js (string.const "caml_int32_bswap"))
-      (unreachable))
+      (local $i i32)
+      (local.set $i (struct.get $int32 1 (ref.cast $int32 (local.get 0))))
+      (return_call $caml_copy_int32
+         (i32.or
+            (i32.rotr (i32.and (local.get $i) (i32.const 0x00FF00FF))
+                      (i32.const 8))
+            (i32.rotl (i32.and (local.get $i) (i32.const 0xFF00FF00))
+                      (i32.const 8)))))
 
    (func (export "caml_int32_neg") (param (ref eq)) (result (ref eq))
       ;; ZZZ
@@ -122,9 +148,11 @@
 
    (func (export "caml_int32_compare")
       (param (ref eq)) (param (ref eq)) (result (ref eq))
-      ;; ZZZ
-      (call $log_js (string.const "caml_int32_compare"))
-      (unreachable))
+      (local $i1 i32) (local $i2 i32)
+      (local.set $i1 (struct.get $int32 1 (ref.cast $int32 (local.get 0))))
+      (local.set $i2 (struct.get $int32 1 (ref.cast $int32 (local.get 1))))
+      (i31.new (i32.sub (i32.gt_s (local.get $i1) (local.get $i2))
+                        (i32.lt_s (local.get $i1) (local.get $i2)))))
 
    (global $int64_ops (export "int64_ops") (ref $custom_operations)
       (struct.new $custom_operations
@@ -176,9 +204,8 @@
                         (i64.lt_s (local.get $i1) (local.get $i2)))))
 
    (func (export "caml_int64_of_int32") (param (ref eq)) (result (ref eq))
-      ;; ZZZ
-      (call $log_js (string.const "caml_int64_of_int32"))
-      (unreachable))
+      (return_call $caml_copy_int32
+         (i32.wrap_i64 (struct.get $int64 1 (ref.cast $int64 (local.get 0))))))
 
    (func (export "caml_int64_of_string") (param $v (ref eq)) (result (ref eq))
       (local $s (ref $string)) (local $i i32) (local $len i32)
