@@ -1897,10 +1897,24 @@ $len)))))
 
    (func (export "caml_js_to_array")
       (param (ref eq)) (result (ref eq))
-      ;; ZZZ
-      (call $log (i32.const 16))
-(unreachable)
-      (i31.new (i32.const 0)))
+      (local $a externref)
+      (local $a' (ref $block))
+      (local $i i32) (local $l i32)
+      (local.set $a (extern.externalize (call $unwrap (local.get 0))))
+      (local.set $l (call $array_length (local.get $a)))
+      (local.set $a'
+         (array.new $block (i31.new (i32.const 0))
+            (i32.add (local.get $l) (i32.const 1))))
+      (local.set $i (i32.const 0))
+      (loop $loop
+         (if (i32.lt_u (local.get $i) (local.get $l))
+            (then
+               (array.set $block (local.get $a')
+                  (i32.add (local.get $i) (i32.const 1))
+                  (call $wrap (call $array_get (local.get $a) (local.get $i))))
+               (local.set $i (i32.add (local.get $i) (i32.const 1)))
+               (br $loop))))
+      (local.get $a'))
 
    (func (export "caml_js_wrap_callback_strict")
       (param (ref eq)) (param (ref eq)) (result (ref eq))
@@ -1954,14 +1968,51 @@ $len)))))
 
    (func (export "caml_list_to_js_array")
       (param (ref eq)) (result (ref eq))
-      ;; ZZZ
-      (call $log (i32.const 20))
-(unreachable)
-      (i31.new (i32.const 0)))
+      (local $i i32)
+      (local $a externref)
+      (local $l (ref eq))
+      (local $b (ref $block))
+      (local.set $i (i32.const 0))
+      (local.set $l (local.get 0))
+      (drop (block $done (result (ref eq))
+         (loop $compute_length
+            (local.set $l
+               (array.get $block
+                  (br_on_cast_fail $done $block (local.get $l)) (i32.const 2)))
+            (local.set $i (i32.add (local.get $i) (i32.const 1)))
+            (br $compute_length))))
+      (local.set $a (call $new_array (local.get $i)))
+      (local.set $i (i32.const 0))
+      (local.set $l (local.get 0))
+      (drop (block $exit (result (ref eq))
+         (loop $loop
+            (local.set $b (br_on_cast_fail $exit $block (local.get $l)))
+            (call $array_set (local.get $a) (local.get $i)
+               (call $unwrap (array.get $block (local.get $b) (i32.const 1))))
+            (local.set $l (array.get $block (local.get $b) (i32.const 2)))
+            (local.set $i (i32.add (local.get $i) (i32.const 1)))
+            (br $loop))))
+      (struct.new $js (extern.internalize (local.get $a))))
 
    (func (export "caml_list_of_js_array")
       (param (ref eq)) (result (ref eq))
-      ;; ZZZ
-      (call $log_js (string.const "caml_list_of_js_array"))
-(unreachable))
+      (local $l (ref eq))
+      (local $i i32)
+      (local $len i32)
+      (local $a externref)
+      (local.set $a (extern.externalize (call $unwrap (local.get 0))))
+      (local.set $len (call $array_length (local.get $a)))
+      (local.set $i (i32.const 0))
+      (local.set $l (i31.new (i32.const 0)))
+      (loop $loop
+         (if (i32.le_u (local.get $i) (local.get $len))
+            (then
+               (local.set $l
+                  (array.new_fixed $block (i31.new (i32.const 0))
+                     (call $wrap
+                        (call $array_get (local.get $a) (local.get $i)))
+                     (local.get $l)))
+               (local.set $i (i32.add (local.get $i) (i32.const 1)))
+               (br $loop))))
+      (local.get $l))
 )
