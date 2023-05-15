@@ -259,3 +259,9 @@ function has a given arity.
 ===========================
 
 Float unboxing: declare primitive type (or parse runtime?)
+
+============================
+
+Use WASI for system functions
+
+NativeString ==> stringref const
