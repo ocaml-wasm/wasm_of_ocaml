@@ -138,15 +138,28 @@
       (struct.new $int64 (global.get $int64_ops) (local.get $i)))
 
    (func (export "caml_int64_bswap") (param (ref eq)) (result (ref eq))
-      ;; ZZZ
-      (call $log_js (string.const "caml_int64_bswap"))
-      (unreachable))
+      (local $i i64)
+      (local.set $i (struct.get $int64 1 (ref.cast $int64 (local.get 0))))
+      (call $caml_copy_int64
+         (i64.or
+            (i64.or
+               (i64.rotr (i64.and (local.get $i) (i64.const 0x000000FF000000FF))
+                         (i64.const 8))
+               (i64.rotr (i64.and (local.get $i) (i64.const 0x0000FF000000FF00))
+                         (i64.const 24)))
+            (i64.or
+               (i64.rotl (i64.and (local.get $i) (i64.const 0x00FF000000FF0000))
+                         (i64.const 24))
+               (i64.rotl (i64.and (local.get $i) (i64.const 0xFF000000FF000000))
+                         (i64.const 8))))))
 
    (func (export "caml_int64_compare")
       (param (ref eq)) (param (ref eq)) (result (ref eq))
-      ;; ZZZ
-      (call $log_js (string.const "caml_int64_compare"))
-      (unreachable))
+      (local $i1 i64) (local $i2 i64)
+      (local.set $i1 (struct.get $int64 1 (ref.cast $int64 (local.get 0))))
+      (local.set $i2 (struct.get $int64 1 (ref.cast $int64 (local.get 1))))
+      (i31.new (i32.sub (i64.gt_s (local.get $i1) (local.get $i2))
+                        (i64.lt_s (local.get $i1) (local.get $i2)))))
 
    (func (export "caml_int64_of_int32") (param (ref eq)) (result (ref eq))
       ;; ZZZ
@@ -276,20 +289,22 @@
       (param $a2 (ref eq)) (param $i2 (ref eq))
       (param $len (ref eq))
       (result (ref eq))
-      (array.copy $string $string
-         (ref.cast $string (local.get $a2))
+      (array.copy $block $block
+         (ref.cast $block (local.get $a2))
          (i31.get_s (ref.cast i31 (local.get $i2)))
-         (ref.cast $string (local.get $a1))
+         (ref.cast $block (local.get $a1))
          (i31.get_s (ref.cast i31 (local.get $i1)))
          (i31.get_s (ref.cast i31 (local.get $len))))
       (i31.new (i32.const 0)))
 
    (func (export "caml_array_fill")
-      (param (ref eq)) (param (ref eq)) (param (ref eq)) (param (ref eq))
-      (result (ref eq))
-      ;; ZZZ
-      (call $log_js (string.const "caml_array_fill"))
-      (unreachable))
+      (param $a (ref eq)) (param $i (ref eq)) (param $len (ref eq))
+      (param $v (ref eq)) (result (ref eq))
+      (array.fill $block (ref.cast $block (local.get $a))
+         (i31.get_u (ref.cast i31 (local.get $i)))
+         (local.get $v)
+         (i31.get_u (ref.cast i31 (local.get $len))))
+      (i31.new (i32.const 0)))
 
    (func (export "caml_fs_init") (result (ref eq))
       (i31.new (i32.const 0)))
@@ -577,11 +592,17 @@
          (i32.sub (local.get $len) (i32.const 1)))
       (local.get $res))
 
-   (func (export "caml_obj_block") (param (ref eq)) (param (ref eq))
-      (result (ref eq))
-      ;; ZZZ
-      (call $log_js (string.const "caml_obj_block"))
-      (unreachable))
+   (func (export "caml_obj_block")
+      (param $tag (ref eq)) (param $size (ref eq)) (result (ref eq))
+      (local $res (ref $block))
+      ;; ZZZ float array / specific types
+      (local.set $res
+         (array.new $block
+            (i31.new (i32.const 0))
+            (i32.add (i31.get_s (ref.cast i31 (local.get $size)))
+                     (i32.const 1))))
+      (array.set $block (local.get $res) (i32.const 0) (local.get $tag))
+      (local.get $res))
 
    (global $closure_tag i32 (i32.const 247))
    (global $object_tag i32 (i32.const 248))
@@ -669,42 +690,57 @@
          (i31.new (i32.eqz (i31.get_u (ref.cast i31
             (call $caml_string_equal (local.get $p1) (local.get $p2))))))))
 
+   (func $caml_string_compare
+      (param $p1 (ref eq)) (param $p2 (ref eq)) (result i32)
+      (local $s1 (ref $string)) (local $s2 (ref $string))
+      (local $l1 i32) (local $l2 i32) (local $len i32) (local $i i32)
+      (local $c1 i32) (local $c2 i32)
+      (if (ref.eq (local.get $p1) (local.get $p2))
+         (then (return (i32.const 0))))
+      (local.set $s1 (ref.cast $string (local.get $p1)))
+      (local.set $s2 (ref.cast $string (local.get $p2)))
+      (local.set $l1 (array.len $string (local.get $s1)))
+      (local.set $l2 (array.len $string (local.get $s2)))
+      (local.set $len (select (i32.le_u (local.get $l1) (local.get $l2))
+                         (local.get $l1) (local.get $l2)))
+      (local.set $i (i32.const 0))
+      (loop $loop
+         (if (i32.lt_s (local.get $i) (local.get $len))
+            (then
+               (local.set $c1
+                  (array.get_u $string (local.get $s1) (local.get $i)))
+               (local.set $c2
+                  (array.get_u $string (local.get $s2) (local.get $i)))
+               (if (i32.lt_u (local.get $c1) (local.get $c2))
+                  (then (return (i32.const -1))))
+               (if (i32.gt_u (local.get $c1) (local.get $c2))
+                  (then (return (i32.const 1))))
+               (local.set $i (i32.add (local.get $i) (i32.const 1)))
+               (br $loop))))
+      (if (i32.lt_u (local.get $l1) (local.get $l2))
+         (then (return (i32.const -1))))
+      (if (i32.gt_u (local.get $l1) (local.get $l2))
+         (then (return (i32.const 1))))
+      (i32.const 0))
+
    (func (export "caml_string_compare")
       (param (ref eq)) (param (ref eq)) (result (ref eq))
-      ;; ZZZ
-      (call $log_js (string.const "caml_string_compare"))
-      (call $log_js
-         (call $unwrap (call $caml_jsstring_of_string (local.get 0))))
-      (call $log_js
-         (call $unwrap (call $caml_jsstring_of_string (local.get 1))))
-      (i31.new (i32.const -1)))
+      (i31.new (call $caml_string_compare (local.get 0) (local.get 1))))
 
    (func (export "caml_string_lessequal")
       (param (ref eq)) (param (ref eq)) (result (ref eq))
-      ;; ZZZ
-      (call $log_js (string.const "caml_string_lessequal"))
-      (unreachable))
+      (i31.new (i32.le_s (call $caml_string_compare (local.get 0) (local.get 1))
+                         (i32.const 0))))
 
    (func (export "caml_string_lessthan")
       (param (ref eq)) (param (ref eq)) (result (ref eq))
-      ;; ZZZ
-      (call $log_js (string.const "caml_string_lessthan"))
-      (unreachable))
+      (i31.new (i32.lt_s (call $caml_string_compare (local.get 0) (local.get 1))
+                         (i32.const 0))))
 
    (export "caml_bytes_of_string" (func $caml_string_of_bytes))
    (func $caml_string_of_bytes (export "caml_string_of_bytes")
       (param $v (ref eq)) (result (ref eq))
       (local.get $v))
-
-   (func (export "caml_string_get")
-      (param $v (ref eq)) (param $i (ref eq)) (result (ref eq))
-      ;; ZZZ Inline
-      (local $s (ref $string)) (local $p i32)
-      (local.set $s (ref.cast $string (local.get $v)))
-      (local.set $p (i31.get_s (ref.cast i31 (local.get $i))))
-      (if (i32.ge_u (local.get $p) (array.len (local.get $s)))
-         (then (call $caml_bound_error)))
-      (i31.new (array.get_u $string (local.get $s) (local.get $p))))
 
    (data $Bytes_create "Bytes.create")
 
@@ -757,10 +793,20 @@ $len)))))
       (i31.new (i32.const 0)))
 
    (func (export "caml_bytes_get16")
-      (param (ref eq)) (param (ref eq)) (result (ref eq))
-      ;; ZZZ
-      (call $log_js (string.const "caml_bytes_get16"))
-      (unreachable))
+      (param $v (ref eq)) (param $i (ref eq)) (result (ref eq))
+      (local $s (ref $string)) (local $p i32)
+      (local.set $s (ref.cast $string (local.get $v)))
+      (local.set $p (i31.get_s (ref.cast i31 (local.get $i))))
+      (if (i32.lt_s (local.get $p) (i32.const 0))
+         (then (call $caml_bound_error)))
+      (if (i32.ge_u (i32.add (local.get $p) (i32.const 1))
+                    (array.len (local.get $s)))
+         (then (call $caml_bound_error)))
+      (i31.new (i32.or
+                  (array.get_u $string (local.get $s) (local.get $p))
+                  (i32.shl (array.get_u $string (local.get $s)
+                              (i32.add (local.get $p) (i32.const 1)))
+                           (i32.const 8)))))
 
    (func (export "caml_bytes_get32")
       (param (ref eq)) (param (ref eq)) (result (ref eq))
@@ -769,10 +815,45 @@ $len)))))
       (unreachable))
 
    (func (export "caml_bytes_get64")
-      (param (ref eq)) (param (ref eq)) (result (ref eq))
-      ;; ZZZ
-      (call $log_js (string.const "caml_bytes_get64"))
-      (unreachable))
+      (param $v (ref eq)) (param $i (ref eq)) (result (ref eq))
+      (local $s (ref $string)) (local $p i32)
+      (local.set $s (ref.cast $string (local.get $v)))
+      (local.set $p (i31.get_s (ref.cast i31 (local.get $i))))
+      (if (i32.lt_s (local.get $p) (i32.const 0))
+         (then (call $caml_bound_error)))
+      (if (i32.ge_u (i32.add (local.get $p) (i32.const 7))
+                    (array.len (local.get $s)))
+         (then (call $caml_bound_error)))
+      (i31.new
+         (i32.or
+            (i32.or
+               (i32.or
+                  (array.get_u $string (local.get $s) (local.get $p))
+                  (i32.shl (array.get_u $string (local.get $s)
+                              (i32.add (local.get $p) (i32.const 1)))
+                           (i32.const 8)))
+               (i32.or
+                  (i32.shl (array.get_u $string (local.get $s)
+                              (i32.add (local.get $p) (i32.const 2)))
+                           (i32.const 16))
+                  (i32.shl (array.get_u $string (local.get $s)
+                              (i32.add (local.get $p) (i32.const 3)))
+                           (i32.const 24))))
+            (i32.or
+               (i32.or
+                  (i32.shl (array.get_u $string (local.get $s)
+                              (i32.add (local.get $p) (i32.const 4)))
+                           (i32.const 32))
+                  (i32.shl (array.get_u $string (local.get $s)
+                              (i32.add (local.get $p) (i32.const 5)))
+                           (i32.const 40)))
+               (i32.or
+                  (i32.shl (array.get_u $string (local.get $s)
+                              (i32.add (local.get $p) (i32.const 6)))
+                           (i32.const 48))
+                  (i32.shl (array.get_u $string (local.get $s)
+                              (i32.add (local.get $p) (i32.const 7)))
+                           (i32.const 56)))))))
 
    (type $int_array (array (mut i32)))
    (type $block_array (array (mut (ref $block))))
@@ -1223,9 +1304,7 @@ $len)))))
 
    (func (export "caml_restore_raw_backtrace")
       (param (ref eq)) (param (ref eq)) (result (ref eq))
-      ;; ZZZ
-      (call $log_js (string.const "caml_restore_raw_backtrace"))
-      (unreachable))
+      (i31.new (i32.const 0)))
 
    (func (export "caml_ml_debug_info_status")
       (param (ref eq)) (result (ref eq))
