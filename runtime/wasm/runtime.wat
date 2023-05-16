@@ -804,10 +804,29 @@ $len)))))
                            (i32.const 8)))))
 
    (func (export "caml_bytes_get32")
-      (param (ref eq)) (param (ref eq)) (result (ref eq))
-      ;; ZZZ
-      (call $log_js (string.const "caml_bytes_get32"))
-      (unreachable))
+      (param $v (ref eq)) (param $i (ref eq)) (result (ref eq))
+      (local $s (ref $string)) (local $p i32)
+      (local.set $s (ref.cast $string (local.get $v)))
+      (local.set $p (i31.get_s (ref.cast i31 (local.get $i))))
+      (if (i32.lt_s (local.get $p) (i32.const 0))
+         (then (call $caml_bound_error)))
+      (if (i32.ge_u (i32.add (local.get $p) (i32.const 3))
+                    (array.len (local.get $s)))
+         (then (call $caml_bound_error)))
+      (return_call $caml_copy_int32
+         (i32.or
+            (i32.or
+               (array.get_u $string (local.get $s) (local.get $p))
+               (i32.shl (array.get_u $string (local.get $s)
+                           (i32.add (local.get $p) (i32.const 1)))
+                        (i32.const 8)))
+            (i32.or
+               (i32.shl (array.get_u $string (local.get $s)
+                           (i32.add (local.get $p) (i32.const 2)))
+                        (i32.const 16))
+               (i32.shl (array.get_u $string (local.get $s)
+                           (i32.add (local.get $p) (i32.const 3)))
+                        (i32.const 24))))))
 
    (func (export "caml_bytes_get64")
       (param $v (ref eq)) (param $i (ref eq)) (result (ref eq))
@@ -819,37 +838,44 @@ $len)))))
       (if (i32.ge_u (i32.add (local.get $p) (i32.const 7))
                     (array.len (local.get $s)))
          (then (call $caml_bound_error)))
-      ;; ZZZ
-      (i31.new
-         (i32.or
-            (i32.or
-               (i32.or
-                  (array.get_u $string (local.get $s) (local.get $p))
-                  (i32.shl (array.get_u $string (local.get $s)
-                              (i32.add (local.get $p) (i32.const 1)))
-                           (i32.const 8)))
-               (i32.or
-                  (i32.shl (array.get_u $string (local.get $s)
-                              (i32.add (local.get $p) (i32.const 2)))
-                           (i32.const 16))
-                  (i32.shl (array.get_u $string (local.get $s)
-                              (i32.add (local.get $p) (i32.const 3)))
-                           (i32.const 24))))
-            (i32.or
-               (i32.or
-                  (i32.shl (array.get_u $string (local.get $s)
-                              (i32.add (local.get $p) (i32.const 4)))
-                           (i32.const 32))
-                  (i32.shl (array.get_u $string (local.get $s)
-                              (i32.add (local.get $p) (i32.const 5)))
-                           (i32.const 40)))
-               (i32.or
-                  (i32.shl (array.get_u $string (local.get $s)
-                              (i32.add (local.get $p) (i32.const 6)))
-                           (i32.const 48))
-                  (i32.shl (array.get_u $string (local.get $s)
-                              (i32.add (local.get $p) (i32.const 7)))
-                           (i32.const 56)))))))
+      (return_call $caml_copy_int64
+         (i64.or
+            (i64.or
+               (i64.or
+                  (i64.extend_i32_u
+                     (array.get_u $string (local.get $s) (local.get $p)))
+                  (i64.shl (i64.extend_i32_u
+                              (array.get_u $string (local.get $s)
+                                 (i32.add (local.get $p) (i32.const 1))))
+                           (i64.const 8)))
+               (i64.or
+                  (i64.shl (i64.extend_i32_u
+                              (array.get_u $string (local.get $s)
+                                 (i32.add (local.get $p) (i32.const 2))))
+                           (i64.const 16))
+                  (i64.shl (i64.extend_i32_u
+                              (array.get_u $string (local.get $s)
+                                 (i32.add (local.get $p) (i32.const 3))))
+                           (i64.const 24))))
+            (i64.or
+               (i64.or
+                  (i64.shl (i64.extend_i32_u
+                              (array.get_u $string (local.get $s)
+                                 (i32.add (local.get $p) (i32.const 4))))
+                           (i64.const 32))
+                  (i64.shl (i64.extend_i32_u
+                              (array.get_u $string (local.get $s)
+                                 (i32.add (local.get $p) (i32.const 5))))
+                           (i64.const 40)))
+               (i64.or
+                  (i64.shl (i64.extend_i32_u
+                              (array.get_u $string (local.get $s)
+                                 (i32.add (local.get $p) (i32.const 6))))
+                           (i64.const 48))
+                  (i64.shl (i64.extend_i32_u
+                              (array.get_u $string (local.get $s)
+                                 (i32.add (local.get $p) (i32.const 7))))
+                           (i64.const 56)))))))
 
    (type $int_array (array (mut i32)))
    (type $block_array (array (mut (ref $block))))
