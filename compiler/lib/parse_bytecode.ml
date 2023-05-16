@@ -483,6 +483,7 @@ end = struct
     else
       let i : int = Obj.magic x in
       Int (Regular, Int32.of_int_warning_on_overflow i)
+  (*ZZZ*)
 
   let inlined = function
     | String _ | NativeString _ -> false

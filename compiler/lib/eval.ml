@@ -86,7 +86,7 @@ let eval_prim ~target x =
       let wrap =
         match target with
         | `JavaScript -> fun i -> i
-        | `Wasm -> fun i -> Int32.logand i 0x7FFFFFFFl
+        | `Wasm -> fun i -> Int32.(shift_right (shift_left i 1) 1)
       in
       match name, l with
       (* int *)
