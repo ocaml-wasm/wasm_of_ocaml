@@ -1985,6 +1985,58 @@ $len)))))
          (string.new_wtf8_array replace (local.get $s) (i32.const 0)
            (array.len (local.get $s)))))
 
+   (func $caml_jsbytes_of_string (export "caml_jsbytes_of_string")
+      (param (ref eq)) (result (ref eq))
+      (local $s (ref $string))
+      (local $s' (ref $string))
+      (local $l i32) (local $i i32) (local $n i32) (local $c i32)
+      (local.set $s (ref.cast $string (local.get 0)))
+      (local.set $l (array.len (local.get $s)))
+      (local.set $i (i32.const 0))
+      (local.set $n (i32.const 0))
+      (loop $count
+         (if (i32.lt_u (local.get $i) (local.get $l))
+            (then
+               (if (i32.ge_u (array.get_u $string (local.get $s) (local.get $i))
+                      (i32.const 128))
+                  (then (local.set $n (i32.add (local.get $n) (i32.const 1)))))
+               (local.set $i (i32.add (local.get $i) (i32.const 1)))
+               (br $count))))
+      (if (i32.eqz (local.get $n))
+         (then
+            (return
+               (struct.new $js
+                  (string.new_wtf8_array utf8 (local.get $s) (i32.const 0)
+                     (local.get $i))))))
+      (local.set $s'
+         (array.new $string (i32.const 0)
+            (i32.add (local.get $i) (local.get $n))))
+      (local.set $i (i32.const 0))
+      (local.set $n (i32.const 0))
+      (loop $fill
+         (if (i32.lt_u (local.get $i) (local.get $l))
+            (then
+               (local.set $c (array.get_u $string (local.get $s) (local.get $i)))
+               (if (i32.lt_u (local.get $c) (i32.const 128))
+                  (then
+                     (array.set $string
+                        (local.get $s') (local.get $n) (local.get $c))
+                     (local.set $n (i32.add (local.get $n) (i32.const 1))))
+                  (else
+                     (array.set $string (local.get $s')
+                        (local.get $n)
+                        (i32.or (i32.shr_u (local.get $c) (i32.const 6))
+                           (i32.const 0xC0)))
+                     (array.set $string (local.get $s')
+                        (i32.add (local.get $n) (i32.const 1))
+                        (i32.and (local.get $c) (i32.const 0x3F)))
+                     (local.set $n (i32.add (local.get $n) (i32.const 2)))))
+               (local.set $i (i32.add (local.get $i) (i32.const 1)))
+               (br $fill))))
+      (struct.new $js
+         (string.new_wtf8_array utf8 (local.get $s') (i32.const 0)
+            (local.get $n))))
+
    (export "caml_js_to_string" (func $caml_string_of_jsstring))
    (func $caml_string_of_jsstring (export "caml_string_of_jsstring")
       (param (ref eq)) (result (ref eq))
@@ -1999,6 +2051,58 @@ $len)))))
       (drop (string.encode_wtf8_array replace
                (local.get $s) (local.get $s') (i32.const 0)))
       (local.get $s'))
+
+   (func (export "caml_string_of_jsbytes")
+      (param (ref eq)) (result (ref eq))
+      (local $s stringref)
+      (local $l i32) (local $i i32) (local $n i32) (local $c i32)
+      (local $s' (ref $string)) (local $s'' (ref $string))
+      ;; ZZZ ref.cast string not yet implemented by V8
+      (local.set $s
+         (call $ref_cast_string (struct.get $js 0 (ref.cast $js (local.get 0)))))
+      (local.set $l (string.measure_wtf8 wtf8 (local.get $s)))
+      (local.set $s' (array.new $string (i32.const 0) (local.get $l)))
+      (drop (string.encode_wtf8_array replace
+               (local.get $s) (local.get $s') (i32.const 0)))
+      (local.set $i (i32.const 0))
+      (local.set $n (i32.const 0))
+      (loop $count
+         (if (i32.lt_u (local.get $i) (local.get $l))
+            (then
+               (if (i32.ge_u (array.get_u $string (local.get $s') (local.get $i))
+                      (i32.const 0xC0))
+                  (then (local.set $n (i32.add (local.get $n) (i32.const 1)))))
+               (local.set $i (i32.add (local.get $i) (i32.const 1)))
+               (br $count))))
+      (if (i32.eqz (local.get $n)) (then (return (local.get $s'))))
+      (local.set $s''
+         (array.new $string (i32.const 0)
+            (i32.add (local.get $i) (local.get $n))))
+      (local.set $i (i32.const 0))
+      (local.set $n (i32.const 0))
+      (loop $fill
+         (if (i32.lt_u (local.get $i) (local.get $l))
+            (then
+               (local.set $c
+                  (array.get_u $string (local.get $s') (local.get $i)))
+               (if (i32.lt_u (local.get $c) (i32.const 0xC0))
+                  (then
+                     (array.set $string
+                        (local.get $s'') (local.get $n) (local.get $c))
+                     (local.set $i (i32.add (local.get $i) (i32.const 1))))
+                  (else
+                     (array.set $string (local.get $s'')
+                        (local.get $n)
+                        (i32.sub
+                           (i32.or
+                              (i32.shl (local.get $c) (i32.const 6))
+                              (array.get_u $string (local.get $s')
+                                 (i32.add (local.get $i) (i32.const 1))))
+                           (i32.const 0X3080)))
+                     (local.set $i (i32.add (local.get $i) (i32.const 2)))))
+               (local.set $n (i32.add (local.get $n) (i32.const 1)))
+               (br $fill))))
+      (local.get $s''))
 
    (func (export "caml_list_to_js_array")
       (param (ref eq)) (result (ref eq))
