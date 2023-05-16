@@ -282,6 +282,7 @@ let run
          let linkall = linkall || toplevel || dynlink in
          let code =
            Parse_bytecode.from_exe
+             ~target:`Wasm
              ~includes:include_dirs
              ~include_cmis
              ~link_info:(toplevel || dynlink)
@@ -312,6 +313,7 @@ let run
          let t1 = Timer.make () in
          let code =
            Parse_bytecode.from_cmo
+             ~target:`Wasm
              ~includes:include_dirs
              ~include_cmis
              ~debug:need_debug
@@ -339,6 +341,7 @@ let run
              let t1 = Timer.make () in
              let code =
                Parse_bytecode.from_cmo
+                 ~target:`Wasm
                  ~includes:include_dirs
                  ~include_cmis
                  ~debug:need_debug
@@ -358,6 +361,7 @@ let run
                let t1 = Timer.make () in
                let code =
                  Parse_bytecode.from_cmo
+                   ~target:`Wasm
                    ~includes:include_dirs
                    ~include_cmis
                    ~debug:need_debug
