@@ -27,12 +27,14 @@
          instanceof:(x,y)=>x instanceof y,
          typeof:(x)=>typeof x,
          eval:eval,
+         equals:(x,y)=>x==y,
          strict_equals:(x,y)=>x===y,
          fun_call:(f,args)=>f.apply(null,args),
          meth_call:(o,f,args)=>o[f].apply(o,args),
          new_array:(n)=>new Array(n),
          new_obj:()=>({}),
-         new:(c,args)=>{return new c(...args)},
+         new:(c,args)=>new c(...args),
+         iter_props:(o,f)=>{for (var nm in o) if(o.hasOwnsProperty(nm) f(nm)}},
          array_length:(a)=>a.length,
          array_get:(a,i)=>a[i],
          array_set:(a,i,v)=>a[i]=v,
@@ -44,6 +46,7 @@
              for (var i = 0; i < len; i++) args[i] = arguments[i];
              return caml_callback(f, arity, args);
          },
+         wrap_fun_arguments:(f)=>function(){return f(arguments)}
          format:(f)=>""+f,
          log:(x)=>console.log('ZZZZZ', x)
         }

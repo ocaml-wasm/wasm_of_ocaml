@@ -1748,12 +1748,15 @@ $len)))))
    (import "bindings" "instanceof"
       (func $instanceof (param anyref) (param anyref) (result i32)))
    (import "bindings" "typeof" (func $typeof (param anyref) (result anyref)))
+   (import "bindings" "equals" (func $equals (param anyref) (param anyref) (result i32)))
    (import "bindings" "strict_equals" (func $strict_equals (param anyref) (param anyref) (result i32)))
    (import "bindings" "fun_call" (func $fun_call (param anyref) (param anyref) (result anyref)))
    (import "bindings" "meth_call" (func $meth_call (param anyref) (param anyref) (param anyref) (result anyref)))
    (import "bindings" "new" (func $new (param anyref) (param anyref) (result anyref)))
    (import "bindings" "new_obj" (func $new_obj (result anyref)))
    (import "bindings" "new_array" (func $new_array (param i32) (result externref)))
+   (import "bindings" "iter_props"
+      (func $iter_props (param anyref) (param anyref)))
    (import "bindings" "array_length"
       (func $array_length (param externref) (result i32)))
    (import "bindings" "array_get"
@@ -1762,9 +1765,16 @@ $len)))))
       (func $array_set (param externref) (param i32) (param anyref)))
    (import "bindings" "wrap_callback_strict"
       (func $wrap_callback_strict (param i32) (param (ref eq)) (result anyref)))
+   (import "bindings" "wrap_fun_arguments"
+      (func $wrap_fun_arguments (param anyref) (result anyref)))
    (import "bindings" "get_int" (func $get_int (param externref) (param i32) (result i32)))
    (import "bindings" "format" (func $format_float (param f64) (result anyref)))
    (import "bindings" "format" (func $format_int (param (ref eq)) (result anyref)))
+
+   (func (export "caml_js_equals")
+      (param (ref eq)) (param (ref eq)) (result (ref eq))
+      (i31.new (call $equals
+                  (call $unwrap (local.get 0)) (call $unwrap (local.get 1)))))
 
    (func (export "caml_js_strict_equals")
       (param (ref eq)) (param (ref eq)) (result (ref eq))
@@ -1863,6 +1873,12 @@ $len)))))
          (call $new (call $unwrap (local.get $c))
             (call $unwrap (local.get $args)))))
 
+   (func (export "caml_ojs_iterate_properties")
+      (param $o (ref eq)) (param $f (ref eq)) (result (ref eq))
+      (call $iter_props
+         (call $unwrap (local.get $o)) (call $unwrap (local.get $f)))
+      (i31.new (i32.const 0)))
+
    (func (export "caml_js_object")
       (param (ref eq)) (result (ref eq))
       (local $a (ref $block)) (local $p (ref $block))
@@ -1933,6 +1949,12 @@ $len)))))
       (return_call $wrap
          (call $wrap_callback_strict
             (i31.get_u (ref.cast i31 (local.get 0))) (local.get 1))))
+
+   (func (export "caml_ojs_wrap_fun_arguments")
+      (param (ref eq)) (result (ref eq))
+      (return_call $wrap
+         (call $wrap_fun_arguments
+            (call $wrap_callback_strict (i32.const 1) (local.get 0)))))
 
    (func (export "caml_callback")
       (param $f (ref eq)) (param $count i32) (param $args (ref extern))

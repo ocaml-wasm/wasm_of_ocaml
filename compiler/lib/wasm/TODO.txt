@@ -245,3 +245,4 @@ NativeString ==> stringref const
 Js_of_ocaml fixes:
 ==> bound check for float arrays
 ==> bound check for caml_bytes_getxx
+==> strict equality
