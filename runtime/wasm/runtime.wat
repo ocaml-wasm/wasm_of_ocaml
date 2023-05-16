@@ -235,7 +235,9 @@
       (array.set $block (local.get $b) (i32.const 0) (i31.new (i32.const 0)))
       (local.get $b))
 
-   (func (export "caml_floatarray_create") (param (ref eq)) (result (ref eq))
+   (export "caml_make_float_vect" (func $caml_floatarray_create))
+   (func $caml_floatarray_create (export "caml_floatarray_create")
+      (param (ref eq)) (result (ref eq))
       ;; ZZZ float array
       (return_call $caml_make_vect
          (local.get 0) (struct.new $float (f64.const 0))))
@@ -279,7 +281,8 @@
       (call $log_js (string.const "caml_array_concat"))
       (unreachable))
 
-   (func (export "caml_array_blit")
+   (export "caml_floatarray_blit" (func $caml_array_blit))
+   (func $caml_array_blit (export "caml_array_blit")
       (param $a1 (ref eq)) (param $i1 (ref eq))
       (param $a2 (ref eq)) (param $i2 (ref eq))
       (param $len (ref eq))
