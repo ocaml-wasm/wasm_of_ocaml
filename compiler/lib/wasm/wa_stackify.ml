@@ -222,6 +222,9 @@ let rec rewrite_expression e =
   match e with
   | Wa_ast.Const _ | ConstSym _ | RefFunc _ | RefNull -> return e
   | GlobalGet v -> effect (Global v, false) e
+  | BlockExpr (typ, l) ->
+      let* l = rewrite_block l in
+      return (Wa_ast.BlockExpr (typ, l))
   | Pop _ -> effect (Pop, false) e
   | UnOp (op, e') ->
       let* e' = rewrite_expression e' in
@@ -307,6 +310,14 @@ let rec rewrite_expression e =
       let* e' = rewrite_expression e' in
       let* e'' = rewrite_expression e'' in
       return (Wa_ast.RefEq (e', e''))
+  | Br_on_cast (i, ty, ty', e) ->
+      let* e = rewrite_expression e in
+      let* () = flush_all in
+      return (Wa_ast.Br_on_cast (i, ty, ty', e))
+  | Br_on_cast_fail (i, ty, ty', e) ->
+      let* e = rewrite_expression e in
+      let* () = flush_all in
+      return (Wa_ast.Br_on_cast_fail (i, ty, ty', e))
   | ExternInternalize e' ->
       let* e' = rewrite_expression e' in
       return (Wa_ast.ExternInternalize e')
@@ -420,16 +431,6 @@ and rewrite_instruction i =
         (let* e = rewrite_expression e in
          let* e' = rewrite_expression e' in
          return (Wa_ast.StructSet (symb, i, e, e')))
-  | Br_on_cast (i, ty, ty', e) ->
-      instruction
-        (let* e = rewrite_expression e in
-         let* () = flush_all in
-         return (Wa_ast.Br_on_cast (i, ty, ty', e)))
-  | Br_on_cast_fail (i, ty, ty', e) ->
-      instruction
-        (let* e = rewrite_expression e in
-         let* () = flush_all in
-         return (Wa_ast.Br_on_cast_fail (i, ty, ty', e)))
   | Br (_, None) | Return None | Rethrow _ ->
       instruction
         (let* () = flush_all in

@@ -131,6 +131,7 @@ type expression =
   | LocalGet of int
   | LocalTee of int * expression
   | GlobalGet of var
+  | BlockExpr of func_type * instruction list
   | Call_indirect of func_type * expression * expression list
   | Call of var * expression list
   | MemoryGrow of int * expression
@@ -153,6 +154,8 @@ type expression =
   | RefNull
   | ExternInternalize of expression
   | ExternExternalize of expression
+  | Br_on_cast of int * ref_type * ref_type * expression
+  | Br_on_cast_fail of int * ref_type * ref_type * expression
 
 and instruction =
   | Drop of expression
@@ -178,8 +181,6 @@ and instruction =
   | Rethrow of int
   | ArraySet of var * expression * expression * expression
   | StructSet of var * int * expression * expression
-  | Br_on_cast of int * ref_type * ref_type * expression
-  | Br_on_cast_fail of int * ref_type * ref_type * expression
   | Return_call_indirect of func_type * expression * expression list
   | Return_call of var * expression list
   | Return_call_ref of var * expression * expression list

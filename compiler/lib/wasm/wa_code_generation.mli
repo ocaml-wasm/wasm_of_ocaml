@@ -94,6 +94,8 @@ val loop : Wa_ast.func_type -> unit t -> unit t
 
 val block : Wa_ast.func_type -> unit t -> unit t
 
+val block_expr : Wa_ast.func_type -> unit t -> expression
+
 val if_ : Wa_ast.func_type -> expression -> unit t -> unit t -> unit t
 
 val try_ : Wa_ast.func_type -> unit t -> Code.Var.t -> unit t -> unit t

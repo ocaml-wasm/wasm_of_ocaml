@@ -293,6 +293,10 @@ module Output () = struct
     | LocalGet i -> line (string "local.get " ^^ integer i)
     | LocalTee (i, e') -> expression e' ^^ line (string "local.tee " ^^ integer i)
     | GlobalGet nm -> line (string "global.get " ^^ index nm)
+    | BlockExpr (ty, l) ->
+        line (string "block" ^^ block_type ty)
+        ^^ indent (concat_map instruction l)
+        ^^ line (string "end_block")
     | Call_indirect (typ, f, l) ->
         concat_map expression l
         ^^ expression f
@@ -316,6 +320,8 @@ module Output () = struct
     | RefTest _
     | RefEq _
     | RefNull
+    | Br_on_cast _
+    | Br_on_cast_fail _
     | ExternExternalize _
     | ExternInternalize _ -> assert false (* Not supported *)
 
@@ -392,8 +398,7 @@ module Output () = struct
     | Return_call (x, l) ->
         Feature.require tail_call;
         concat_map expression l ^^ line (string "return_call " ^^ index x)
-    | ArraySet _ | StructSet _ | Br_on_cast _ | Br_on_cast_fail _ | Return_call_ref _ ->
-        assert false (* Not supported *)
+    | ArraySet _ | StructSet _ | Return_call_ref _ -> assert false (* Not supported *)
 
   let escape_string s =
     let b = Buffer.create (String.length s + 2) in

@@ -141,13 +141,12 @@ module Make (Target : Wa_target_sig.S) = struct
       let* () = bind_parameters l in
       let f = Code.Var.fresh_n "f" in
       let* _ = add_var f in
-      let func_arity = Memory.load_function_arity (load f) in
-      if_
-        { params = []; result = [ Value.value ] }
-        Arith.(func_arity = const (Int32.of_int arity))
-        (let* l = expression_list load l in
-         let* res = call ~arity (load f) l in
-         instr (Push res))
+      Memory.check_function_arity
+        f
+        arity
+        (fun ~typ closure ->
+          let* l = expression_list load l in
+          call ?typ ~arity closure l)
         (let rec build_spilling_info stack_info stack live_vars acc l =
            match l with
            | [] -> stack_info, List.rev acc

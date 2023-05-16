@@ -369,6 +369,10 @@ let block ty l =
   let* instrs = blk l in
   instr (Block (ty, instrs))
 
+let block_expr ty l =
+  let* instrs = blk l in
+  return (W.BlockExpr (ty, instrs))
+
 let if_ ty e l1 l2 =
   let* e = e in
   let* instrs1 = blk l1 in

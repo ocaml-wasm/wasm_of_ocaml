@@ -30,6 +30,8 @@ let rec scan_expression ctx e =
   | StructGet (_, _, _, e')
   | RefCast (_, e')
   | RefTest (_, e')
+  | Br_on_cast (_, _, _, e')
+  | Br_on_cast_fail (_, _, _, e')
   | ExternInternalize e'
   | ExternExternalize e' -> scan_expression ctx e'
   | BinOp (_, e', e'')
@@ -47,9 +49,8 @@ let rec scan_expression ctx e =
       scan_expressions ctx l;
       scan_expression ctx e'
   | Call (_, l) | ArrayNewFixed (_, l) | StructNew (_, l) -> scan_expressions ctx l
-  | Seq (l, e') ->
-      scan_instructions ctx l;
-      scan_expression ctx e'
+  | BlockExpr (_, l) -> scan_instructions ctx l
+  | Seq (l, e') -> scan_instructions ctx (l @ [ Push e' ])
 
 and scan_expressions ctx l = List.iter ~f:(fun e -> scan_expression ctx e) l
 
@@ -61,9 +62,7 @@ and scan_instruction ctx i =
   | Br_table (e, _, _)
   | Throw (_, e)
   | Return (Some e)
-  | Push e
-  | Br_on_cast (_, _, _, e)
-  | Br_on_cast_fail (_, _, _, e) -> scan_expression ctx e
+  | Push e -> scan_expression ctx e
   | Store (_, e, e') | Store8 (_, e, e') | StructSet (_, _, e, e') ->
       scan_expression ctx e;
       scan_expression ctx e'

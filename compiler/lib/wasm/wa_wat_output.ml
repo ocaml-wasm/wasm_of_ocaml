@@ -262,6 +262,7 @@ let expression_or_instructions ctx in_function =
     | LocalTee (i, e') ->
         [ List (Atom "local.tee" :: Atom (string_of_int i) :: expression e') ]
     | GlobalGet nm -> [ List [ Atom "global.get"; index nm ] ]
+    | BlockExpr (ty, l) -> [ List (Atom "block" :: (block_type ty @ instructions l)) ]
     | Call_indirect (typ, e, l) ->
         [ List
             ((Atom "call_indirect" :: func_type typ)
@@ -334,6 +335,38 @@ let expression_or_instructions ctx in_function =
         | `Reference -> [ List (Atom "ref.test" :: ref_type ty :: expression e) ])
     | RefEq (e, e') -> [ List (Atom "ref.eq" :: (expression e @ expression e')) ]
     | RefNull -> [ Atom "ref.null" ]
+    | Br_on_cast (i, ty, ty', e) -> (
+        match target with
+        | `Binaryen ->
+            [ List
+                (Atom "br_on_cast"
+                :: Atom (string_of_int i)
+                :: (ref_type' ty' @ expression e))
+            ]
+        | `Reference ->
+            [ List
+                (Atom "br_on_cast"
+                :: Atom (string_of_int i)
+                :: ref_type ty
+                :: ref_type ty'
+                :: expression e)
+            ])
+    | Br_on_cast_fail (i, ty, ty', e) -> (
+        match target with
+        | `Binaryen ->
+            [ List
+                (Atom "br_on_cast_fail"
+                :: Atom (string_of_int i)
+                :: (ref_type' ty' @ expression e))
+            ]
+        | `Reference ->
+            [ List
+                (Atom "br_on_cast_fail"
+                :: Atom (string_of_int i)
+                :: ref_type ty
+                :: ref_type ty'
+                :: expression e)
+            ])
     | ExternInternalize e -> [ List (Atom "extern.internalize" :: expression e) ]
     | ExternExternalize e -> [ List (Atom "extern.externalize" :: expression e) ]
   and instruction i =
@@ -428,38 +461,6 @@ let expression_or_instructions ctx in_function =
             :: Atom (string_of_int i)
             :: (expression e @ expression e'))
         ]
-    | Br_on_cast (i, ty, ty', e) -> (
-        match target with
-        | `Binaryen ->
-            [ List
-                (Atom "br_on_cast"
-                :: Atom (string_of_int i)
-                :: (ref_type' ty' @ expression e))
-            ]
-        | `Reference ->
-            [ List
-                (Atom "br_on_cast"
-                :: Atom (string_of_int i)
-                :: ref_type ty
-                :: ref_type ty'
-                :: expression e)
-            ])
-    | Br_on_cast_fail (i, ty, ty', e) -> (
-        match target with
-        | `Binaryen ->
-            [ List
-                (Atom "br_on_cast_fail"
-                :: Atom (string_of_int i)
-                :: (ref_type' ty' @ expression e))
-            ]
-        | `Reference ->
-            [ List
-                (Atom "br_on_cast_fail"
-                :: Atom (string_of_int i)
-                :: ref_type ty
-                :: ref_type ty'
-                :: expression e)
-            ])
     | Return_call_indirect (typ, e, l) ->
         [ List
             ((Atom "return_call_indirect" :: func_type typ)
