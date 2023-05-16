@@ -34,7 +34,7 @@
          new_array:(n)=>new Array(n),
          new_obj:()=>({}),
          new:(c,args)=>new c(...args),
-         iter_props:(o,f)=>{for (var nm in o) if(o.hasOwnsProperty(nm) f(nm)}},
+         iter_props:(o,f)=>{for (var nm in o) if(o.hasOwnsProperty(nm)) f(nm)},
          array_length:(a)=>a.length,
          array_get:(a,i)=>a[i],
          array_set:(a,i,v)=>a[i]=v,
@@ -46,7 +46,7 @@
              for (var i = 0; i < len; i++) args[i] = arguments[i];
              return caml_callback(f, arity, args);
          },
-         wrap_fun_arguments:(f)=>function(){return f(arguments)}
+         wrap_fun_arguments:(f)=>function(){return f(arguments)},
          format:(f)=>""+f,
          log:(x)=>console.log('ZZZZZ', x)
         }
