@@ -819,6 +819,7 @@ $len)))))
       (if (i32.ge_u (i32.add (local.get $p) (i32.const 7))
                     (array.len (local.get $s)))
          (then (call $caml_bound_error)))
+      ;; ZZZ
       (i31.new
          (i32.or
             (i32.or

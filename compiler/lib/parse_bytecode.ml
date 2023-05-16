@@ -465,10 +465,10 @@ end = struct
       else if tag = Obj.custom_tag
       then
         match ident_of_custom x with
-        | Some name when same_ident name ident_32 -> Int (Obj.magic x : int32)
+        | Some name when same_ident name ident_32 -> Int (Int32, (Obj.magic x : int32))
         | Some name when same_ident name ident_native ->
             let i : nativeint = Obj.magic x in
-            Int (Int32.of_nativeint_warning_on_overflow i)
+            Int (Native, Int32.of_nativeint_warning_on_overflow i)
         | Some name when same_ident name ident_64 -> Int64 (Obj.magic x : int64)
         | Some name ->
             failwith
@@ -482,7 +482,7 @@ end = struct
       else assert false
     else
       let i : int = Obj.magic x in
-      Int (Int32.of_int_warning_on_overflow i)
+      Int (Regular, Int32.of_int_warning_on_overflow i)
 
   let inlined = function
     | String _ | NativeString _ -> false
@@ -493,7 +493,7 @@ end = struct
     | Int _ -> true
 end
 
-let const i = Constant (Int i)
+let const i = Constant (Int (Regular, i))
 
 (* Globals *)
 type globals =
@@ -764,7 +764,7 @@ let register_global ?(force = false) g i loc rem =
         ( Var.fresh ()
         , Prim
             ( Extern "caml_register_global"
-            , Pc (Int (Int32.of_int i)) :: Pv (access_global g i) :: args ) )
+            , Pc (Int (Regular, Int32.of_int i)) :: Pv (access_global g i) :: args ) )
     , loc )
     :: rem
   else rem
@@ -2132,7 +2132,7 @@ and compile infos pc state instrs =
         let args = State.stack_vars state in
         let y = Var.fresh () in
 
-        ( (Let (y, Prim (Eq, [ Pc (Int n); Pv x ])), loc) :: instrs
+        ( (Let (y, Prim (Eq, [ Pc (Int (Regular, n)); Pv x ])), loc) :: instrs
         , (Cond (y, (pc + offset + 2, args), (pc + 3, args)), loc)
         , state )
     | BNEQ ->
@@ -2142,7 +2142,7 @@ and compile infos pc state instrs =
         let args = State.stack_vars state in
         let y = Var.fresh () in
 
-        ( (Let (y, Prim (Eq, [ Pc (Int n); Pv x ])), loc) :: instrs
+        ( (Let (y, Prim (Eq, [ Pc (Int (Regular, n)); Pv x ])), loc) :: instrs
         , (Cond (y, (pc + 3, args), (pc + offset + 2, args)), loc)
         , state )
     | BLTINT ->
@@ -2152,7 +2152,7 @@ and compile infos pc state instrs =
         let args = State.stack_vars state in
         let y = Var.fresh () in
 
-        ( (Let (y, Prim (Lt, [ Pc (Int n); Pv x ])), loc) :: instrs
+        ( (Let (y, Prim (Lt, [ Pc (Int (Regular, n)); Pv x ])), loc) :: instrs
         , (Cond (y, (pc + offset + 2, args), (pc + 3, args)), loc)
         , state )
     | BLEINT ->
@@ -2162,7 +2162,7 @@ and compile infos pc state instrs =
         let args = State.stack_vars state in
         let y = Var.fresh () in
 
-        ( (Let (y, Prim (Le, [ Pc (Int n); Pv x ])), loc) :: instrs
+        ( (Let (y, Prim (Le, [ Pc (Int (Regular, n)); Pv x ])), loc) :: instrs
         , (Cond (y, (pc + offset + 2, args), (pc + 3, args)), loc)
         , state )
     | BGTINT ->
@@ -2172,7 +2172,7 @@ and compile infos pc state instrs =
         let args = State.stack_vars state in
         let y = Var.fresh () in
 
-        ( (Let (y, Prim (Le, [ Pc (Int n); Pv x ])), loc) :: instrs
+        ( (Let (y, Prim (Le, [ Pc (Int (Regular, n)); Pv x ])), loc) :: instrs
         , (Cond (y, (pc + 3, args), (pc + offset + 2, args)), loc)
         , state )
     | BGEINT ->
@@ -2182,7 +2182,7 @@ and compile infos pc state instrs =
         let args = State.stack_vars state in
         let y = Var.fresh () in
 
-        ( (Let (y, Prim (Lt, [ Pc (Int n); Pv x ])), loc) :: instrs
+        ( (Let (y, Prim (Lt, [ Pc (Int (Regular, n)); Pv x ])), loc) :: instrs
         , (Cond (y, (pc + 3, args), (pc + offset + 2, args)), loc)
         , state )
     | BULTINT ->
@@ -2192,7 +2192,7 @@ and compile infos pc state instrs =
         let args = State.stack_vars state in
         let y = Var.fresh () in
 
-        ( (Let (y, Prim (Ult, [ Pc (Int n); Pv x ])), loc) :: instrs
+        ( (Let (y, Prim (Ult, [ Pc (Int (Regular, n)); Pv x ])), loc) :: instrs
         , (Cond (y, (pc + offset + 2, args), (pc + 3, args)), loc)
         , state )
     | BUGEINT ->
@@ -2202,7 +2202,7 @@ and compile infos pc state instrs =
         let args = State.stack_vars state in
         let y = Var.fresh () in
 
-        ( (Let (y, Prim (Ult, [ Pc (Int n); Pv x ])), loc) :: instrs
+        ( (Let (y, Prim (Ult, [ Pc (Int (Regular, n)); Pv x ])), loc) :: instrs
         , (Cond (y, (pc + 3, args), (pc + offset + 2, args)), loc)
         , state )
     | ULTINT ->
@@ -2265,7 +2265,7 @@ and compile infos pc state instrs =
                ( m
                , Prim
                    ( Extern "caml_get_public_method"
-                   , [ Pv obj; Pv tag; Pc (Int (Int32.of_int cache)) ] ) )
+                   , [ Pv obj; Pv tag; Pc (Int (Regular, Int32.of_int cache)) ] ) )
            , loc )
           :: (Let (tag, const n), loc)
           :: instrs)
@@ -2289,7 +2289,10 @@ and compile infos pc state instrs =
           (pc + 1)
           state
           (( Let
-               (m, Prim (Extern "caml_get_public_method", [ Pv obj; Pv tag; Pc (Int 0l) ]))
+               ( m
+               , Prim
+                   ( Extern "caml_get_public_method"
+                   , [ Pv obj; Pv tag; Pc (Int (Regular, 0l)) ] ) )
            , loc )
           :: instrs)
     | GETMETHOD ->
@@ -2637,7 +2640,7 @@ let from_exe
       let need_gdata = ref false in
       let infos =
         [ "toc", Constants.parse (Obj.repr toc)
-        ; "prim_count", Int (Int32.of_int (Array.length globals.primitives))
+        ; "prim_count", Int (Regular, Int32.of_int (Array.length globals.primitives))
         ]
       in
       let body =
@@ -3011,17 +3014,17 @@ let predefined_exceptions () =
               ( v_index
               , Constant
                   (Int
-                     ((* Predefined exceptions are registered in
-                         Symtable.init with [-index - 1] *)
-                      Int32.of_int
-                        (-index - 1))) )
+                     ( (* Predefined exceptions are registered in
+                          Symtable.init with [-index - 1] *)
+                       Regular
+                     , Int32.of_int (-index - 1) )) )
           , noloc )
         ; Let (exn, Block (248, [| v_name; v_index |], NotArray)), noloc
         ; ( Let
               ( Var.fresh ()
               , Prim
                   ( Extern "caml_register_global"
-                  , [ Pc (Int (Int32.of_int index)); Pv exn; Pv v_name_js ] ) )
+                  , [ Pc (Int (Regular, Int32.of_int index)); Pv exn; Pv v_name_js ] ) )
           , noloc )
         ])
     |> List.concat
@@ -3059,7 +3062,7 @@ let link_info ~symtable ~primitives ~crcs =
     in
     let infos =
       [ "toc", Constants.parse (Obj.repr toc)
-      ; "prim_count", Int (Int32.of_int (List.length primitives))
+      ; "prim_count", Int (Regular, Int32.of_int (List.length primitives))
       ]
     in
     let body =

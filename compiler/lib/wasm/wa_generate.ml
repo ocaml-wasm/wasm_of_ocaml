@@ -995,7 +995,7 @@ end
 let init () =
   List.iter
     ~f:(fun (nm, nm') -> Primitive.alias nm nm')
-    [ "caml_alloc_dummy_float", "caml_alloc_dummy"
+    [ "caml_alloc_dummy_float", "caml_alloc_dummy" (*ZZZ*)
     ; "caml_make_array", "%identity"
     ; "caml_ensure_stack_capacity", "%identity"
     ]

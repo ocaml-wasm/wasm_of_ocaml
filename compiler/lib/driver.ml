@@ -71,7 +71,8 @@ let specialize' ~target (p, info) =
 
 let specialize ~target p = fst (specialize' ~target p)
 
-let eval (p, info) = if Config.Flag.staticeval () then Eval.f info p else p
+let eval ~target (p, info) =
+  if Config.Flag.staticeval () then Eval.f ~target info p else p
 
 let flow p =
   if debug () then Format.eprintf "Data flow...@.";
@@ -129,20 +130,20 @@ let o1 ~target : 'a -> 'a =
   +> tailcall
   +> flow_simple (* flow simple to keep information for future tailcall opt *)
   +> specialize' ~target
-  +> eval
+  +> eval ~target
   +> inline ~target (* inlining may reveal new tailcall opt *)
   +> deadcode
   +> tailcall
   +> phi
   +> flow
   +> specialize' ~target
-  +> eval
+  +> eval ~target
   +> inline ~target
   +> deadcode
   +> print
   +> flow
   +> specialize' ~target
-  +> eval
+  +> eval ~target
   +> inline ~target
   +> deadcode
   +> phi
@@ -163,10 +164,10 @@ let round1 ~target : 'a -> 'a =
   +> deadcode (* deadcode required before flow simple -> provided by constant *)
   +> flow_simple (* flow simple to keep information for future tailcall opt *)
   +> specialize' ~target
-  +> eval
+  +> eval ~target
   +> identity
 
-let round2 ~target = flow +> specialize' ~target +> eval +> deadcode +> o1 ~target
+let round2 ~target = flow +> specialize' ~target +> eval ~target +> deadcode +> o1 ~target
 
 let o3 ~target =
   loop 10 "tailcall+inline" (round1 ~target) 1

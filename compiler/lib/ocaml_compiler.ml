@@ -22,14 +22,15 @@ let rec constant_of_const : _ -> Code.constant =
   let open Lambda in
   let open Asttypes in
   function
-  | Const_base (Const_int i) -> Int (Int32.of_int_warning_on_overflow i)
-  | Const_base (Const_char c) -> Int (Int32.of_int (Char.code c))
+  | Const_base (Const_int i) -> Int (Regular, Int32.of_int_warning_on_overflow i) (*ZZZ*)
+  | Const_base (Const_char c) -> Int (Regular, Int32.of_int (Char.code c))
   | ((Const_base (Const_string (s, _))) [@if ocaml_version < (4, 11, 0)])
   | ((Const_base (Const_string (s, _, _))) [@if ocaml_version >= (4, 11, 0)]) -> String s
   | Const_base (Const_float s) -> Float (float_of_string s)
-  | Const_base (Const_int32 i) -> Int i
+  | Const_base (Const_int32 i) -> Int (Int32, i)
   | Const_base (Const_int64 i) -> Int64 i
-  | Const_base (Const_nativeint i) -> Int (Int32.of_nativeint_warning_on_overflow i)
+  | Const_base (Const_nativeint i) ->
+      Int (Native, Int32.of_nativeint_warning_on_overflow i)
   | Const_immstring s -> String s
   | Const_float_array sl ->
       let l = List.map ~f:(fun f -> Code.Float (float_of_string f)) sl in
