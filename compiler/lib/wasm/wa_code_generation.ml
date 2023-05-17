@@ -291,7 +291,7 @@ module Arith = struct
   let of_int31 n =
     let* n = n in
     match n with
-    | W.I31New (Const (I32 n)) -> return (W.Const (I32 (Int32.logand n 0x7fffffffl)))
+    | W.I31New (Const (I32 n)) -> return (W.Const (I32 (Int31.wrap n)))
     | _ -> return (W.I31Get (S, n))
 end
 
