@@ -1550,6 +1550,7 @@ $len)))))
       (loop $loop
          (if (i32.lt_u (local.get $i) (local.get $n))
             (then
+               ;; ZZZ Check for overflow
                (local.set $sz
                    (i32.mul (local.get $sz)
                       (array.get $int_array
@@ -1567,13 +1568,14 @@ $len)))))
   (func $caml_ba_create_buffer
      (param $kind i32) (param $sz i32) (result externref)
      (return_call $ta_create (local.get $kind)
+        ;; ZZZ Check for overflow
         (i32.mul (local.get $sz)
            (call $caml_ba_size_per_element (local.get $kind)))))
 
    (global $CAML_BA_MAX_NUM_DIMS i32 (i32.const 16))
 
    (data $ba_create_bad_dims "Bigarray.create: bad number of dimensions")
-   (data $ba_create_negative_dim "Bigarray.create: negative_dimention")
+   (data $ba_create_negative_dim "Bigarray.create: negative dimension")
 
    (func (export "caml_ba_create")
       (param $vkind (ref eq)) (param $layout (ref eq)) (param $d (ref eq))
@@ -2086,7 +2088,6 @@ $len)))))
       (param (ref eq)) (param (ref eq)) (result (ref eq))
       (if (ref.test $string (local.get 1))
          (then
-            ;; ZZZ jsbytes
             (local.set 1 (call $caml_jsstring_of_string (local.get 1)))))
       (return_call $wrap
          (call $get (extern.externalize (call $unwrap (local.get 0)))
@@ -2096,7 +2097,6 @@ $len)))))
       (param (ref eq)) (param (ref eq)) (param (ref eq)) (result (ref eq))
       (if (ref.test $string (local.get 1))
          (then
-            ;; ZZZ jsbytes
             (local.set 1 (call $caml_jsstring_of_string (local.get 1)))))
       (call $set (call $unwrap (local.get 0)) (call $unwrap (local.get 1))
          (call $unwrap (local.get 2)))
@@ -2106,7 +2106,6 @@ $len)))))
       (param (ref eq)) (param (ref eq)) (result (ref eq))
       (if (ref.test $string (local.get 1))
          (then
-            ;; ZZZ jsbytes
             (local.set 1 (call $caml_jsstring_of_string (local.get 1)))))
       (call $delete (call $unwrap (local.get 0)) (call $unwrap (local.get 1)))
       (i31.new (i32.const 0)))

@@ -253,10 +253,3 @@ Js_of_ocaml fixes:
 Objects
 
 Should be able to compare/hash JavaScript strings (string refs)
-
-=============================
-
-Bigarrays:
-==> typed array
-==> go through JavaScript / one pair of instruction per typed array kind
-==> if clamped typed array, rebuild an array buffer
