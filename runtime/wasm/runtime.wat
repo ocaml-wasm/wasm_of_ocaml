@@ -1670,8 +1670,9 @@ $len)))))
                (block $int
                 (block $complex32
                  (block $complex64
-                  (br_table $float32 $float64 $int8 $uint8 $uint16 $int32 $int64
-                            $nativeint $int $complex32 $complex64 $uint8
+                  (br_table $float32 $float64 $int8 $uint8 $int16 $uint16
+                            $int32 $int64 $nativeint $int
+                            $complex32 $complex64 $uint8
                      (struct.get $bigarray 4 (local.get $ba))))
                  (local.set $i (i32.shl (local.get $i) (i32.const 1)))
                  (return
@@ -1738,8 +1739,9 @@ $len)))))
                (block $int
                 (block $complex32
                  (block $complex64
-                  (br_table $float32 $float64 $int8 $uint8 $uint16 $int32 $int64
-                            $nativeint $int $complex32 $complex64 $uint8
+                  (br_table $float32 $float64 $int8 $uint8 $int16 $uint16
+                            $int32 $int64 $nativeint $int
+                            $complex32 $complex64 $uint8
                      (struct.get $bigarray 4 (local.get $ba))))
                  (local.set $i (i32.shl (local.get $i) (i32.const 1)))
                  (local.set $b (ref.cast $block (local.get $v)))
