@@ -1951,6 +1951,115 @@ $len)))))
                (else (local.set $i (i64.sub (local.get $i) (i64.const 1)))))
             (return (struct.new $float (f64.reinterpret_i64 (local.get $i)))))))
 
+   (func (export "caml_atomic_cas")
+      (param $ref (ref eq)) (param $o (ref eq)) (param $n (ref eq))
+      (result (ref eq))
+      (local $b (ref $block))
+      (local.set $b (ref.cast $block (local.get $ref)))
+      (if (result (ref eq))
+         (ref.eq (array.get $block (local.get $b) (i32.const 1))
+                 (local.get $o))
+         (then
+            (array.set $block (local.get $b) (i32.const 1) (local.get $n))
+            (i31.new (i32.const 1)))
+         (else
+            (i31.new (i32.const 0)))))
+
+   (func (export "caml_atomic_load") (param (ref eq)) (result (ref eq))
+      (array.get $block (ref.cast $block (local.get 0)) (i32.const 1)))
+
+   (func (export "caml_atomic_fetch_add")
+     (param $ref (ref eq)) (param $i (ref eq)) (result (ref eq))
+     (local $b (ref $block))
+     (local $old (ref eq))
+     (local.set $b (ref.cast $block (local.get $ref)))
+     (local.set $old (array.get $block (local.get $b) (i32.const 1)))
+     (array.set $block (local.get $b) (i32.const 1)
+        (i31.new (i32.add (i31.get_s (ref.cast i31 (local.get $old)))
+                          (i31.get_s (ref.cast i31 (local.get $i))))))
+     (local.get $old))
+
+   (global $caml_domain_dls (mut (ref eq))
+      (array.new_fixed $block (i31.new (i32.const 0))))
+
+   (func (export "caml_domain_dls_set") (param $a (ref eq)) (result (ref eq))
+      (global.set $caml_domain_dls (local.get $a))
+      (i31.new (i32.const 0)))
+
+   (func (export "caml_domain_dls_get") (param (ref eq)) (result (ref eq))
+      (global.get $caml_domain_dls))
+
+   (func (export "caml_lxm_next") (param $v (ref eq)) (result (ref eq))
+      (local $data externref)
+      (local $a i64) (local $s i64) (local $q0 i64) (local $q1 i64)
+      (local $z i64)
+      (local.set $data
+         (struct.get $bigarray 1 (ref.cast $bigarray (local.get $v))))
+      (local.set $a
+         (i64.or
+            (i64.extend_i32_u
+               (call $ta_get_i32 (local.get $data) (i32.const 0)))
+            (i64.shl
+               (i64.extend_i32_u
+                  (call $ta_get_i32 (local.get $data) (i32.const 1)))
+               (i64.const 32))))
+      (local.set $s
+         (i64.or
+            (i64.extend_i32_u
+               (call $ta_get_i32 (local.get $data) (i32.const 2)))
+            (i64.shl
+               (i64.extend_i32_u
+                  (call $ta_get_i32 (local.get $data) (i32.const 3)))
+               (i64.const 32))))
+      (local.set $q0
+         (i64.or
+            (i64.extend_i32_u
+               (call $ta_get_i32 (local.get $data) (i32.const 4)))
+            (i64.shl
+               (i64.extend_i32_u
+                  (call $ta_get_i32 (local.get $data) (i32.const 5)))
+               (i64.const 32))))
+      (local.set $q1
+         (i64.or
+            (i64.extend_i32_u
+               (call $ta_get_i32 (local.get $data) (i32.const 6)))
+            (i64.shl
+               (i64.extend_i32_u
+                  (call $ta_get_i32 (local.get $data) (i32.const 7)))
+               (i64.const 32))))
+      (local.set $z (i64.add (local.get $s) (local.get $q0)))
+      (local.set $z
+         (i64.mul (i64.xor (local.get $z)
+                           (i64.shr_u (local.get $z) (i64.const 32)))
+                  (i64.const 0xdaba0b6eb09322e3)))
+      (local.set $z
+         (i64.mul (i64.xor (local.get $z)
+                           (i64.shr_u (local.get $z) (i64.const 32)))
+                  (i64.const 0xdaba0b6eb09322e3)))
+      (local.set $z
+         (i64.xor (local.get $z) (i64.shr_u (local.get $z) (i64.const 32))))
+      (local.set $s
+         (i64.add (i64.mul (local.get $s) (i64.const 0xd1342543de82ef95))
+                  (local.get $a)))
+      (call $ta_set_i32 (local.get $data) (i32.const 2)
+         (i32.wrap_i64 (local.get $s)))
+      (call $ta_set_i32 (local.get $data) (i32.const 3)
+         (i32.wrap_i64 (i64.shr_u (local.get $s) (i64.const 32))))
+      (local.set $q1 (i64.xor (local.get $q1) (local.get $q0)))
+      (local.set $q0 (i64.rotl (local.get $q0) (i64.const 24)))
+      (local.set $q0 (i64.xor (i64.xor (local.get $q0) (local.get $q1))
+                              (i64.shl (local.get $q1) (i64.const 16))))
+      (local.set $q1 (i64.rotl (local.get $q1) (i64.const 37)))
+      (call $ta_set_i32 (local.get $data) (i32.const 4)
+         (i32.wrap_i64 (local.get $q0)))
+      (call $ta_set_i32 (local.get $data) (i32.const 5)
+         (i32.wrap_i64 (i64.shr_u (local.get $q0) (i64.const 32))))
+      (call $ta_set_i32 (local.get $data) (i32.const 6)
+         (i32.wrap_i64 (local.get $q1)))
+      (call $ta_set_i32 (local.get $data) (i32.const 7)
+         (i32.wrap_i64 (i64.shr_u (local.get $q1) (i64.const 32))))
+      (return_call $caml_copy_int64 (local.get $z)))
+
    (type $js (struct (field anyref)))
 
    (func $wrap (param anyref) (result (ref eq))
