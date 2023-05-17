@@ -243,10 +243,20 @@ NativeString ==> stringref const
 ============================
 
 Js_of_ocaml fixes:
-==> bound check for float arrays
-==> bound check for caml_bytes_getxx
+==> bound check optimization for float arrays
+==> fix bound check for caml_bytes_getxx
 ==> strict equality
+==> clamped array buffers
 
 =========================
 
 Objects
+
+Should be able to compare/hash JavaScript strings (string refs)
+
+=============================
+
+Bigarrays:
+==> typed array
+==> go through JavaScript / one pair of instruction per typed array kind
+==> if clamped typed array, rebuild an array buffer

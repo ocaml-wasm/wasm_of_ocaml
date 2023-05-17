@@ -18,6 +18,12 @@
          log:Math.log, log1p:Math.log1p, log2:Math.log2, log10:Math.log10,
          atan2:Math.atan2, hypot:Math.hypot, pow:Math.pow,
          fmod:(x, y) => x%y}
+
+    let typed_arrays =
+      [Float32Array, Float64Array, Int8Array, Uint8Array, Int16Array,
+       Uint16Array, Int32Array, Int32Array, Int32Array, Int32Array,
+       Float32Array, Float64Array, Uint8Array]
+
     let bindings =
         {identity:(x)=>x,
          from_bool:(x)=>!!x,
@@ -39,6 +45,28 @@
          array_get:(a,i)=>a[i],
          array_set:(a,i,v)=>a[i]=v,
          get_int:(a,i)=>a[i],
+         ta_create:(k,sz)=> new(typed_arrays[k])(sz),
+         ta_normalize:(a)=>
+           a instanceof Uint8ClampedArray?
+             new Uint8Array(a.buffer,a.byteOffset,a.byteLength):
+             a instanceof Uint32Array?
+               new Int32Array(a.buffer,a.byteOffset,a.byteLength):a,
+         ta_kind:(a)=>typed_arrays.findIndex((c)=>a instanceof c),
+         ta_length:(a)=>a.length,
+         ta_get_f64:(a,i)=>a[i],
+         ta_get_f32:(a,i)=>a[i],
+         ta_get_i32:(a,i)=>a[i],
+         ta_get_i16:(a,i)=>a[i],
+         ta_get_ui16:(a,i)=>a[i],
+         ta_get_i8:(a,i)=>a[i],
+         ta_get_ui8:(a,i)=>a[i],
+         ta_set_f64:(a,i,v)=>a[i]=v,
+         ta_set_f32:(a,i,v)=>a[i]=v,
+         ta_set_i32:(a,i,v)=>a[i]=v,
+         ta_set_i16:(a,i,v)=>a[i]=v,
+         ta_set_ui16:(a,i,v)=>a[i]=v,
+         ta_set_i8:(a,i,v)=>a[i]=v,
+         ta_set_ui8:(a,i,v)=>a[i]=v,
          wrap_callback_strict:(arity,f)=>function (){
              var n = arguments.length;
              var args = new Array(arity);
