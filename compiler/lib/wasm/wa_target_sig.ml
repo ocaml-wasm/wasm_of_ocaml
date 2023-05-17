@@ -65,8 +65,6 @@ module type S = sig
       -> expression
       -> ([ `Index | `Ref of Wa_ast.var ] * Wa_ast.expression) Wa_code_generation.t
 
-    val load_function_arity : expression -> expression
-
     val check_function_arity :
          Code.Var.t
       -> int
