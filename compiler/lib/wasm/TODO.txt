@@ -247,6 +247,7 @@ Js_of_ocaml fixes:
 ==> fix bound check for caml_bytes_getxx
 ==> strict equality
 ==> clamped array buffers
+==> caml_unix_inet_addr_of_string
 
 =========================
 

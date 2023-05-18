@@ -30,7 +30,7 @@
          eval:eval,
          equals:(x,y)=>x==y,
          strict_equals:(x,y)=>x===y,
-         fun_call:(f,args)=>f.apply(null,args),
+         fun_call:(f,o,args)=>f.apply(o,args),
          meth_call:(o,f,args)=>o[f].apply(o,args),
          new_array:(n)=>new Array(n),
          new_obj:()=>({}),
