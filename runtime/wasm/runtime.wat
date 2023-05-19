@@ -55,6 +55,14 @@
          (array.new_fixed $block
             (i31.new (i32.const 0)) (local.get $tag) (local.get $arg))))
 
+   (global $FAILURE_EXN i32 (i32.const 2))
+
+   (func $caml_failwith (param $arg (ref eq))
+       (return_call $caml_raise_with_arg
+           (array.get $block (global.get $caml_global_data)
+              (global.get $FAILURE_EXN))
+           (local.get 0)))
+
    (global $INVALID_EXN i32 (i32.const 3))
 
    (func $caml_invalid_argument (param $arg (ref eq))
@@ -125,10 +133,17 @@
             (i32.rotl (i32.and (local.get $i) (i32.const 0xFF00FF00))
                       (i32.const 8)))))
 
-   (func (export "caml_int32_of_string") (param (ref eq)) (result (ref eq))
-      ;; ZZZ
-      (call $log_js (string.const "caml_int32_of_string"))
-      (unreachable))
+   (global $INT32_ERRMSG (ref $string)
+      (array.new_fixed $string ;; "Int32.of_string"
+         (i32.const 73) (i32.const 110) (i32.const 116) (i32.const 51)
+         (i32.const 50) (i32.const 46) (i32.const 111) (i32.const 102)
+         (i32.const 95) (i32.const 115) (i32.const 116) (i32.const 114)
+         (i32.const 105) (i32.const 110) (i32.const 103)))
+
+   (func (export "caml_int32_of_string") (param $v (ref eq)) (result (ref eq))
+      (return_call $caml_copy_int32
+         (call $parse_int
+            (local.get $v) (i32.const 32) (global.get $INT32_ERRMSG))))
 
    (export "caml_nativeint_compare" (func $caml_int32_compare))
    (func $caml_int32_compare (export "caml_int32_compare")
@@ -189,25 +204,65 @@
       (i31.new (i32.sub (i64.gt_s (local.get $i1) (local.get $i2))
                         (i64.lt_s (local.get $i1) (local.get $i2)))))
 
+   (global $INT64_ERRMSG (ref $string)
+      (array.new_fixed $string ;; "Int64.of_string"
+         (i32.const 73) (i32.const 110) (i32.const 116) (i32.const 54)
+         (i32.const 52) (i32.const 46) (i32.const 111) (i32.const 102)
+         (i32.const 95) (i32.const 115) (i32.const 116) (i32.const 114)
+         (i32.const 105) (i32.const 110) (i32.const 103)))
+
    (func (export "caml_int64_of_string") (param $v (ref eq)) (result (ref eq))
-      (local $s (ref $string)) (local $i i32) (local $len i32)
-      (local $res i64)
+      (local $s (ref $string))
+      (local $i i32) (local $len i32) (local $d i32) (local $c i32)
+      (local $signedness i32) (local $sign i32) (local $base i32)
+      (local $res i64) (local $threshold i64)
+      (local $t (i32 i32 i32 i32))
       (local.set $s (ref.cast $string (local.get $v)))
-      (local.set $res (i64.const 0))
-      (local.set $i (i32.const 0))
       (local.set $len (array.len (local.get $s)))
-      ;; ZZZ validation / negative numbers / ...
+      (local.set $t (call $parse_sign_and_base (local.get $s)))
+      (local.set $i (tuple.extract 0 (local.get $t)))
+      (local.set $signedness (tuple.extract 1 (local.get $t)))
+      (local.set $sign (tuple.extract 2 (local.get $t)))
+      (local.set $base (tuple.extract 3 (local.get $t)))
+      (local.set $threshold
+         (i64.div_u (i64.const -1) (i64.extend_i32_u (local.get $base))))
+      (local.set $d
+         (call $parse_digit (array.get $string (local.get $s) (local.get $i))))
+      (if (i32.ge_u (local.get $d) (local.get $base))
+         (then (call $caml_failwith (global.get $INT64_ERRMSG))))
+      (local.set $res (i64.extend_i32_u (local.get $d)))
       (loop $loop
+         (local.set $i (i32.add (local.get $i) (i32.const 1)))
          (if (i32.lt_s (local.get $i) (local.get $len))
             (then
+               (local.set $c (array.get $string (local.get $s) (local.get $i)))
+               (br_if $loop (i32.eq (local.get $c) (i32.const 95))) ;; '_'
+               (local.set $d (call $parse_digit (local.get $c)))
+               (if (i32.ge_u (local.get $d) (local.get $base))
+                  (then (call $caml_failwith (global.get $INT64_ERRMSG))))
+               (if (i64.gt_u (local.get $res) (local.get $threshold))
+                  (then (call $caml_failwith (global.get $INT64_ERRMSG))))
                (local.set $res
-                  (i64.add (i64.mul (local.get $res) (i64.const 10))
-                     (i64.extend_i32_s
-                        (i32.sub
-                           (array.get_u $string (local.get $s) (local.get $i))
-                           (i32.const 48)))))
-               (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                  (i64.add (i64.mul (local.get $res)
+                              (i64.extend_i32_u (local.get $base)))
+                           (i64.extend_i32_u (local.get $d))))
+               (if (i64.lt_u (local.get $res) (i64.extend_i32_u (local.get $d)))
+                  (then (call $caml_failwith (global.get $INT64_ERRMSG))))
                (br $loop))))
+      (if (local.get $signedness)
+         (then
+            (if (i32.gt_s (local.get $sign) (i32.const 0))
+               (then
+                  (if (i64.ge_u (local.get $res)
+                                (i64.shl (i64.const 1) (i64.const 63)))
+                     (then (call $caml_failwith (global.get $INT64_ERRMSG)))))
+               (else
+                  (if (i64.gt_u (local.get $res)
+                                (i64.shl (i64.const 1) (i64.const 63)))
+                     (then
+                        (call $caml_failwith (global.get $INT64_ERRMSG))))))))
+      (if (i32.lt_s (local.get $sign) (i32.const 0))
+         (then (local.set $res (i64.sub (i64.const 0) (local.get $res)))))
       (return_call $caml_copy_int64 (local.get $res)))
 
    (func (export "caml_int64_create_lo_mi_hi")
@@ -225,11 +280,18 @@
    (func $caml_copy_nativeint (param $i i32) (result (ref eq))
       (struct.new $int32 (global.get $nativeint_ops) (local.get $i)))
 
+   (global $NATIVEINT_ERRMSG (ref $string)
+      (array.new_fixed $string ;; "Nativeint.of_string"
+         (i32.const 78) (i32.const 97) (i32.const 116) (i32.const 105)
+         (i32.const 118) (i32.const 101) (i32.const 46) (i32.const 111)
+         (i32.const 102) (i32.const 95) (i32.const 115) (i32.const 116)
+         (i32.const 114) (i32.const 105) (i32.const 110) (i32.const 103)))
+
    (func (export "caml_nativeint_of_string")
-      (param (ref eq)) (result (ref eq))
-      ;; ZZZ
-      (call $log_js (string.const "caml_nativeint_of_string"))
-      (unreachable))
+      (param $v (ref eq)) (result (ref eq))
+      (return_call $caml_copy_int32
+         (call $parse_int
+            (local.get $v) (i32.const 32) (global.get $NATIVEINT_ERRMSG))))
 
    (data $Array_make "Array.make")
 
@@ -626,11 +688,12 @@
      (param (ref eq) (ref eq)) (result (ref eq))
       (i31.new (i32.const 0)))
 
-   (func $parse_sign_and_base (param $s (ref $string)) (result i32 i32 i32)
-      (local $i i32) (local $len i32) (local $sign i32) (local $base i32)
-      (local $c i32)
+   (func $parse_sign_and_base (param $s (ref $string)) (result i32 i32 i32 i32)
+      (local $i i32) (local $len i32) (local $c i32)
+      (local $signedness i32) (local $sign i32) (local $base i32)
       (local.set $i (i32.const 0))
       (local.set $len (array.len (local.get $s)))
+      (local.set $signedness (i32.const 1))
       (local.set $sign (i32.const 1))
       (local.set $base (i32.const 10))
       (if (i32.eqz (local.get $len))
@@ -653,23 +716,29 @@
                            (i32.eq (local.get $c) (i32.const 120)))
                   (then
                      (local.set $base (i32.const 16))
+                     (local.set $signedness (i32.const 0))
                      (local.set $i (i32.add (local.get $i) (i32.const 2))))
                (else (if (i32.or (i32.eq (local.get $c) (i32.const 79))
                                  (i32.eq (local.get $c) (i32.const 111)))
                   (then
                      (local.set $base (i32.const 8))
+                     (local.set $signedness (i32.const 0))
                      (local.set $i (i32.add (local.get $i) (i32.const 2))))
                (else (if (i32.or (i32.eq (local.get $c) (i32.const 66))
                                  (i32.eq (local.get $c) (i32.const 98)))
                   (then
                      (local.set $base (i32.const 2))
+                     (local.set $signedness (i32.const 0))
                      (local.set $i (i32.add (local.get $i) (i32.const 2))))
                (else (if (i32.or (i32.eq (local.get $c) (i32.const 85))
                                  (i32.eq (local.get $c) (i32.const 117)))
                   (then
+                     (local.set $signedness (i32.const 0))
                      (local.set $i (i32.add (local.get $i)
                         (i32.const 2)))))))))))))))
-      (tuple.make (local.get $i) (local.get $sign) (local.get $base)))
+      (tuple.make
+         (local.get $i) (local.get $signedness) (local.get $sign)
+         (local.get $base)))
 
    (func $parse_digit (param $c i32) (result i32)
       (if (i32.and (i32.ge_u (local.get $c) (i32.const 48))
@@ -683,26 +752,78 @@
          (then (return (i32.sub (local.get $c) (i32.const 87)))))
       (return (i32.const -1)))
 
-   (func (export "caml_int_of_string")
-      (param $v (ref eq)) (result (ref eq))
-      (local $s (ref $string)) (local $i i32) (local $len i32)
-      (local $res i32)
+   (func $parse_int
+      (param $v (ref eq)) (param $nbits i32) (param $errmsg (ref $string))
+      (result i32)
+      (local $s (ref $string))
+      (local $i i32) (local $len i32) (local $d i32) (local $c i32)
+      (local $signedness i32) (local $sign i32) (local $base i32)
+      (local $res i32) (local $threshold i32)
+      (local $t (i32 i32 i32 i32))
       (local.set $s (ref.cast $string (local.get $v)))
-      (local.set $res (i32.const 0))
-      (local.set $i (i32.const 0))
       (local.set $len (array.len (local.get $s)))
-      ;; ZZZ validation / negative numbers / ...
+      (local.set $t (call $parse_sign_and_base (local.get $s)))
+      (local.set $i (tuple.extract 0 (local.get $t)))
+      (local.set $signedness (tuple.extract 1 (local.get $t)))
+      (local.set $sign (tuple.extract 2 (local.get $t)))
+      (local.set $base (tuple.extract 3 (local.get $t)))
+      (local.set $threshold (i32.div_u (i32.const -1) (local.get $base)))
+      (local.set $d
+         (call $parse_digit (array.get $string (local.get $s) (local.get $i))))
+      (if (i32.ge_u (local.get $d) (local.get $base))
+         (then (call $caml_failwith (local.get $errmsg))))
+      (local.set $res (local.get $d))
       (loop $loop
+         (local.set $i (i32.add (local.get $i) (i32.const 1)))
          (if (i32.lt_s (local.get $i) (local.get $len))
             (then
+               (local.set $c (array.get $string (local.get $s) (local.get $i)))
+               (br_if $loop (i32.eq (local.get $c) (i32.const 95))) ;; '_'
+               (local.set $d (call $parse_digit (local.get $c)))
+               (if (i32.ge_u (local.get $d) (local.get $base))
+                  (then (call $caml_failwith (local.get $errmsg))))
+               (if (i32.gt_u (local.get $res) (local.get $threshold))
+                  (then (call $caml_failwith (local.get $errmsg))))
                (local.set $res
-                  (i32.add (i32.mul (local.get $res) (i32.const 10))
-                     (i32.sub
-                        (array.get_u $string (local.get $s) (local.get $i))
-                        (i32.const 48))))
-               (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                  (i32.add (i32.mul (local.get $res) (local.get $base))
+                           (local.get $d)))
+               (if (i32.lt_u (local.get $res) (local.get $d))
+                  (then (call $caml_failwith (local.get $errmsg))))
                (br $loop))))
-      (i31.new (local.get $res)))
+      (if (local.get $signedness)
+         (then
+            (local.set $threshold
+               (i32.shl (i32.const 1)
+                  (i32.sub (local.get $nbits) (i32.const 1))))
+            (if (i32.gt_s (local.get $sign) (i32.const 0))
+               (then
+                  (if (i32.ge_u (local.get $res) (local.get $threshold))
+                     (then (call $caml_failwith (local.get $errmsg)))))
+               (else
+                  (if (i32.gt_u (local.get $res) (local.get $threshold))
+                     (then (call $caml_failwith (local.get $errmsg)))))))
+         (else
+            (if (i32.and
+                   (i32.lt_u (local.get $nbits) (i32.const 32))
+                   (i32.ge_u (local.get $res)
+                     (i32.shl (i32.const 1) (local.get $nbits))))
+               (then (call $caml_failwith (local.get $errmsg))))))
+      (if (i32.lt_s (local.get $sign) (i32.const 0))
+         (then (local.set $res (i32.sub (i32.const 0) (local.get $res)))))
+      (local.get $res))
+
+   (global $INT_ERRMSG (ref $string)
+      (array.new_fixed $string ;; "Int.of_string"
+         (i32.const 73) (i32.const 110) (i32.const 116) (i32.const 46)
+         (i32.const 111) (i32.const 102) (i32.const 95) (i32.const 115)
+         (i32.const 116) (i32.const 114) (i32.const 105) (i32.const 110)
+         (i32.const 103)))
+
+   (func (export "caml_int_of_string")
+      (param $v (ref eq)) (result (ref eq))
+      (i31.new
+         (call $parse_int
+            (local.get $v) (i32.const 31) (global.get $INT_ERRMSG))))
 
    (func (export "caml_sys_exit") (param (ref eq)) (result (ref eq))
       (throw $ocaml_exit (i31.get_s (ref.cast i31 (local.get 0)))))
