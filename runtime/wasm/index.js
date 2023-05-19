@@ -71,6 +71,33 @@
          },
          wrap_fun_arguments:(f)=>function(){return f(arguments)},
          format:(f)=>""+f,
+         gettimeofday:()=>(new Date()).getTime() / 1000,
+         gmtime:(t)=>{
+           var d = new Date (t * 1000);
+           var d_num = d.getTime();
+           var januaryfirst =
+             (new Date(Date.UTC(d.getUTCFullYear(), 0, 1))).getTime();
+           var doy = Math.floor((d_num - januaryfirst) / 86400000);
+           return caml_alloc_tm(d.getUTCSeconds(), d.getUTCMinutes(),
+                                d.getUTCHours(), d.getUTCDate(),
+                                d.getUTCMonth(), d.getUTCFullYear() - 1900,
+                                d.getUTCDay(), doy, false)
+         },
+         localtime:(t)=>{
+           var d = new Date (t * 1000);
+           var d_num = d.getTime();
+           var januaryfirst = (new Date(d.getFullYear(), 0, 1)).getTime();
+           var doy = Math.floor((d_num - januaryfirst) / 86400000);
+           var jan = new Date(d.getFullYear(), 0, 1);
+           var jul = new Date(d.getFullYear(), 6, 1);
+           var stdTimezoneOffset =
+               Math.max(jan.getTimezoneOffset(), jul.getTimezoneOffset());
+           return caml_alloc_tm(d.getSeconds(), d.getMinutes(), d.getHours(),
+                                d.getDate(), d.getMonth(),
+                                d.getFullYear() - 1900,
+                                d.getDay(), doy,
+                                (d.getTimezoneOffset() < stdTimezoneOffset))
+         }
          log:(x)=>console.log('ZZZZZ', x)
         }
     const runtimeModule =
