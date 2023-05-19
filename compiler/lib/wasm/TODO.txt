@@ -254,3 +254,8 @@ Js_of_ocaml fixes:
 Objects
 
 Should be able to compare/hash JavaScript strings (string refs)
+
+===============================
+
+Refine exact call: when there is a single function called, then we can
+call it directly.

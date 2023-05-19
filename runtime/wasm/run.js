@@ -76,6 +76,7 @@
          },
          wrap_fun_arguments:(f)=>function(){return f(arguments)},
          format:(f)=>""+f,
+         gettimeofday:()=>(new Date()).getTime() / 1000,
          log:(x)=>console.log('ZZZZZ', x)
         }
     const runtimeModule =

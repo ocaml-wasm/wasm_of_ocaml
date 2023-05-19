@@ -209,7 +209,7 @@
 
    (func (export "caml_int64_create_lo_mi_hi")
       (param (ref eq) (ref eq) (ref eq)) (result (ref eq))
-      ;; ZZZ
+      ;; ZZZ does not really make sense
       (call $log_js (string.const "caml_int64_create_lo_mi_hi"))
       (i31.new (i32.const 0)))
 
@@ -921,10 +921,80 @@ $len)))))
                                  (i32.add (local.get $p) (i32.const 7))))
                            (i64.const 56)))))))
 
-  (func (export "caml_bytes_set16") (param (ref eq) (ref eq) (ref eq))
-      (result (ref eq))
-      ;;ZZZ
-      (call $log_js (string.const "caml_bytes_set16"))
+   (func (export "caml_bytes_set16")
+      (param (ref eq) (ref eq) (ref eq)) (result (ref eq))
+      (local $s (ref $string)) (local $p i32) (local $v i32)
+      (local.set $s (ref.cast $string (local.get 0)))
+      (local.set $p (i31.get_s (ref.cast i31 (local.get 1))))
+      (local.set $v (i31.get_s (ref.cast i31 (local.get 2))))
+      (if (i32.lt_s (local.get $p) (i32.const 0))
+         (then (call $caml_bound_error)))
+      (if (i32.ge_u (i32.add (local.get $p) (i32.const 1))
+                    (array.len (local.get $s)))
+         (then (call $caml_bound_error)))
+      (array.set $string (local.get $s) (local.get $p) (local.get $v))
+      (array.set $string (local.get $s)
+         (i32.add (local.get $p) (i32.const 1))
+         (i32.shr_u (local.get $v) (i32.const 8)))
+      (i31.new (i32.const 0)))
+
+   (func (export "caml_bytes_set32")
+      (param (ref eq) (ref eq) (ref eq)) (result (ref eq))
+      (local $s (ref $string)) (local $p i32) (local $v i32)
+      (local.set $s (ref.cast $string (local.get 0)))
+      (local.set $p (i31.get_s (ref.cast i31 (local.get 1))))
+      (local.set $v (struct.get $int32 1 (ref.cast $int32 (local.get 2))))
+      (if (i32.lt_s (local.get $p) (i32.const 0))
+         (then (call $caml_bound_error)))
+      (if (i32.ge_u (i32.add (local.get $p) (i32.const 3))
+                    (array.len (local.get $s)))
+         (then (call $caml_bound_error)))
+      (array.set $string (local.get $s) (local.get $p) (local.get $v))
+      (array.set $string (local.get $s)
+         (i32.add (local.get $p) (i32.const 1))
+         (i32.shr_u (local.get $v) (i32.const 8)))
+      (array.set $string (local.get $s)
+         (i32.add (local.get $p) (i32.const 2))
+         (i32.shr_u (local.get $v) (i32.const 16)))
+      (array.set $string (local.get $s)
+         (i32.add (local.get $p) (i32.const 3))
+         (i32.shr_u (local.get $v) (i32.const 24)))
+      (i31.new (i32.const 0)))
+
+   (func (export "caml_bytes_set64")
+      (param (ref eq) (ref eq) (ref eq)) (result (ref eq))
+      (local $s (ref $string)) (local $p i32) (local $v i64)
+      (local.set $s (ref.cast $string (local.get 0)))
+      (local.set $p (i31.get_s (ref.cast i31 (local.get 1))))
+      (local.set $v (struct.get $int64 1 (ref.cast $int64 (local.get 2))))
+      (if (i32.lt_s (local.get $p) (i32.const 0))
+         (then (call $caml_bound_error)))
+      (if (i32.ge_u (i32.add (local.get $p) (i32.const 3))
+                    (array.len (local.get $s)))
+         (then (call $caml_bound_error)))
+      (array.set $string (local.get $s) (local.get $p)
+         (i32.wrap_i64 (local.get $v)))
+      (array.set $string (local.get $s)
+         (i32.add (local.get $p) (i32.const 1))
+         (i32.wrap_i64 (i64.shr_u (local.get $v) (i64.const 8))))
+      (array.set $string (local.get $s)
+         (i32.add (local.get $p) (i32.const 2))
+         (i32.wrap_i64 (i64.shr_u (local.get $v) (i64.const 16))))
+      (array.set $string (local.get $s)
+         (i32.add (local.get $p) (i32.const 3))
+         (i32.wrap_i64 (i64.shr_u (local.get $v) (i64.const 24))))
+      (array.set $string (local.get $s)
+         (i32.add (local.get $p) (i32.const 4))
+         (i32.wrap_i64 (i64.shr_u (local.get $v) (i64.const 32))))
+      (array.set $string (local.get $s)
+         (i32.add (local.get $p) (i32.const 5))
+         (i32.wrap_i64 (i64.shr_u (local.get $v) (i64.const 40))))
+      (array.set $string (local.get $s)
+         (i32.add (local.get $p) (i32.const 6))
+         (i32.wrap_i64 (i64.shr_u (local.get $v) (i64.const 48))))
+      (array.set $string (local.get $s)
+         (i32.add (local.get $p) (i32.const 7))
+         (i32.wrap_i64 (i64.shr_u (local.get $v) (i64.const 56))))
       (i31.new (i32.const 0)))
 
    (type $int_array (array (mut i32)))
@@ -1586,10 +1656,14 @@ $len)))))
       (param (ref eq)) (result (ref eq))
       (array.new_fixed $block (i31.new (i32.const 0))))
 
+   (data $raw_backtrace_slot_err
+      "Printexc.get_raw_backtrace_slot: index out of bounds")
+
    (func (export "caml_raw_backtrace_slot")
       (param (ref eq) (ref eq)) (result (ref eq))
-      ;;ZZZ
-      (call $log_js (string.const "caml_raw_backtrace_slot"))
+      (call $caml_invalid_argument
+          (array.new_data $string $raw_backtrace_slot_err
+             (i32.const 0) (i32.const 52)))
       (i31.new (i32.const 0)))
 
    (func (export "caml_convert_raw_backtrace_slot")
@@ -2027,7 +2101,7 @@ $len)))))
       (i31.new (i32.const 0)))
 
    (func (export "caml_string_of_array") (param (ref eq)) (result (ref eq))
-      ;; ZZZ
+      ;; ZZZ used to convert a typed array to a string...
       (call $log_js (string.const "caml_string_of_array"))
       (unreachable))
 
@@ -2288,19 +2362,13 @@ $len)))))
       (i31.new (i32.const 0)))
 
    (func (export "unix_gettimeofday")
-       (param (ref eq)) (result (ref eq))
-      ;; ZZZ
-      (call $log_js (string.const "unix_gettimeofday"))
-      (i31.new (i32.const 0)))
+      (param (ref eq)) (result (ref eq))
+      (struct.new $float (call $gettimeofday)))
 
    (func (export "unix_gmtime")
        (param (ref eq)) (result (ref eq))
       ;; ZZZ
       (call $log_js (string.const "unix_gmtime"))
-      (i31.new (i32.const 0)))
-
-   (func (export "unix_inet_addr_of_string")
-      (param (ref eq)) (result (ref eq))
       (i31.new (i32.const 0)))
 
    (func (export "unix_localtime")
@@ -2309,10 +2377,11 @@ $len)))))
       (call $log_js (string.const "unix_localtime"))
       (i31.new (i32.const 0)))
 
-   (func (export "unix_time")
-       (param (ref eq)) (result (ref eq))
-      ;; ZZZ
-      (call $log_js (string.const "unix_time"))
+   (func (export "unix_time") (param (ref eq)) (result (ref eq))
+      (struct.new $float (f64.floor (call $gettimeofday))))
+
+   (func (export "unix_inet_addr_of_string")
+      (param (ref eq)) (result (ref eq))
       (i31.new (i32.const 0)))
 
    (type $js (struct (field anyref)))
@@ -2397,6 +2466,7 @@ $len)))))
       (func $ta_set_i8 (param externref) (param i32) (param (ref i31))))
    (import "bindings" "ta_set_ui8"
       (func $ta_set_ui8 (param externref) (param i32) (param (ref i31))))
+   (import "bindings" "gettimeofday" (func $gettimeofday (result f64)))
 
    (func (export "caml_js_equals")
       (param (ref eq)) (param (ref eq)) (result (ref eq))
