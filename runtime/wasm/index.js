@@ -2,7 +2,7 @@
     const runtime = fetch('runtime.wasm');
     const code = fetch('a.wasm');
 
-    var caml_callback;
+    var caml_callback, caml_alloc_tm;
 
     let math =
         {cos:Math.cos, sin:Math.sin, tan:Math.tan,
@@ -62,12 +62,61 @@
          ta_set_ui16:(a,i,v)=>a[i]=v,
          ta_set_i8:(a,i,v)=>a[i]=v,
          ta_set_ui8:(a,i,v)=>a[i]=v,
+         wrap_callback:(f)=>function (){
+             var n = arguments.length;
+             if(n > 0) {
+                 var args = new Array(n);
+                 for (var i = 0; i < n; i++) args[i] = arguments[i];
+             } else {
+                 args = [undefined];
+             }
+             return caml_callback(f, args.length, args, 1);
+         },
+         wrap_callback_args:(f)=>function (){
+             var n = arguments.length;
+             var args = new Array(n);
+             for (var i = 0; i < n; i++) args[i] = arguments[i];
+             return caml_callback(f, 1, [args], 0);
+         },
          wrap_callback_strict:(arity,f)=>function (){
              var n = arguments.length;
              var args = new Array(arity);
              var len = Math.min(arguments.length, arity)
              for (var i = 0; i < len; i++) args[i] = arguments[i];
-             return caml_callback(f, arity, args);
+             return caml_callback(f, arity, args, 0);
+         },
+         wrap_callback_unsafe:(f)=>function (){
+             var n = arguments.length;
+             var args = new Array(n);
+             for (var i = 0; i < n; i++) args[i] = arguments[i];
+             return caml_callback(f, args.length, args, 2);
+         },
+         wrap_meth_callback:(f)=>function (){
+             var n = arguments.length;
+             var args = new Array(n+1);
+             args[0] = this;
+             for (var i = 0; i < n; i++) args[i+1] = arguments[i];
+             return caml_callback(f, args.length, args, 1);
+         },
+         wrap_meth_callback_args:(f)=>function (){
+             var n = arguments.length;
+             var args = new Array(n);
+             for (var i = 0; i < n; i++) args[i] = arguments[i];
+             return caml_callback(f, 2, [this, args], 0);
+         },
+         wrap_meth_callback_strict:(arity,f)=>function (){
+             var args = new Array(arity + 1);
+             var len = Math.min(arguments.length, arity)
+             args[0] = this;
+             for (var i = 0; i < len; i++) args[i+1] = arguments[i];
+             return caml_callback(f, args.length, args, 0);
+         },
+         wrap_meth_callback_unsafe:(f)=>function (){
+             var n = arguments.length;
+             var args = new Array(n+1);
+             args[0] = this;
+             for (var i = 0; i < n; i++) args[i+1] = arguments[i];
+             return caml_callback(f, args.length, args, 2);
          },
          wrap_fun_arguments:(f)=>function(){return f(arguments)},
          format:(f)=>""+f,
@@ -106,6 +155,7 @@
                                                  {Math:math,bindings:bindings});
 
     caml_callback = runtimeModule.instance.exports.caml_callback;
+    caml_alloc_tm = runtimeModule.instance.exports.caml_alloc_tm;
 
     const wasmModule =
           await WebAssembly.instantiateStreaming(

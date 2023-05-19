@@ -138,9 +138,15 @@ module Type = struct
         let* fields = closure_common_fields in
         return { supertype = None; final = false; typ = W.Struct fields })
 
+  let closure_last_arg_type =
+    register_type "closure_last_arg" (fun () ->
+        let* cl_typ = closure_type_1 in
+        let* fields = closure_common_fields in
+        return { supertype = Some cl_typ; final = false; typ = W.Struct fields })
+
   let closure_type arity =
     if arity = 1
-    then closure_type_1
+    then closure_last_arg_type
     else
       register_type (Printf.sprintf "closure_%d" arity) (fun () ->
           let* cl_typ = closure_type_1 in
@@ -230,7 +236,7 @@ module Type = struct
 
   let rec curry_type arity m =
     register_type (Printf.sprintf "curry_%d_%d" arity m) (fun () ->
-        let* cl_typ = closure_type 1 in
+        let* cl_typ = if m = 2 then closure_type 1 else closure_type_1 in
         let* common = closure_common_fields in
         let* cl_ty = if m = arity then closure_type arity else curry_type arity (m + 1) in
         return

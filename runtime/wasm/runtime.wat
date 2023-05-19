@@ -15,6 +15,9 @@
 
    (type $closure (struct (;(field i32);) (field (ref $function_1))))
 
+   (type $closure_last_arg
+      (sub $closure (struct (;(field i32);) (field (ref $function_1)))))
+
    (type $value->value->int
       (func (param (ref eq)) (param (ref eq)) (result i32)))
 
@@ -622,6 +625,63 @@
    (func (export "caml_final_register")
      (param (ref eq) (ref eq)) (result (ref eq))
       (i31.new (i32.const 0)))
+
+   (func $parse_sign_and_base (param $s (ref $string)) (result i32 i32 i32)
+      (local $i i32) (local $len i32) (local $sign i32) (local $base i32)
+      (local $c i32)
+      (local.set $i (i32.const 0))
+      (local.set $len (array.len (local.get $s)))
+      (local.set $sign (i32.const 1))
+      (local.set $base (i32.const 10))
+      (if (i32.eqz (local.get $len))
+         (then
+            (local.set $c (array.get $string (local.get $s) (i32.const 0)))
+            (if (i32.eq (local.get $c) (i32.const 45))
+               (then
+                  (local.set $sign (i32.const -1))
+                  (local.set $i (i32.const 1))))
+               (else (if (i32.eq (local.get $c) (i32.const 43))
+                  (then (local.set $i (i32.const 1)))))))
+      (if (i32.lt_s (i32.add (local.get $i) (i32.const 1)) (local.get $len))
+         (then (if (i32.eq (array.get $string (local.get $s) (local.get $i))
+                           (i32.const 48))
+            (then
+               (local.set $c
+                  (array.get $string (local.get $s)
+                     (i32.add (local.get $i) (i32.const 1))))
+               (if (i32.or (i32.eq (local.get $c) (i32.const 88))
+                           (i32.eq (local.get $c) (i32.const 120)))
+                  (then
+                     (local.set $base (i32.const 16))
+                     (local.set $i (i32.add (local.get $i) (i32.const 2))))
+               (else (if (i32.or (i32.eq (local.get $c) (i32.const 79))
+                                 (i32.eq (local.get $c) (i32.const 111)))
+                  (then
+                     (local.set $base (i32.const 8))
+                     (local.set $i (i32.add (local.get $i) (i32.const 2))))
+               (else (if (i32.or (i32.eq (local.get $c) (i32.const 66))
+                                 (i32.eq (local.get $c) (i32.const 98)))
+                  (then
+                     (local.set $base (i32.const 2))
+                     (local.set $i (i32.add (local.get $i) (i32.const 2))))
+               (else (if (i32.or (i32.eq (local.get $c) (i32.const 85))
+                                 (i32.eq (local.get $c) (i32.const 117)))
+                  (then
+                     (local.set $i (i32.add (local.get $i)
+                        (i32.const 2)))))))))))))))
+      (tuple.make (local.get $i) (local.get $sign) (local.get $base)))
+
+   (func $parse_digit (param $c i32) (result i32)
+      (if (i32.and (i32.ge_u (local.get $c) (i32.const 48))
+                   (i32.le_u (local.get $c) (i32.const 57)))
+         (then (return (i32.sub (local.get $c) (i32.const 48)))))
+      (if (i32.and (i32.ge_u (local.get $c) (i32.const 65))
+                   (i32.le_u (local.get $c) (i32.const 90)))
+         (then (return (i32.sub (local.get $c) (i32.const 55)))))
+      (if (i32.and (i32.ge_u (local.get $c) (i32.const 97))
+                   (i32.le_u (local.get $c) (i32.const 122)))
+         (then (return (i32.sub (local.get $c) (i32.const 87)))))
+      (return (i32.const -1)))
 
    (func (export "caml_int_of_string")
       (param $v (ref eq)) (result (ref eq))
@@ -2493,8 +2553,22 @@ $len)))))
       (func $array_get (param externref) (param i32) (result anyref)))
    (import "bindings" "array_set"
       (func $array_set (param externref) (param i32) (param anyref)))
+   (import "bindings" "wrap_callback"
+      (func $wrap_callback (param (ref eq)) (result anyref)))
+   (import "bindings" "wrap_callback_args"
+      (func $wrap_callback_args (param (ref eq)) (result anyref)))
    (import "bindings" "wrap_callback_strict"
       (func $wrap_callback_strict (param i32) (param (ref eq)) (result anyref)))
+   (import "bindings" "wrap_callback_unsafe"
+      (func $wrap_callback_unsafe (param (ref eq)) (result anyref)))
+   (import "bindings" "wrap_meth_callback"
+      (func $wrap_meth_callback (param (ref eq)) (result anyref)))
+   (import "bindings" "wrap_meth_callback_args"
+      (func $wrap_meth_callback_args (param (ref eq)) (result anyref)))
+   (import "bindings" "wrap_meth_callback_strict"
+      (func $wrap_meth_callback_strict (param i32) (param (ref eq)) (result anyref)))
+   (import "bindings" "wrap_meth_callback_unsafe"
+      (func $wrap_meth_callback_unsafe (param (ref eq)) (result anyref)))
    (import "bindings" "wrap_fun_arguments"
       (func $wrap_fun_arguments (param anyref) (result anyref)))
    (import "bindings" "get_int" (func $get_int (param externref) (param i32) (result i32)))
@@ -2726,29 +2800,41 @@ $len)))))
                (br $loop))))
       (local.get $a'))
 
-   (func (export "caml_js_wrap_callback")
+   (func $caml_js_wrap_callback (export "caml_js_wrap_callback")
       (param (ref eq)) (result (ref eq))
-      ;; ZZZ
-      (call $log_js (string.const "caml_js_wrap_callback"))
-      (i31.new (i32.const 0)))
+      (return_call $wrap (call $wrap_callback (local.get 0))))
 
-   (func (export "caml_js_wrap_meth_callback")
+   (func (export "caml_js_wrap_callback_arguments")
       (param (ref eq)) (result (ref eq))
-      ;; ZZZ
-      (call $log_js (string.const "caml_js_wrap_meth_callback"))
-      (i31.new (i32.const 0)))
-
-   (func (export "caml_js_wrap_meth_callback_unsafe")
-      (param (ref eq)) (result (ref eq))
-      ;; ZZZ
-      (call $log_js (string.const "caml_js_wrap_meth_callback_unsafe"))
-      (i31.new (i32.const 0)))
+      (return_call $wrap (call $wrap_callback_args (local.get 0))))
 
    (func (export "caml_js_wrap_callback_strict")
       (param (ref eq)) (param (ref eq)) (result (ref eq))
       (return_call $wrap
          (call $wrap_callback_strict
             (i31.get_u (ref.cast i31 (local.get 0))) (local.get 1))))
+
+   (func (export "caml_js_wrap_callback_unsafe")
+      (param (ref eq)) (result (ref eq))
+      (return_call $wrap (call $wrap_callback_unsafe (local.get 0))))
+
+   (func (export "caml_js_wrap_meth_callback")
+      (param (ref eq)) (result (ref eq))
+      (return_call $wrap (call $wrap_meth_callback (local.get 0))))
+
+   (func (export "caml_js_wrap_meth_callback_arguments")
+      (param (ref eq)) (result (ref eq))
+      (return_call $wrap (call $wrap_meth_callback_args (local.get 0))))
+
+   (func (export "caml_js_wrap_meth_callback_strict")
+      (param (ref eq)) (param (ref eq)) (result (ref eq))
+      (return_call $wrap
+         (call $wrap_meth_callback_strict
+            (i31.get_u (ref.cast i31 (local.get 0))) (local.get 1))))
+
+   (func (export "caml_js_wrap_meth_callback_unsafe")
+      (param (ref eq)) (result (ref eq))
+      (return_call $wrap (call $wrap_meth_callback_unsafe (local.get 0))))
 
    (func (export "caml_ojs_wrap_fun_arguments")
       (param (ref eq)) (result (ref eq))
@@ -2758,22 +2844,45 @@ $len)))))
 
    (func (export "caml_callback")
       (param $f (ref eq)) (param $count i32) (param $args (ref extern))
+      (param $kind i32) ;; 0 ==> strict / 2 ==> unsafe
       (result anyref)
       (local $acc (ref eq)) (local $i i32)
       (local.set $acc (local.get $f))
-      (local.set $i (i32.const 0))
-      (loop $loop
-         (if (i32.lt_u (local.get $i) (local.get $count))
-            (then
+      (if (i32.eq (local.get $kind) (i32.const 2))
+         (then
+            (loop $loop
+               (local.set $f (local.get $acc))
                (local.set $acc
                   (call_ref $function_1
                      (call $wrap
-                        (call $get (local.get $args) (i31.new (local.get $i))))
+                        (call $get (local.get $args)
+                           (i31.new (local.get $i))))
                      (local.get $acc)
                      (struct.get $closure 0
                         (ref.cast $closure (local.get $acc)))))
-               (local.set $i (i32.add (local.get $i) (i32.const 1)))
-               (br $loop))))
+               (br_if $loop
+                  (i32.eqz (ref.test $closure_last_arg (local.get $f))))))
+         (else
+            (local.set $i (i32.const 0))
+            (loop $loop
+               (if (i32.lt_u (local.get $i) (local.get $count))
+                  (then
+                     (local.set $acc
+                        (call_ref $function_1
+                           (call $wrap
+                              (call $get (local.get $args)
+                                 (i31.new (local.get $i))))
+                           (local.get $acc)
+                           (struct.get $closure 0
+                              (ref.cast $closure (local.get $acc)))))
+                     (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                     (br $loop))))
+            (if (local.get $kind)
+               (then
+                  (if (ref.test $closure (local.get $acc))
+                     (then (local.set $acc
+                              (call $caml_js_wrap_callback
+                                 (local.get $acc)))))))))
       (return_call $unwrap (local.get $acc)))
 
    (export "caml_js_from_string" (func $caml_jsstring_of_string))
