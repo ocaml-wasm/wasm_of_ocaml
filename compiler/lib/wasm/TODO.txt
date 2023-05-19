@@ -248,6 +248,7 @@ Js_of_ocaml fixes:
 ==> strict equality
 ==> clamped array buffers
 ==> caml_unix_inet_addr_of_string
+==> sys_random_seed
 
 =========================
 

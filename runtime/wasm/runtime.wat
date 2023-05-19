@@ -318,6 +318,7 @@
       (i31.new (i32.const 0)))
 
    (func (export "caml_sys_time") (param (ref eq)) (result (ref eq))
+      ;; ZZZ
       (call $log_js (string.const "caml_sys_time"))
       (i31.new (i32.const 0)))
 
@@ -328,144 +329,187 @@
          (array.new_fixed $string (i32.const 97))))
 
    (func (export "caml_ml_flush") (param (ref eq)) (result (ref eq))
+      ;; ZZZ
       (call $log_js (string.const "caml_ml_flush"))
       (i31.new (i32.const 0)))
 
    (func (export "caml_ml_open_descriptor_in")
       (param (ref eq)) (result (ref eq))
+      ;; ZZZ
       (call $log_js (string.const "caml_ml_open_descriptor_in"))
       (i31.new (i32.const 0)))
 
    (func (export "caml_ml_open_descriptor_out")
       (param (ref eq)) (result (ref eq))
+      ;; ZZZ
       (call $log_js (string.const "caml_ml_open_descriptor_out"))
       (i31.new (i32.const 0)))
 
    (func (export "caml_ml_pos_in")
       (param (ref eq)) (result (ref eq))
+      ;; ZZZ
       (call $log_js (string.const "caml_ml_pos_in"))
       (i31.new (i32.const 0)))
 
    (func (export "caml_ml_pos_out")
       (param (ref eq)) (result (ref eq))
+      ;; ZZZ
       (call $log_js (string.const "caml_ml_pos_out"))
       (i31.new (i32.const 0)))
 
    (func (export "caml_ml_seek_in")
       (param (ref eq)) (param (ref eq)) (result (ref eq))
+      ;; ZZZ
       (call $log_js (string.const "caml_ml_seek_in"))
       (i31.new (i32.const 0)))
 
    (func (export "caml_ml_seek_in_64")
       (param (ref eq)) (param (ref eq)) (result (ref eq))
+      ;; ZZZ
       (call $log_js (string.const "caml_ml_seek_in_64"))
       (i31.new (i32.const 0)))
 
    (func (export "caml_ml_seek_out")
       (param (ref eq)) (param (ref eq)) (result (ref eq))
+      ;; ZZZ
       (call $log_js (string.const "caml_ml_seek_out"))
       (i31.new (i32.const 0)))
 
    (func (export "caml_ml_close_channel")
       (param (ref eq)) (result (ref eq))
+      ;; ZZZ
       (call $log_js (string.const "caml_ml_close_channel"))
       (i31.new (i32.const 0)))
 
    (func (export "caml_ml_set_channel_name")
       (param (ref eq)) (param (ref eq)) (result (ref eq))
+      ;; ZZZ
       (call $log_js (string.const "caml_ml_set_channel_name"))
       (i31.new (i32.const 0)))
 
    (func (export "caml_ml_out_channels_list")
       (param (ref eq)) (result (ref eq))
+      ;; ZZZ
       (call $log_js (string.const "caml_ml_out_channels_list"))
       (i31.new (i32.const 0)))
 
    (func (export "caml_ml_input")
       (param (ref eq)) (param (ref eq)) (param (ref eq)) (param (ref eq))
       (result (ref eq))
+      ;; ZZZ
       (call $log_js (string.const "caml_ml_input"))
       (i31.new (i32.const 0)))
 
    (func (export "caml_ml_output")
       (param (ref eq)) (param (ref eq)) (param (ref eq)) (param (ref eq))
       (result (ref eq))
+      ;; ZZZ
       (call $log_js (string.const "caml_ml_output"))
       (i31.new (i32.const 0)))
 
    (func (export "caml_ml_output_bytes")
       (param (ref eq)) (param (ref eq)) (param (ref eq)) (param (ref eq))
       (result (ref eq))
+      ;; ZZZ
       (call $log_js (string.const "caml_ml_output_bytes"))
       (i31.new (i32.const 0)))
 
    (func (export "caml_ml_input_char")
       (param (ref eq)) (result (ref eq))
+      ;; ZZZ
       (call $log_js (string.const "caml_ml_input_char"))
       (i31.new (i32.const 0)))
 
    (func (export "caml_ml_input_int")
       (param (ref eq)) (result (ref eq))
+      ;; ZZZ
       (call $log_js (string.const "caml_ml_input_int"))
       (i31.new (i32.const 0)))
 
    (func (export "caml_ml_input_scan_line")
       (param (ref eq)) (result (ref eq))
+      ;; ZZZ
       (call $log_js (string.const "caml_ml_input_scan_line"))
       (i31.new (i32.const 0)))
 
    (func (export "caml_ml_output_char")
       (param (ref eq)) (param (ref eq)) (result (ref eq))
+      ;; ZZZ
       (call $log_js (string.const "caml_ml_output_char"))
       (i31.new (i32.const 0)))
 
    (func (export "caml_ml_output_int")
       (param (ref eq)) (param (ref eq)) (result (ref eq))
+      ;; ZZZ
       (call $log_js (string.const "caml_ml_output_int"))
       (i31.new (i32.const 0)))
 
    (func (export "caml_sys_open")
       (param (ref eq)) (param (ref eq)) (param (ref eq)) (result (ref eq))
+      ;; ZZZ
       (call $log_js (string.const "caml_sys_open"))
       (i31.new (i32.const 0)))
 
    (func (export "caml_sys_close")
       (param (ref eq)) (result (ref eq))
+      ;; ZZZ
       (call $log_js (string.const "caml_sys_close"))
       (i31.new (i32.const 0)))
 
    (func (export "caml_sys_read_directory")
       (param (ref eq)) (result (ref eq))
+      ;; ZZZ
       (call $log_js (string.const "caml_sys_read_directory"))
       (i31.new (i32.const 0)))
 
    (func (export "caml_sys_remove")
       (param (ref eq)) (result (ref eq))
+      ;; ZZZ
       (call $log_js (string.const "caml_sys_remove"))
       (i31.new (i32.const 0)))
 
    (func (export "caml_sys_rename")
       (param (ref eq)) (param (ref eq)) (result (ref eq))
+      ;; ZZZ
       (call $log_js (string.const "caml_sys_rename"))
       (i31.new (i32.const 0)))
 
    (func (export "caml_sys_system_command")
       (param (ref eq)) (result (ref eq))
+      ;; ZZZ
       (call $log_js (string.const "caml_sys_system_command"))
       (i31.new (i32.const 0)))
 
    (func (export "caml_sys_time_include_children")
       (param (ref eq)) (result (ref eq))
+      ;; ZZZ
       (call $log_js (string.const "caml_sys_time_include_children"))
       (i31.new (i32.const 0)))
 
    (func (export "caml_sys_random_seed")
       (param (ref eq)) (result (ref eq))
-      (call $log_js (string.const "caml_sys_random_seed"))
-      (i31.new (i32.const 0)))
+      (local $r externref)
+      (local $a (ref $block))
+      (local $i i32) (local $n i32)
+      (local.set $r (call $random_seed))
+      (local.set $n (call $ta_length (local.get $r)))
+      (local.set $a
+         (array.new $block (i31.new (i32.const 0))
+            (i32.add (local.get $n) (i32.const 1))))
+      (local.set $i (i32.const 0))
+      (loop $loop
+         (if (i32.lt_u (local.get $i) (local.get $n))
+            (then
+               (array.set $block
+                  (local.get $a) (i32.add (local.get $i) (i32.const 1))
+                  (i31.new (call $ta_get_i32 (local.get $r) (local.get $i))))
+               (local.set $i (i32.add (local.get $i) (i32.const 1)))
+               (br $loop))))
+      (local.get $a))
 
    (func (export "caml_sys_file_exists")
       (param (ref eq)) (result (ref eq))
+      ;; ZZZ
       (call $log_js (string.const "caml_sys_file_exists"))
       (i31.new (i32.const 0)))
 
@@ -473,6 +517,7 @@
 
    (func (export "caml_sys_get_config")
       (param (ref eq)) (result (ref eq))
+      ;; ZZZ
       (call $log_js (string.const "caml_sys_get_config"))
       (array.new_fixed $block (i31.new (i32.const 0))
          (array.new_data $string $Unix (i32.const 0) (i32.const 4))
@@ -481,16 +526,19 @@
 
    (func (export "caml_sys_getcwd")
       (param (ref eq)) (result (ref eq))
+      ;; ZZZ
       (call $log_js (string.const "caml_sys_getcwd"))
       (i31.new (i32.const 0)))
 
    (func (export "caml_sys_mkdir")
       (param (ref eq)) (param (ref eq)) (result (ref eq))
+      ;; ZZZ
       (call $log_js (string.const "caml_sys_mkdir"))
       (i31.new (i32.const 0)))
 
    (func (export "caml_sys_getenv")
       (param (ref eq)) (result (ref eq))
+      ;; ZZZ
       (call $log_js (string.const "caml_sys_getenv"))
       (call $log_js
          (call $unwrap (call $caml_jsstring_of_string (local.get 0))))
@@ -499,36 +547,43 @@
 
    (func (export "caml_sys_isatty")
       (param (ref eq)) (result (ref eq))
+      ;; ZZZ
       (call $log_js (string.const "caml_sys_isatty"))
       (i31.new (i32.const 0)))
 
    (func (export "caml_terminfo_rows")
       (param (ref eq)) (result (ref eq))
+      ;; ZZZ
       (call $log_js (string.const "caml_terminfo_rows"))
       (i31.new (i32.const 0)))
 
    (func (export "caml_sys_const_ostype_cygwin")
       (param (ref eq)) (result (ref eq))
+      ;; ZZZ
       (call $log_js (string.const "caml_sys_const_ostype_cygwin"))
       (i31.new (i32.const 0)))
 
    (func (export "caml_sys_const_ostype_win32")
       (param (ref eq)) (result (ref eq))
+      ;; ZZZ
       (call $log_js (string.const "caml_sys_const_ostype_win32"))
       (i31.new (i32.const 0)))
 
    (func (export "caml_md5_string")
       (param (ref eq)) (param (ref eq)) (param (ref eq)) (result (ref eq))
+      ;; ZZZ
       (call $log_js (string.const "caml_md5_string"))
       (i31.new (i32.const 0)))
 
    (func (export "caml_md5_chan")
       (param (ref eq)) (param (ref eq)) (result (ref eq))
+      ;; ZZZ
       (call $log_js (string.const "caml_md5_chan"))
       (i31.new (i32.const 0)))
 
    (func (export "caml_register_named_value")
       (param (ref eq)) (param (ref eq)) (result (ref eq))
+      ;; ZZZ
       (call $log_js (string.const "caml_register_named_value"))
       (call $log_js
          (call $unwrap (call $caml_jsstring_of_string (local.get $0))))
@@ -536,26 +591,31 @@
 
    (func (export "caml_dynlink_close_lib")
       (param (ref eq)) (result (ref eq))
+      ;; ZZZ
       (call $log_js (string.const "caml_dynlink_close_lib"))
       (i31.new (i32.const 0)))
 
    (func (export "caml_dynlink_lookup_symbol")
       (param (ref eq)) (param (ref eq)) (result (ref eq))
+      ;; ZZZ
       (call $log_js (string.const "caml_dynlink_lookup_symbol"))
       (i31.new (i32.const 0)))
 
    (func (export "caml_new_lex_engine")
       (param (ref eq) (ref eq) (ref eq)) (result (ref eq))
+      ;; ZZZ
       (call $log_js (string.const "caml_new_lex_engine"))
       (i31.new (i32.const 0)))
 
    (func (export "caml_lex_engine")
       (param (ref eq) (ref eq) (ref eq)) (result (ref eq))
+      ;; ZZZ
       (call $log_js (string.const "caml_lex_engine"))
       (i31.new (i32.const 0)))
 
    (func (export "caml_gc_quick_stat")
       (param (ref eq)) (result (ref eq))
+      ;; ZZZ
       (call $log_js (string.const "caml_gc_quick_stat"))
       (i31.new (i32.const 0)))
 
@@ -2478,6 +2538,7 @@ $len)))))
    (import "bindings" "gettimeofday" (func $gettimeofday (result f64)))
    (import "bindings" "gmtime" (func $gmtime (result (ref eq))))
    (import "bindings" "localtime" (func $localtime (result (ref eq))))
+   (import "bindings" "random_seed" (func $random_seed (result externref)))
 
    (func (export "caml_js_equals")
       (param (ref eq)) (param (ref eq)) (result (ref eq))

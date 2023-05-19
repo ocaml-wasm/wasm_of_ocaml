@@ -103,7 +103,8 @@
                                 d.getFullYear() - 1900,
                                 d.getDay(), doy,
                                 (d.getTimezoneOffset() < stdTimezoneOffset))
-         }
+         },
+         random_seed:()=>crypto.getRandomValues(new Int32Array(12)),
          log:(x)=>console.log('ZZZZZ', x)
         }
     const runtimeModule =
