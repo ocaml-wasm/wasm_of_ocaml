@@ -382,7 +382,9 @@
    (func (export "caml_fs_init") (result (ref eq))
       (i31.new (i32.const 0)))
 
-   (func (export "caml_sys_time") (param (ref eq)) (result (ref eq))
+   (export "caml_sys_time_include_children" (func $caml_sys_time))
+   (func $caml_sys_time (export "caml_sys_time")
+      (param (ref eq)) (result (ref eq))
       ;; ZZZ
       (call $log_js (string.const "caml_sys_time"))
       (i31.new (i32.const 0)))
@@ -543,12 +545,6 @@
       (param (ref eq)) (result (ref eq))
       ;; ZZZ
       (call $log_js (string.const "caml_sys_system_command"))
-      (i31.new (i32.const 0)))
-
-   (func (export "caml_sys_time_include_children")
-      (param (ref eq)) (result (ref eq))
-      ;; ZZZ
-      (call $log_js (string.const "caml_sys_time_include_children"))
       (i31.new (i32.const 0)))
 
    (func (export "caml_sys_random_seed")
@@ -1061,8 +1057,8 @@
       (local $s (ref $string)) (local $i i32) (local $limit i32) (local $c i32)
       (local.set $s (ref.cast $string (local.get $v)))
       (local.set $i (i31.get_u (ref.cast i31 (local.get $offset))))
-      (local.set $limit (i32.add (local.get $i) (i31.get_u (ref.cast i31 (local.get
-$len)))))
+      (local.set $limit
+         (i32.add (local.get $i) (i31.get_u (ref.cast i31 (local.get $len)))))
       (local.set $c (i31.get_u (ref.cast i31 (local.get $init))))
       (loop $loop
          (if (i32.lt_u (local.get $i) (local.get $limit))
