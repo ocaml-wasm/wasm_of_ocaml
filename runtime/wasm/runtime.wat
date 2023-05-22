@@ -867,6 +867,9 @@
       (array.set $block (local.get $res) (i32.const 0) (local.get $tag))
       (local.get $res))
 
+   (global $forcing_tag i32 (i32.const 244))
+   (global $cont_tag i32 (i32.const 245))
+   (global $lazy_tag i32 (i32.const 246))
    (global $closure_tag i32 (i32.const 247))
    (global $object_tag i32 (i32.const 248))
    (global $forward_tag i32 (i32.const 250))
@@ -880,6 +883,38 @@
       (param (ref eq)) (result (ref eq))
       (array.new_fixed $block (i31.new (global.get $forward_tag))
          (local.get $0)))
+
+   (func $obj_update_tag
+      (param (ref eq)) (param $o i32) (param $n i32) (result i32)
+      (local $b (ref $block))
+      (local.set $b (ref.cast $block (local.get $0)))
+      (if (result i32) (ref.eq (array.get $block (local.get $b) (i32.const 0))
+                               (i31.new (local.get $o)))
+         (then
+            (array.set $block (local.get $b) (i32.const 0)
+               (i31.new (local.get $n)))
+            (i32.const 1))
+         (else
+            (i32.const 0))))
+
+   (func (export "caml_lazy_reset_to_lazy") (param (ref eq)) (result (ref eq))
+      (drop (call $obj_update_tag (local.get 0)
+               (global.get $forcing_tag) (global.get $lazy_tag)))
+      (i31.new (i32.const 0)))
+
+   (func (export "caml_lazy_update_to_forward") (param (ref eq)) (result (ref eq))
+      (drop (call $obj_update_tag (local.get 0)
+               (global.get $forcing_tag) (global.get $forward_tag)))
+      (i31.new (i32.const 0)))
+
+   (func (export "caml_lazy_update_to_forcing")
+      (param (ref eq)) (result (ref eq))
+      (if (ref.test $block (local.get $0))
+         (then
+            (if (call $obj_update_tag (local.get 0)
+                   (global.get $lazy_tag) (global.get $forcing_tag))
+               (then (return (i31.new (i32.const 0)))))))
+      (i31.new (i32.const 1)))
 
    (func (export "caml_obj_tag") (param $v (ref eq)) (result (ref eq))
       (if (ref.test i31 (local.get $v))

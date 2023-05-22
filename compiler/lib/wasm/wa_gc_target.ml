@@ -398,7 +398,7 @@ module Memory = struct
     (if include_closure_arity then 1 else 0) + if arity = 1 then 1 else 2
 
   let load_function_pointer ~arity ?(skip_cast = false) closure =
-    let* ty = Type.closure_type arity in
+    let* ty = if arity = 1 then Type.closure_type_1 else Type.closure_type arity in
     let* fun_ty = Type.function_type arity in
     let casted_closure = if skip_cast then closure else wasm_cast ty closure in
     let* e = wasm_struct_get ty casted_closure (env_start arity - 1) in
@@ -502,12 +502,11 @@ module Constant = struct
             ~init:(return [])
             a
         in
+        let l = List.rev l in
         let l' =
           List.map ~f:(fun (const, v) -> if const then v else W.I31New (Const (I32 0l))) l
         in
-        let c =
-          W.ArrayNewFixed (ty, I31New (Const (I32 (Int32.of_int tag))) :: List.rev l')
-        in
+        let c = W.ArrayNewFixed (ty, I31New (Const (I32 (Int32.of_int tag))) :: l') in
         if List.exists ~f:(fun (const, _) -> not const) l
         then
           let* c = store_in_global c in
