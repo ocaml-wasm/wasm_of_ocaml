@@ -268,6 +268,12 @@ caml_alloc_dummy_function / caml_alloc_dummy_infix / caml_update_dummy
 
 wasm-merge -->-- wasm-metadce -->-- wasm-opt -O3 --gufa --metrics -O3
 
+   - compile to a temp file (.wat file with -S option)
+   - link / optimize to final wasm file
+   - copy js file to target
+
+https://github.com/WebAssembly/binaryen/blob/main/src/tools/wasm-metadce.cpp
+
 split runtime into multiple files
 
 ===

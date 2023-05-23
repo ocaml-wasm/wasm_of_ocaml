@@ -23,34 +23,9 @@ type t =
   { common : Jsoo_cmdline.Arg.t
   ; (* compile option *)
     profile : Driver.profile option
-  ; source_map : (string option * Source_map.t) option
-  ; runtime_files : string list
-  ; no_runtime : bool
-  ; runtime_only : bool
-  ; output_file : [ `Name of string | `Stdout ] * bool
-  ; input_file : string option
+  ; output_file : string * bool
+  ; input_file : string
   ; params : (string * string) list
-  ; static_env : (string * string) list
-  ; wrap_with_fun :
-      [ `Iife (* IIFE stands for Immediately Invoked Function Expression *)
-      | `Named of string
-      | `Anonymous
-      ]
-  ; target_env : Target_env.t
-  ; (* toplevel *)
-    dynlink : bool
-  ; linkall : bool
-  ; toplevel : bool
-  ; export_file : string option
-  ; no_cmis : bool
-  ; (* filesystem *)
-    include_dirs : string list
-  ; fs_files : string list
-  ; fs_output : string option
-  ; fs_external : bool
-  ; keep_unit_names : bool
   }
 
 val options : t Cmdliner.Term.t
-
-val options_runtime_only : t Cmdliner.Term.t

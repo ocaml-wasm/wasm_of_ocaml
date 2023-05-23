@@ -21,13 +21,12 @@
 type profile
 
 val f :
-     target:[ `JavaScript | `Wasm ]
+     target:[ `JavaScript of Pretty_print.t | `Wasm ]
   -> ?standalone:bool
   -> ?wrap_with_fun:[ `Iife | `Anonymous | `Named of string ]
   -> ?profile:profile
   -> ?linkall:bool
   -> ?source_map:Source_map.t
-  -> Pretty_print.t
   -> Parse_bytecode.Debug.t
   -> Code.program
   -> Source_map.t option
