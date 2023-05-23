@@ -30,6 +30,53 @@ let output_gen output_file f =
   Code.Var.set_stable (Config.Flag.stable_var ());
   Filename.gen_file output_file f
 
+let remove_file filename =
+  try if Sys.file_exists filename then Sys.remove filename with Sys_error _msg -> ()
+
+let check_result res =
+  match res with
+  | Unix.WEXITED 0 -> ()
+  | _ -> assert false
+(*ZZZ*)
+
+let link wat_file output_file =
+  let common_options =
+    [| "--enable-gc"
+     ; "--enable-multivalue"
+     ; "--enable-exception-handling"
+     ; "--enable-reference-types"
+     ; "--enable-tail-call"
+     ; "--enable-bulk-memory"
+     ; "--enable-nontrapping-float-to-int"
+     ; "--enable-strings"
+     ; "-g"
+    |]
+  in
+  let temp_file = Filename.temp_file "wasm-merged" ".wasm" in
+  let ch =
+    Unix.open_process_args_out
+      "wasm-merge"
+      (Array.concat
+         [ [| "wasm-merge" |]
+         ; common_options
+         ; [| "-"; "env"; wat_file; "exec"; "-o"; temp_file |]
+         ])
+  in
+  output_string ch Wa_runtime.runtime;
+  check_result (Unix.close_process_out ch);
+  let wasm_file = fst output_file in
+  let ch =
+    Unix.open_process_args_out
+      "wasm-opt"
+      (Array.concat
+         [ [| "wasm-opt" |]
+         ; common_options
+         ; [| "-O3"; "--gufa"; "-O3"; temp_file; "-o"; wasm_file |]
+         ])
+  in
+  check_result (Unix.close_process_out ch);
+  remove_file temp_file
+
 let run { Cmd_arg.common; profile; input_file; output_file; params } =
   Wa_generate.init ();
   Jsoo_cmdline.Arg.eval common;
@@ -90,7 +137,8 @@ let run { Cmd_arg.common; profile; input_file; output_file; params } =
        in
        if times () then Format.eprintf "  parsing: %a@." Timer.print t1;
        let wat_file = Filename.chop_extension (fst output_file) ^ ".wat" in
-       output_gen wat_file (output code ~standalone:true)
+       output_gen wat_file (output code ~standalone:true);
+       link wat_file output_file
    | `Cmo _ | `Cma _ -> assert false);
    close_ic ());
   Debug.stop_profiling ()
