@@ -28,7 +28,7 @@ let handle_assignment ctx i =
 
 let rec scan_expression ctx e =
   match e with
-  | Wa_ast.Const _ | ConstSym _ | GlobalGet _ | Pop _ | RefFunc _ | RefNull -> ()
+  | Wa_ast.Const _ | ConstSym _ | GlobalGet _ | Pop _ | RefFunc _ | RefNull _ -> ()
   | UnOp (_, e')
   | I32WrapI64 e'
   | I64ExtendI32 (_, e')
@@ -155,7 +155,7 @@ let assignment ctx v e =
 
 let rec rewrite_expression ctx e =
   match e with
-  | Wa_ast.Const _ | ConstSym _ | GlobalGet _ | Pop _ | RefFunc _ | RefNull -> e
+  | Wa_ast.Const _ | ConstSym _ | GlobalGet _ | Pop _ | RefFunc _ | RefNull _ -> e
   | UnOp (op, e') -> UnOp (op, rewrite_expression ctx e')
   | I32WrapI64 e' -> I32WrapI64 (rewrite_expression ctx e')
   | I64ExtendI32 (s, e') -> I64ExtendI32 (s, rewrite_expression ctx e')

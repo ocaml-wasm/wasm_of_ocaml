@@ -321,7 +321,7 @@ let expression_or_instructions ctx in_function =
         | `Binaryen -> [ List (Atom "ref.test" :: (ref_type' ty @ expression e)) ]
         | `Reference -> [ List (Atom "ref.test" :: ref_type ty :: expression e) ])
     | RefEq (e, e') -> [ List (Atom "ref.eq" :: (expression e @ expression e')) ]
-    | RefNull -> [ Atom "ref.null" ]
+    | RefNull ty -> [ List [ Atom "ref.null"; heap_type ty ] ]
     | Br_on_cast (i, ty, ty', e) -> (
         match target with
         | `Binaryen ->

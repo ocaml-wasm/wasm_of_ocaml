@@ -264,3 +264,48 @@ Performance improvements:
   can call it directly.
 - float arrays
 - use unboxed primitives for int64/int32/nativeint
+
+====================================================
+
+wasm_of_ocaml foo.bc ==> foo.js / foo.wasm
+
+caml_compare
+array_concat
+caml_alloc_dummy_function / caml_alloc_dummy_infix / caml_update_dummy
+
+wasm-merge -->-- wasm-metadce -->-- wasm-opt -O3 --gufa --metrics -O3
+
+===
+
+DONE:
+
+- code generation
+- fairly complete core runtime support : string, arrays, numbers
+- interface with JavaScript
+  ==> explicit conversion to float
+  ==> cannot use OCaml strict comparison on JavaScript values
+
+===
+
+TODO:
+
+Separate compilation (use wasm-merge for linking?)
+
+Implement runtime code
+- numbers <-> string conversion
+- file system access
+- marshalling
+- lexing/parsing
+- weak pointer api
+- bigarrays
+...
+
+Test suite
+
+Dune support
+
+Optimizations
+- more efficient JavaScript bindings
+- unboxed float arrays
+- try to eliminate some casts / boxing
+- more direct calls when we known which function is called

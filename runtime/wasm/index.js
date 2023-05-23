@@ -161,7 +161,7 @@
           await WebAssembly.instantiateStreaming(
               code,
               {env:runtimeModule.instance.exports,
-               Math:math}
+               Math:math,bindings:bindings}
           )
 
     try {

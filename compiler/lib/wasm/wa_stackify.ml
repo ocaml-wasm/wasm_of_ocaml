@@ -220,7 +220,7 @@ and expression_list_effects l acc =
 *)
 let rec rewrite_expression e =
   match e with
-  | Wa_ast.Const _ | ConstSym _ | RefFunc _ | RefNull -> return e
+  | Wa_ast.Const _ | ConstSym _ | RefFunc _ | RefNull _ -> return e
   | GlobalGet v -> effect (Global v, false) e
   | BlockExpr (typ, l) ->
       let* l = rewrite_block l in

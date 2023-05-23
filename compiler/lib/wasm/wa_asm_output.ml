@@ -319,7 +319,7 @@ module Output () = struct
     | RefCast _
     | RefTest _
     | RefEq _
-    | RefNull
+    | RefNull _
     | Br_on_cast _
     | Br_on_cast_fail _
     | ExternExternalize _

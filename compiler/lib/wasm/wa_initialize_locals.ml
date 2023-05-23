@@ -15,7 +15,7 @@ let check_initialized ctx i =
 
 let rec scan_expression ctx e =
   match e with
-  | Wa_ast.Const _ | ConstSym _ | GlobalGet _ | Pop _ | RefFunc _ | RefNull -> ()
+  | Wa_ast.Const _ | ConstSym _ | GlobalGet _ | Pop _ | RefFunc _ | RefNull _ -> ()
   | UnOp (_, e')
   | I32WrapI64 e'
   | I64ExtendI32 (_, e')
