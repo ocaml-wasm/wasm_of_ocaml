@@ -268,6 +268,8 @@ caml_alloc_dummy_function / caml_alloc_dummy_infix / caml_update_dummy
 
 wasm-merge -->-- wasm-metadce -->-- wasm-opt -O3 --gufa --metrics -O3
 
+split runtime into multiple files
+
 ===
 
 DONE:

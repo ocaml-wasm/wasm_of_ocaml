@@ -1402,15 +1402,36 @@
    (func $push_compare_stack (param $stack (ref $compare_stack))
       (param $v1 (ref $block)) (param $v2 (ref $block)) (param $p i32)
       (result (ref $compare_stack))
-      (local $i i32)
+      (local $i i32) (local $len i32) (local $len' i32)
+      (local $stack' (ref $compare_stack))
       (local.set $i
          (i32.add (struct.get $compare_stack 0 (local.get $stack))
             (i32.const 1)))
-      ;; ZZZ Allocate a larger stack if necessary
-      (if (i32.ge_u (local.get $i)
-             (array.len (struct.get $compare_stack 1 (local.get $stack))))
-         (then       (call $log (i32.const 1))
-(unreachable)))
+      (local.set $len
+         (array.len (struct.get $compare_stack 1 (local.get $stack))))
+      (if (i32.ge_u (local.get $i) (local.get $len))
+         (then
+            (local.set $len' (i32.shl (local.get $len) (i32.const 1)))
+            (local.set $stack'
+               (struct.new $compare_stack (local.get $i)
+                  (array.new $block_array
+                     (global.get $dummy_block) (i32.const 8))
+                  (array.new $block_array
+                     (global.get $dummy_block) (i32.const 8))
+                  (array.new $int_array (i32.const 0) (i32.const 8))))
+            (array.copy $block_array $block_array
+               (struct.get $compare_stack 1 (local.get $stack')) (i32.const 0)
+               (struct.get $compare_stack 1 (local.get $stack)) (i32.const 0)
+               (local.get $len))
+            (array.copy $block_array $block_array
+               (struct.get $compare_stack 2 (local.get $stack')) (i32.const 0)
+               (struct.get $compare_stack 2 (local.get $stack)) (i32.const 0)
+               (local.get $len))
+            (array.copy $int_array $int_array
+               (struct.get $compare_stack 3 (local.get $stack')) (i32.const 0)
+               (struct.get $compare_stack 3 (local.get $stack)) (i32.const 0)
+               (local.get $len))
+            (local.set $stack (local.get $stack'))))
       (struct.set $compare_stack 0 (local.get $stack) (local.get $i))
       (array.set $block_array (struct.get $compare_stack 1 (local.get $stack))
          (local.get $i) (local.get $v1))
