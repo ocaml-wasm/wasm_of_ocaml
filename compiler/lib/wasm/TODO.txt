@@ -25,8 +25,6 @@ Simple improvements
       ==> hello.s (for debugging)
       ==> hello.wasm
 
-- GC: caml_{alloc,update}_dummy
-
 - optimize array bound checks (compute index once)
 
 =======
@@ -225,11 +223,6 @@ Bindings:
       (for instance to create a literal object)
    optimize away unwrap(wrap(...))
 
-==========================
-
-We don't need closure arity. We can use the type to check whether a
-function has a given arity.
-
 ===========================
 
 Float unboxing: declare primitive type (or parse the runtime code to get the functions' parameter types?)
@@ -260,7 +253,7 @@ Should be able to compare/hash JavaScript strings (string refs)
 ===============================
 
 Performance improvements:
-- Refine exact call: when there is a single function called, then we
+- Refine exact calls: when there is a single function called, then we
   can call it directly.
 - float arrays
 - use unboxed primitives for int64/int32/nativeint
@@ -289,8 +282,6 @@ DONE:
 
 TODO:
 
-Separate compilation (use wasm-merge for linking?)
-
 Implement runtime code
 - numbers <-> string conversion
 - file system access
@@ -301,6 +292,8 @@ Implement runtime code
 ...
 
 Test suite
+
+Separate compilation (use wasm-merge for linking?)
 
 Dune support
 
