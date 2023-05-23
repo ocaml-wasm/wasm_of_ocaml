@@ -1004,13 +1004,13 @@ let init () =
     ; "caml_ensure_stack_capacity", "%identity"
     ]
 
-let f (p : Code.program) ~live_vars =
+let f ch (p : Code.program) ~live_vars =
   match target with
   | `Core ->
       let module G = Generate (Wa_core_target) in
       let fields = G.f ~live_vars p in
-      Wa_asm_output.f fields
+      Wa_asm_output.f ch fields
   | `GC ->
       let module G = Generate (Wa_gc_target) in
       let fields = G.f ~live_vars p in
-      Wa_wat_output.f fields
+      Wa_wat_output.f ch fields

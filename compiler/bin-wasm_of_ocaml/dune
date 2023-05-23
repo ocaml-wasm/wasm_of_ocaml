@@ -1,7 +1,7 @@
 (executable
  (name wasm_of_ocaml)
  (public_name wasm_of_ocaml)
- (package js_of_ocaml-compiler)
+ (package wasm_of_ocaml-compiler)
  (libraries
   jsoo_cmdline
   js_of_ocaml-compiler
@@ -11,7 +11,7 @@
   (select
    findlib_support.ml
    from
-   ;; Only link js_of_ocaml-compiler.findlib-support if it exists
+   ;; Only link wasm_of_ocaml-compiler.findlib-support if it exists
    (js_of_ocaml-compiler.findlib-support -> findlib_support.empty.ml)
    (-> findlib_support.empty.ml)))
  (modes
@@ -29,6 +29,6 @@
 
 (install
  (section man)
- (package js_of_ocaml-compiler)
+ (package wasm_of_ocaml-compiler)
  (files
   wasm_of_ocaml.1))

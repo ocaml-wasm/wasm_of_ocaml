@@ -577,7 +577,7 @@ let configure formatter =
 let target_flag t =
   match t with
   | `JavaScript _ -> `JavaScript
-  | `Wasm -> `Wasm
+  | `Wasm _ -> `Wasm
 
 let full ~target ~standalone ~wrap_with_fun ~profile ~linkall ~source_map d p =
   let exported_runtime = not standalone in
@@ -593,7 +593,7 @@ let full ~target ~standalone ~wrap_with_fun ~profile ~linkall ~source_map d p =
     +> map_fst
          ((match target with
           | `JavaScript _ -> Generate_closure.f
-          | `Wasm -> Fun.id)
+          | `Wasm _ -> Fun.id)
          +> deadcode')
   in
   let emit formatter =
@@ -610,9 +610,9 @@ let full ~target ~standalone ~wrap_with_fun ~profile ~linkall ~source_map d p =
   let () = if times () then Format.eprintf " optimizations : %a@." Timer.print t in
   match target with
   | `JavaScript formatter -> emit formatter r
-  | `Wasm ->
+  | `Wasm ch ->
       let (p, live_vars), _ = r in
-      Wa_generate.f ~live_vars p;
+      Wa_generate.f ch ~live_vars p;
       None
 
 let full_no_source_map ~target ~standalone ~wrap_with_fun ~profile ~linkall d p =

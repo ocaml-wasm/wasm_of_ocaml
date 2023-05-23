@@ -1,3 +1,8 @@
+(install
+ (section lib)
+ (package wasm_of_ocaml-compiler)
+ (files runtime.wasm))
+
 (rule
    (target runtime.wasm)
    (deps runtime.wat)

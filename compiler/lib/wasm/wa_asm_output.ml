@@ -453,8 +453,8 @@ module Output () = struct
               ~f:(fun f -> line (string ".ascii \"+\"") ^^ len_string f)
               (Feature.get features)))
 
-  let f fields =
-    to_channel stdout
+  let f ch fields =
+    to_channel ch
     @@
     let types =
       List.filter_map
@@ -616,6 +616,6 @@ module Output () = struct
     ^^ target_features
 end
 
-let f fields =
+let f ch fields =
   let module O = Output () in
-  O.f fields
+  O.f ch fields
