@@ -268,14 +268,11 @@ array_concat
 wasm-merge -->-- wasm-metadce -->-- wasm-opt -O3 --gufa --metrics -O3
 
    - compile to a temp file (.wat file with -S option)
-   - link / optimize to final wasm file
    - copy js file to target
 
 wasm-metadce -all -g --graph-file ./deps.json  /tmp/a.wasm  -o /tmp/b.wasm
 
 https://github.com/WebAssembly/binaryen/blob/main/src/tools/wasm-metadce.cpp
-
-split runtime into multiple files
 
 ===
 
