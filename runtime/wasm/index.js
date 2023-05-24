@@ -1,5 +1,4 @@
 (async function () {
-    const runtime = fetch('runtime.wasm');
     const code = fetch('a.wasm');
 
     var caml_callback, caml_alloc_tm;
@@ -150,28 +149,23 @@
          random_seed:()=>crypto.getRandomValues(new Int32Array(12)),
          log:(x)=>console.log('ZZZZZ', x)
         }
-    const runtimeModule =
-          await WebAssembly.instantiateStreaming(runtime,
-                                                 {Math:math,bindings:bindings});
-
-    caml_callback = runtimeModule.instance.exports.caml_callback;
-    caml_alloc_tm = runtimeModule.instance.exports.caml_alloc_tm;
 
     const wasmModule =
           await WebAssembly.instantiateStreaming(
-              code,
-              {env:runtimeModule.instance.exports,
-               Math:math,bindings:bindings}
+              code, {Math:math,bindings:bindings}
           )
+
+    caml_callback = wasmModule.instance.exports.caml_callback;
+    caml_alloc_tm = wasmModule.instance.exports.caml_alloc_tm;
 
     try {
         wasmModule.instance.exports._initialize()
     } catch (e) {
         if (e instanceof WebAssembly.Exception &&
-            e.is(runtimeModule.instance.exports.ocaml_exit))
-            process.exit(e.getArg(runtimeModule.instance.exports.ocaml_exit, 0));
+            e.is(wasmModule.instance.exports.ocaml_exit))
+            process.exit(e.getArg(wasmModule.instance.exports.ocaml_exit, 0));
         if (e instanceof WebAssembly.Exception &&
-            e.is(runtimeModule.instance.exports.ocaml_exception)) {
+            e.is(wasmModule.instance.exports.ocaml_exception)) {
             console.log('Uncaught exception')
             process.exit(1)
         }
