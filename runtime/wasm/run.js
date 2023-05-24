@@ -165,7 +165,7 @@
     const wasmModule =
           await WebAssembly.instantiate(await code,
                                         {env:runtimeModule.instance.exports,
-                                         Math:math})
+                                         Math:math,bindings:bindings})
     try {
         wasmModule.instance.exports._initialize()
     } catch (e) {

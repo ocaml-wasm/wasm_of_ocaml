@@ -25,57 +25,69 @@ let debug_mem = Debug.find "mem"
 
 let () = Sys.catch_break true
 
+let command cmdline =
+  let cmdline = String.concat ~sep:" " cmdline in
+  let res = Sys.command cmdline in
+  if res = 127 then raise (Sys_error cmdline);
+  assert (res = 0)
+(*ZZZ*)
+
+let write_file name contents =
+  let ch = open_out name in
+  output_string ch contents;
+  close_out ch
+
+let remove_file filename =
+  try if Sys.file_exists filename then Sys.remove filename with Sys_error _msg -> ()
+
+let with_intermediate_file ?(keep = false) name f =
+  match f name with
+  | _ -> if not keep then remove_file name
+  | exception e ->
+      remove_file name;
+      raise e
+
 let output_gen output_file f =
   Code.Var.set_pretty true;
   Code.Var.set_stable (Config.Flag.stable_var ());
   Filename.gen_file output_file f
 
-let remove_file filename =
-  try if Sys.file_exists filename then Sys.remove filename with Sys_error _msg -> ()
+let common_binaryen_options =
+  [ "--enable-gc"
+  ; "--enable-multivalue"
+  ; "--enable-exception-handling"
+  ; "--enable-reference-types"
+  ; "--enable-tail-call"
+  ; "--enable-bulk-memory"
+  ; "--enable-nontrapping-float-to-int"
+  ; "--enable-strings"
+  ; "-g"
+  ]
 
-let check_result res =
-  match res with
-  | Unix.WEXITED 0 -> ()
-  | _ -> assert false
-(*ZZZ*)
+let link runtime_file wat_file wasm_file =
+  command
+    (("wasm-merge" :: common_binaryen_options)
+    @ [ Filename.quote runtime_file
+      ; "env"
+      ; Filename.quote wat_file
+      ; "exec"
+      ; "-o"
+      ; Filename.quote wasm_file
+      ])
 
-let link wat_file output_file =
-  let common_options =
-    [| "--enable-gc"
-     ; "--enable-multivalue"
-     ; "--enable-exception-handling"
-     ; "--enable-reference-types"
-     ; "--enable-tail-call"
-     ; "--enable-bulk-memory"
-     ; "--enable-nontrapping-float-to-int"
-     ; "--enable-strings"
-     ; "-g"
-    |]
-  in
-  let temp_file = Filename.temp_file "wasm-merged" ".wasm" in
-  let ch =
-    Unix.open_process_args_out
-      "wasm-merge"
-      (Array.concat
-         [ [| "wasm-merge" |]
-         ; common_options
-         ; [| "-"; "env"; wat_file; "exec"; "-o"; temp_file |]
-         ])
-  in
-  output_string ch Wa_runtime.runtime;
-  check_result (Unix.close_process_out ch);
-  let wasm_file = fst output_file in
-  let ch =
-    Unix.open_process_args_out
-      "wasm-opt"
-      (Array.concat
-         [ [| "wasm-opt" |]
-         ; common_options
-         ; [| "-O3"; "--gufa"; "-O3"; temp_file; "-o"; wasm_file |]
-         ])
-  in
-  check_result (Unix.close_process_out ch);
-  remove_file temp_file
+let optimize in_file out_file =
+  command
+    (("wasm-opt" :: common_binaryen_options)
+    @ [ "-O3"; "--gufa"; "-O3"; Filename.quote in_file; "-o"; Filename.quote out_file ])
+
+let link_and_optimize wat_file output_file =
+  with_intermediate_file (Filename.temp_file "funtime" ".wasm")
+  @@ fun runtime_file ->
+  write_file runtime_file Wa_runtime.runtime;
+  with_intermediate_file (Filename.temp_file "wasm-merged" ".wasm")
+  @@ fun temp_file ->
+  link runtime_file wat_file temp_file;
+  optimize temp_file output_file
 
 let run { Cmd_arg.common; profile; input_file; output_file; params } =
   Wa_generate.init ();
@@ -138,7 +150,7 @@ let run { Cmd_arg.common; profile; input_file; output_file; params } =
        if times () then Format.eprintf "  parsing: %a@." Timer.print t1;
        let wat_file = Filename.chop_extension (fst output_file) ^ ".wat" in
        output_gen wat_file (output code ~standalone:true);
-       link wat_file output_file
+       link_and_optimize wat_file (fst output_file)
    | `Cmo _ | `Cma _ -> assert false);
    close_ic ());
   Debug.stop_profiling ()
