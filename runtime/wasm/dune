@@ -1,7 +1,7 @@
 (install
  (section lib)
  (package wasm_of_ocaml-compiler)
- (files runtime.wasm))
+ (files runtime.wasm runtime.js))
 
 (rule
    (target runtime.wasm)

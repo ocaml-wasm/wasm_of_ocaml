@@ -274,6 +274,7 @@ wasm-metadce -all -g --graph-file ./deps.json  /tmp/a.wasm  -o /tmp/b.wasm
 https://github.com/WebAssembly/binaryen/blob/main/src/tools/wasm-metadce.cpp
 
 minify js runtime
+share types between runtime files
 
 ===
 
