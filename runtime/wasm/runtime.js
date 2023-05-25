@@ -7,7 +7,7 @@
       return require('fs/promises').readFile(f)
     }
     const isNode =
-          this.process && this.process.versions && this.process.versions.node;
+          this.process && process.versions && process.versions.node;
     const code = isNode?loadRelative(src):fetch(src);
 
     var caml_callback, caml_alloc_tm;
