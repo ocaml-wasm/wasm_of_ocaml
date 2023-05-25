@@ -1,5 +1,14 @@
+#!/usr/bin/env -S node --experimental-wasm-stringref --experimental-wasm-gc
 (async function () {
-    const code = fetch('a.wasm');
+    const src = 'CODE';
+    function loadRelative(src) {
+      const path = require('path');
+      const f = path.join(path.dirname(require.main.filename),src);
+      return require('fs/promises').readFile(f)
+    }
+    const isNode =
+          this.process && this.process.versions && this.process.versions.node;
+    const code = isNode?loadRelative(src):fetch(src);
 
     var caml_callback, caml_alloc_tm;
 
@@ -149,11 +158,10 @@
          random_seed:()=>crypto.getRandomValues(new Int32Array(12)),
          log:(x)=>console.log('ZZZZZ', x)
         }
-
+    const imports = {Math:math,bindings:bindings}
     const wasmModule =
-          await WebAssembly.instantiateStreaming(
-              code, {Math:math,bindings:bindings}
-          )
+          isNode?await WebAssembly.instantiate(await code, imports)
+                :await WebAssembly.instantiateStreaming(code,imports)
 
     caml_callback = wasmModule.instance.exports.caml_callback;
     caml_alloc_tm = wasmModule.instance.exports.caml_alloc_tm;
