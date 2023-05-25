@@ -25,8 +25,6 @@ Simple improvements
       ==> hello.s (for debugging)
       ==> hello.wasm
 
-- optimize array bound checks (compute index once)
-
 =======
 
 Optimization phases
@@ -231,12 +229,6 @@ Js_of_ocaml fixes:
 ==> sys_random_seed
 ==> update to forcing
 
-=========================
-
-Objects
-
-Should be able to compare/hash JavaScript strings (string refs)
-
 ===============================
 
 Performance improvements:
@@ -252,24 +244,8 @@ Compilation process
 
 wasm_of_ocaml foo.bc ==> foo.js / foo.wasm
    - compile to a temp file (.wat file with -S option)
-
-write to a temp file then rename
 minify js runtime
 share types between runtime files
-
-====
-
-caml_compare
-
-===
-
-DONE:
-
-- code generation
-- fairly complete core runtime support : string, arrays, numbers
-- interface with JavaScript
-  ==> explicit conversion to float
-  ==> cannot use OCaml strict comparison on JavaScript values
 
 ===
 
@@ -281,6 +257,7 @@ Implement runtime code
 - marshalling
 - lexing/parsing
 - weak pointer api
+  ==> Use Javascript weak pointer implementation
 - bigarrays
 ...
 
@@ -296,6 +273,11 @@ Optimizations
 - try to eliminate some casts / boxing
 - more direct calls when we known which function is called
 
-======================
+=========================
 
-Use Javascript weak pointer implementation (!)
+TODO
+
+- Objects (method calls)
+- Should be able to compare/hash JavaScript strings (string refs)
+- caml_compare
+- optimize array bound checks (compute index once)

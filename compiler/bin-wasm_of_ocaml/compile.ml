@@ -32,10 +32,23 @@ let command cmdline =
   assert (res = 0)
 (*ZZZ*)
 
+let gen_file file f =
+  let f_tmp =
+    Filename.temp_file_name
+      ~temp_dir:(Filename.dirname file)
+      (Filename.basename file)
+      ".tmp"
+  in
+  try
+    f f_tmp;
+    (try Sys.remove file with Sys_error _ -> ());
+    Sys.rename f_tmp file
+  with exc ->
+    Sys.remove f_tmp;
+    raise exc
+
 let write_file name contents =
-  let ch = open_out name in
-  output_string ch contents;
-  close_out ch
+  Filename.gen_file name @@ fun ch -> output_string ch contents
 
 let remove_file filename =
   try if Sys.file_exists filename then Sys.remove filename with Sys_error _msg -> ()
@@ -196,10 +209,13 @@ let run { Cmd_arg.common; profile; input_file; output_file; params } =
            ic
        in
        if times () then Format.eprintf "  parsing: %a@." Timer.print t1;
-       let wat_file = Filename.chop_extension (fst output_file) ^ ".wat" in
+       gen_file (Filename.chop_extension (fst output_file) ^ ".wat")
+       @@ fun wat_file ->
        let wasm_file = Filename.chop_extension (fst output_file) ^ ".wasm" in
+       gen_file wasm_file
+       @@ fun tmp_wasm_file ->
        output_gen wat_file (output code ~standalone:true);
-       link_and_optimize wat_file wasm_file;
+       link_and_optimize wat_file tmp_wasm_file;
        copy_js_runtime wasm_file (fst output_file)
    | `Cmo _ | `Cma _ -> assert false);
    close_ic ());
