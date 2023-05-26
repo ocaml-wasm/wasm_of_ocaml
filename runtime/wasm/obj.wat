@@ -236,6 +236,19 @@
    (func (export "caml_obj_is_shared") (param (ref eq)) (result (ref eq))
       (i31.new (i32.const 1)))
 
+   (func (export "caml_obj_raw_field")
+      (param $o (ref eq)) (param $i (ref eq)) (result (ref eq))
+      (array.get $block (ref.cast $block (local.get $o))
+         (i32.add (i31.get_u (ref.cast i31 (local.get $i))) (i32.const 1))))
+
+   (func (export "caml_obj_set_raw_field")
+      (param $o (ref eq)) (param $i (ref eq)) (param $v (ref eq))
+      (result (ref eq))
+      (array.set $block (ref.cast $block (local.get $o))
+         (i32.add (i31.get_u (ref.cast i31 (local.get $i))) (i32.const 1))
+         (local.get $v))
+      (i31.new (i32.const 0)))
+
    (func (export "caml_get_public_method")
       (param (ref eq) (ref eq) (ref eq)) (result (ref eq))
       ;;ZZZ
