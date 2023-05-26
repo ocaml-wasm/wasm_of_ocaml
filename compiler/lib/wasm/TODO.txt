@@ -296,7 +296,7 @@ TODO
   fs
 * gc (stubs)
   graphics
-  hash (mostly done)
+* hash
   ieee_754 (mostly done)
   int64 (format)
   int (format)
@@ -319,3 +319,35 @@ TODO
   toplevel
   unix (gettimeofday / time / gmtime)
   weak
+
+
+* Array (but float arrays are boxed)
+* Atomic
+  Bigarray
+* Buffer
+* Bytes
+  Callback
+  Format
+  Condition
+  Digest
+* Domain (stubs)
+  Effect
+  Float (mostly done)
+* Gc (stubs)
+* Hashtbl
+  Int32 (all but format)
+  Int64 (all but format)
+  Int (all but format)
+* Lazy
+  Lexing
+  Marshal
+* Mutex (stubs)
+  Nativeint (all but format)
+  Obj
+  Parsing
+* Printexc (stubs)
+* Random
+  Stdlib
+* String
+  Sys
+  Weak
