@@ -73,35 +73,36 @@
       (local.set $l (local.get 0))
       (local.set $len (i32.const 1))
       (loop $compute_length
-         (drop (block $exit
+         (drop (block $exit (result (ref eq))
              (local.set $b (br_on_cast_fail $exit $block (local.get $l)))
              (local.set $len
                 (i32.add (local.get $len)
                    (i32.sub
                       (array.len
                          (ref.cast $block
-                            (array.get $block (local.get $b) (i32.const 1)))))
-                   (i32.const 1)))
+                            (array.get $block (local.get $b) (i32.const 1))))
+                      (i32.const 1))))
              (local.set $l (array.get $block (local.get $b) (i32.const 2)))
              (br $compute_length))))
-      (local.set $a (array.new $block (i31.new (i32.const 0)) (i32.const $len)))
+      (local.set $a
+         (array.new $block (i31.new (i32.const 0)) (local.get $len)))
       (local.set $i (i32.const 1))
       (loop $fill
-         (block $exit'
-             (local.set $b (br_on_cast_fail $exit' $block (local.get $l)))
+         (drop (block $exit (result (ref eq))
+             (local.set $b (br_on_cast_fail $exit $block (local.get $l)))
              (local.set $a'
                 (ref.cast $block
                    (array.get $block (local.get $b) (i32.const 1))))
              (local.set $len
                 (i32.sub (array.len (local.get $a')) (i32.const 1)))
-             (array.copy
+             (array.copy $block $block
                 (local.get $a) (local.get $i)
                 (local.get $a') (i32.const 1)
                 (local.get $len))
              (local.set $i (i32.add (local.get $i) (local.get $len)))
              (local.set $l (array.get $block (local.get $b) (i32.const 2)))
-             (br $fill)))
-      (local.get $a)
+             (br $fill))))
+      (local.get $a))
 
    (export "caml_floatarray_blit" (func $caml_array_blit))
    (func $caml_array_blit (export "caml_array_blit")

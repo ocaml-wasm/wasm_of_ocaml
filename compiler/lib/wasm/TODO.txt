@@ -280,4 +280,3 @@ TODO
 - Objects (method calls)
 - Should be able to compare/hash JavaScript strings (string refs)
 - caml_compare
-- optimize array bound checks (compute index once)
