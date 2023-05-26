@@ -1,5 +1,6 @@
 (module
    (import "bindings" "log" (func $log_js (param anyref)))
+   (import "fail" "caml_failwith" (func $caml_failwith (param (ref eq))))
 
    (type $block (array (mut (ref eq))))
    (type $string (array (mut i8)))
@@ -247,6 +248,14 @@
       (array.set $block (ref.cast $block (local.get $o))
          (i32.add (i31.get_u (ref.cast i31 (local.get $i))) (i32.const 1))
          (local.get $v))
+      (i31.new (i32.const 0)))
+
+   (data $not_implemented "Obj.add_offset is not supported")
+
+   (func (export "caml_obj_add_offset")
+      (param (ref eq)) (param (ref eq)) (result (ref eq))
+      (call $caml_failwith
+         (array.new_data $string $not_implemented (i32.const 0) (i32.const 31)))
       (i31.new (i32.const 0)))
 
    (func (export "caml_get_public_method")

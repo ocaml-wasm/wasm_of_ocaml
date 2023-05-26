@@ -274,14 +274,6 @@ Optimizations
 - try to eliminate some casts / boxing
 - more direct calls when we known which function is called
 
-=========================
-
-TODO
-
-- Objects (method calls)
-- Should be able to compare/hash JavaScript strings (string refs)
-- caml_compare
-
 =================
 
 * array     (but arrays of float are boxed)
@@ -332,9 +324,11 @@ TODO
   Digest
 * Domain (stubs)
   Effect
+  Ephemeron
   Float (mostly done)
 * Gc (stubs)
 * Hashtbl
+  In_channel
   Int32 (all but format)
   Int64 (all but format)
   Int (all but format)
@@ -344,10 +338,22 @@ TODO
 * Mutex (stubs)
   Nativeint (all but format)
   Obj
+  Out_channel
   Parsing
 * Printexc (stubs)
 * Random
-  Stdlib
 * String
   Sys
+  Unix
   Weak
+
+=========================
+
+TODO
+
+- number formatting / float parsing
+- caml_compare
+- forks of brr / gen_js_api
+
+- Should be able to compare/hash JavaScript strings (string refs)
+- Objects (method calls)
