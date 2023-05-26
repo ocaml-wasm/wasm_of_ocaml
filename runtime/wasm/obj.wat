@@ -66,7 +66,7 @@
    (global $cont_tag i32 (i32.const 245))
    (global $lazy_tag i32 (i32.const 246))
    (global $closure_tag i32 (i32.const 247))
-   (global $object_tag i32 (i32.const 248))
+   (global $object_tag (export "object_tag") i32 (i32.const 248))
    (global $forward_tag (export "forward_tag") i32 (i32.const 250))
    (global $abstract_tag (export "abstract_tag") i32 (i32.const 251))
    (global $string_tag i32 (i32.const 252))
@@ -222,15 +222,16 @@
       (local $b (ref $block))
       (local $i i32)
       (local.set $b (ref.cast $block (local.get 0)))
-      (local.set $i (i32.add (i31.get_u (ref.cast i31 (local.get 1)))))
+      (local.set $i
+         (i32.add (i31.get_u (ref.cast i31 (local.get 1))) (i32.const 1)))
       (if (result (ref eq))
           (ref.eq
             (array.get $block (local.get $b) (local.get $i)) (local.get $old))
          (then
             (array.set $block (local.get $b) (local.get $i) (local.get $new))
-            (i32.new (i32.const 1)))
+            (i31.new (i32.const 1)))
          (else
-            (i32.new (i32.const 0)))))
+            (i31.new (i32.const 0)))))
 
    (func (export "caml_obj_is_shared") (param (ref eq)) (result (ref eq))
       (i31.new (i32.const 1)))
