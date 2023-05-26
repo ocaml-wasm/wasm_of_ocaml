@@ -112,6 +112,32 @@
                                  (i64.const 0x3ff))
                         (i64.const 52))))))
 
+   (func (export "caml_frexp_float") (param (ref eq)) (result (ref eq))
+      ;; ZZZ
+      (call $log_js (string.const "caml_frexp_float"))
+      (unreachable))
+
+   (func (export "caml_signbit_float") (param (ref eq)) (result (ref eq))
+      ;; ZZZ
+      (call $log_js (string.const "caml_signbit_float"))
+      (unreachable))
+
+   (func (export "caml_erf_float") (param (ref eq)) (result (ref eq))
+      ;; ZZZ
+      (call $log_js (string.const "caml_erf_float"))
+      (unreachable))
+
+   (func (export "caml_erfc_float") (param (ref eq)) (result (ref eq))
+      ;; ZZZ
+      (call $log_js (string.const "caml_erfc_float"))
+      (unreachable))
+
+   (func (export "caml_fma_float")
+      (param (ref eq)) (param (ref eq)) (result (ref eq))
+      ;; ZZZ
+      (call $log_js (string.const "caml_fma_float"))
+      (unreachable))
+
    (func (export "caml_float_of_string") (param (ref eq)) (result (ref eq))
       ;; ZZZ
       (call $log_js (string.const "caml_float_of_string"))

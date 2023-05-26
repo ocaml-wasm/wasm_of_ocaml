@@ -258,6 +258,15 @@
          (array.new_data $string $not_implemented (i32.const 0) (i32.const 31)))
       (i31.new (i32.const 0)))
 
+   (data $truncate_not_implemented "Obj.truncate is not supported")
+
+   (func (export "caml_obj_truncate")
+      (param (ref eq)) (param (ref eq)) (result (ref eq))
+      (call $caml_failwith
+         (array.new_data $string $truncate_not_implemented
+            (i32.const 0) (i32.const 29)))
+      (i31.new (i32.const 0)))
+
    (func (export "caml_get_public_method")
       (param (ref eq) (ref eq) (ref eq)) (result (ref eq))
       ;;ZZZ

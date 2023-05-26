@@ -2,6 +2,9 @@
    (type $string (array (mut i8)))
 
    (data $format_error "format_int: format too long")
+
+(; ZZZ We need to handle just this format: %[+ #][Lln]?[dixXou] ;)
+
 (;
    (func (export "parse_format") (param (ref eq)))
       (local $s (ref $string))
@@ -72,4 +75,13 @@
                         (local.set $c 
 ;)
 
+
+(;
+if n = 0 => "0" (except if %+d / % d)
+
+if n < 0 => set first char to -1 / add 1 to position
+compute length
+write digits from right to left
+add 
+;)
 )
