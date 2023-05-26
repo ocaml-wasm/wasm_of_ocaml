@@ -228,6 +228,7 @@ Js_of_ocaml fixes:
 ==> caml_unix_inet_addr_of_string
 ==> sys_random_seed
 ==> update to forcing
+==> gc stats / caml_gc_get
 
 ===============================
 
@@ -280,3 +281,41 @@ TODO
 - Objects (method calls)
 - Should be able to compare/hash JavaScript strings (string refs)
 - caml_compare
+
+=================
+
+* array     (but arrays of float are boxed)
+* backtrace (stubs)
+  bigarray
+  bigstring
+  compare (mostly done)
+* domain (stubs)
+  dynlink
+  effects
+  format
+  fs
+* gc (stubs)
+  graphics
+  hash (mostly done)
+  ieee_754 (mostly done)
+  int64 (format)
+  int (format)
+  io
+* jslib
+  jslib_js_of_ocaml
+  lexing
+  marshal
+  md5
+  string
+  nat
+  obj
+  parsing
+* prng
+  runtime_events
+  stdlib
+  str
+* sync (stubs)
+  sys
+  toplevel
+  unix (gettimeofday / time / gmtime)
+  weak

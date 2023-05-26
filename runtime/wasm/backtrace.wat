@@ -47,6 +47,6 @@
       (param (ref eq)) (result (ref eq))
       (i31.new (i32.const 0)))
 
-   (fun (export "caml_record_backtrace") (param (ref eq)) (result (ref eq))
+   (func (export "caml_record_backtrace") (param (ref eq)) (result (ref eq))
       (i31.new (i32.const 0)))
 )
