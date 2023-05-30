@@ -312,13 +312,13 @@ Optimizations
   unix (gettimeofday / time / gmtime)
   weak
 
-
 * Array (but float arrays are boxed)
 * Atomic
   Bigarray
 * Buffer
 * Bytes
   Callback
+  Dynlink
   Format
   Condition
   Digest
@@ -329,23 +329,28 @@ Optimizations
 * Gc (stubs)
 * Hashtbl
   In_channel
-  Int32 (all but format)
-  Int64 (all but format)
-  Int (all but format)
+* Int
+* Int32
+* Int64
 * Lazy
   Lexing
   Marshal
 * Mutex (stubs)
-  Nativeint (all but format)
+* Nativeint
 * Obj (Obj.truncate and Obj.add_offset cannot be implemented)
   Out_channel
   Parsing
 * Printexc (stubs)
 * Random
 * String
+  Str
   Sys
   Unix
   Weak
+
+- node bindings (I/Os)
+- virtual filesystem
+- toplevel
 
 =========================
 
