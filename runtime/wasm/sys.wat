@@ -74,6 +74,40 @@
                (br $loop))))
       (local.get $a))
 
+   (func (export "caml_sys_const_bigendian")
+      (param (ref eq)) (result (ref eq))
+      (i31.new (i32.const 0)))
+
+   (func (export "caml_sys_const_word_size")
+      (param (ref eq)) (result (ref eq))
+      (i31.new (i32.const 32)))
+
+   (func (export "caml_sys_const_int_size")
+      (param (ref eq)) (result (ref eq))
+      (i31.new (i32.const 31)))
+
+   (func (export "caml_sys_const_max_wosize")
+      (param (ref eq)) (result (ref eq))
+      (i31.new (i32.const 0xfffffff)))
+
+   (func (export "caml_sys_const_ostype_unix")
+      (param (ref eq)) (result (ref eq))
+      ;; ZZZ
+      (call $log_js (string.const "caml_sys_const_ostype_unix"))
+      (i31.new (i32.const 1)))
+
+   (func (export "caml_sys_const_ostype_win32")
+      (param (ref eq)) (result (ref eq))
+      ;; ZZZ
+      (call $log_js (string.const "caml_sys_const_ostype_win32"))
+      (i31.new (i32.const 0)))
+
+   (func (export "caml_sys_const_ostype_cygwin")
+      (param (ref eq)) (result (ref eq))
+      ;; ZZZ
+      (call $log_js (string.const "caml_sys_const_ostype_cygwin"))
+      (i31.new (i32.const 0)))
+
    (data $Unix "Unix")
 
    (func (export "caml_sys_get_config")
