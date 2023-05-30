@@ -1,5 +1,4 @@
 (module
-   (import "bindings" "log" (func $log_js (param anyref)))
    (import "ints" "parse_int"
       (func $parse_int
          (param (ref eq)) (param i32) (param (ref $string)) (result i32)))

@@ -1,10 +1,4 @@
 (module
-   (import "bindings" "log" (func $log_js (param anyref)))
-   (import "jslib" "caml_string_of_jsstring"
-      (func $caml_string_of_jsstring (param (ref eq)) (result (ref eq))))
-   (import "jslib" "wrap" (func $wrap (param anyref) (result (ref eq))))
-   (import "bindings"
-      "format" (func $format_int' (param (ref eq)) (result anyref)))
    (import "fail" "caml_failwith" (func $caml_failwith (param (ref eq))))
    (import "format" "parse_int_format"
       (func $parse_int_format
@@ -170,17 +164,14 @@
 
    (type $chars (array i8))
 
-   (data $lowercase_hex "0123456789abcdef")
-   (data $uppercase_hex "0123456789ABCDEF")
-
-   (global $lowercase_hex_table (ref $chars)
+   (global $lowercase_hex_table (export "lowercase_hex_table") (ref $chars)
       (array.new_fixed $chars
          (i32.const 48) (i32.const 49) (i32.const 50) (i32.const 51)
          (i32.const 52) (i32.const 53) (i32.const 54) (i32.const 55)
          (i32.const 56) (i32.const 57) (i32.const 97) (i32.const 98)
          (i32.const 99) (i32.const 100) (i32.const 101) (i32.const 102)))
 
-   (global $uppercase_hex_table (ref $chars)
+   (global $uppercase_hex_table (export "uppercase_hex_table") (ref $chars)
       (array.new_fixed $chars
          (i32.const 48) (i32.const 49) (i32.const 50) (i32.const 51)
          (i32.const 52) (i32.const 53) (i32.const 54) (i32.const 55)
@@ -214,8 +205,8 @@
                (i32.const 45)))) ;; '-'
       (local.get $s))
 
-   (func $format_int (param (ref eq)) (param $d i32) (result (ref eq))
-      ;; ZZZ Fast path for when the format is %d
+   (func $format_int (export "format_int")
+      (param (ref eq)) (param $d i32) (result (ref eq))
       (local $s (ref $string))
       (local $format (i32 i32 i32 i32 i32))
       (local $sign_style i32) (local $alternate i32) (local $signed i32)
@@ -282,7 +273,7 @@
                   (if (i32.eq (local.get $sign_style) (i32.const 1))
                      (then
                         (array.set $string (local.get $s) (i32.const 0)
-                           (i32.const 45))) ;; '+'
+                           (i32.const 43))) ;; '+'
                      (else
                         (array.set $string (local.get $s) (i32.const 0)
                            (i32.const 32)))))))) ;; ' '

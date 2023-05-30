@@ -26,14 +26,14 @@
                   (local.set $i (i32.add (local.get $i) (i32.const 1)))))
             (if (i32.eq (local.get $c) (i32.const 32)) ;; ' '
                (then
-                  (local.set $sign_style (i32.const 2)))
-                  (local.set $i (i32.add (local.get $i) (i32.const 1))))
+                  (local.set $sign_style (i32.const 2))
+                  (local.set $i (i32.add (local.get $i) (i32.const 1)))))
             (if (i32.eq (local.get $c) (i32.const 35)) ;; '#'
                (then
-                  (local.set $alternate (i32.const 1)))
-                  (local.set $i (i32.add (local.get $i) (i32.const 1))))
+                  (local.set $alternate (i32.const 1))
+                  (local.set $i (i32.add (local.get $i) (i32.const 1)))))
             (br_if $bad_format (i32.eq (local.get $i) (local.get $len)))
-            (local.set $c (array.get $string (local.get $s) (i32.const 1)))
+            (local.set $c (array.get $string (local.get $s) (local.get $i)))
             (if (i32.or (i32.or (i32.eq (local.get $c) (i32.const 76)) ;; 'L'
                                 (i32.eq (local.get $c) (i32.const 108))) ;; 'l'
                         (i32.eq (local.get $c) (i32.const 110))) ;; 'n'
@@ -41,7 +41,7 @@
                   (local.set $i (i32.add (local.get $i) (i32.const 1)))
                   (br_if $bad_format (i32.eq (local.get $i) (local.get $len)))
                   (local.set $c
-                     (array.get $string (local.get $s) (i32.const 1)))))
+                     (array.get $string (local.get $s) (local.get $i)))))
             (br_if $bad_format
               (i32.ne (i32.add (local.get $i) (i32.const 1)) (local.get $len)))
             (if (i32.or (i32.eq (local.get $c) (i32.const 100)) ;; 'd'
@@ -55,7 +55,7 @@
             (else (if (i32.eq (local.get $c) (i32.const 120)) ;; 'x'
                (then
                   (local.set $base (i32.const 16)))
-            (else (if (i32.eq (local.get $c) (i32.const 120)) ;; 'X'
+            (else (if (i32.eq (local.get $c) (i32.const 88)) ;; 'X'
                (then
                   (local.set $base (i32.const 16))
                   (local.set $uppercase (i32.const 1)))

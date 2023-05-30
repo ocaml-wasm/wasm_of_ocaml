@@ -312,14 +312,14 @@ Optimizations
   unix (gettimeofday / time / gmtime)
   weak
 
-* Array (but float arrays are boxed)
+* Array
 * Atomic
   Bigarray
 * Buffer
 * Bytes
   Callback
   Dynlink
-  Format
+  Format (all but float formatting)
   Condition
   Digest
 * Domain (stubs)
@@ -352,11 +352,15 @@ Optimizations
 - virtual filesystem
 - toplevel
 
+print uncaught exceptions
+
 =========================
 
 TODO
 
 - number formatting / float parsing
+  %[+ ]?#?.[0-9]+[eEfFgG]
+  hexa
 - caml_compare
 - forks of brr / gen_js_api
 
