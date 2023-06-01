@@ -189,7 +189,7 @@
       (loop $count
          (local.set $i (i32.add (local.get $i) (i32.const 1)))
          (local.set $n (i32.div_u (local.get $n) (i32.const 10)))
-         (br_if $count (i32.ne (local.get $n) (i32.const 0))))
+         (br_if $count (local.get $n)))
       (local.set $s (array.new $string (i32.const 0) (local.get $i)))
       (loop $write
          (local.set $i (i32.sub (local.get $i) (i32.const 1)))
@@ -197,7 +197,7 @@
             (i32.add (i32.const 48)
                (i32.rem_u (local.get $d) (i32.const 10))))
          (local.set $d (i32.div_u (local.get $d) (i32.const 10)))
-         (br_if $write (i32.ne (local.get $d) (i32.const 0))))
+         (br_if $write (local.get $d)))
       (if (local.get $negative)
          (then
             (array.set $string (local.get $s) (i32.const 0)
@@ -305,13 +305,13 @@
       (loop $count
          (local.set $i (i32.add (local.get $i) (i32.const 1)))
          (local.set $n (i32.div_u (local.get $n) (local.get $base)))
-         (br_if $count (i32.ne (local.get $n) (i32.const 0))))
+         (br_if $count (local.get $n)))
       (if (i32.or (local.get $negative)
                   (local.get $sign_style))
          (then (local.set $i (i32.add (local.get $i) (i32.const 1)))))
       (if (local.get $alternate)
          (then
-            (if (i32.ne (local.get $d) (i32.const 0))
+            (if (local.get $d)
                (then
                   (if (i32.eq (local.get $base) (i32.const 16))
                      (then
@@ -332,7 +332,7 @@
             (array.get_u $chars (local.get $chars)
                (i32.rem_u (local.get $d) (local.get $base))))
          (local.set $d (i32.div_u (local.get $d) (local.get $base)))
-         (br_if $write (i32.ne (local.get $d) (i32.const 0))))
+         (br_if $write (local.get $d)))
       (if (local.get $negative)
          (then
             (array.set $string (local.get $s) (i32.const 0)
@@ -349,7 +349,7 @@
                            (i32.const 32)))))))) ;; ' '
       (if (local.get $alternate)
          (then
-            (if (i32.ne (local.get $i) (i32.const 0))
+            (if (local.get $i)
                (then
                   (array.set $string (local.get $s) (i32.const 0)
                      (i32.const 48)) ;; '0'

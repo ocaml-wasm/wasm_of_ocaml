@@ -127,6 +127,7 @@
              return caml_callback(f, args.length, args, 2);
          },
          wrap_fun_arguments:(f)=>function(){return f(arguments)},
+         parse_float:(s)=>+s,
          format_float:(prec, conversion, x)=>{
            function toFixed(x,dp) {
              if (Math.abs(x) < 1.0) {
@@ -145,7 +146,6 @@
                else return x.toFixed(dp)
              }
            }
-console.log(conversion);
            switch (conversion) {
            case 0:
              var s = x.toExponential(prec);

@@ -252,7 +252,7 @@
                            (i32.const 32)))))))) ;; ' '
       (if (local.get $alternate)
          (then
-            (if (i32.ne (local.get $i) (i32.const 0))
+            (if (local.get $i)
                (then
                   (array.set $string (local.get $s) (i32.const 0)
                      (i32.const 48)) ;; '0'
