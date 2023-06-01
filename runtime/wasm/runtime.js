@@ -212,6 +212,7 @@
                                 d.getDay(), doy,
                                 (d.getTimezoneOffset() < stdTimezoneOffset))
          },
+         mktime:(year,month,day,h,m,s)=>new Date(year,month,day,h,m,s).getTime(),
          random_seed:()=>crypto.getRandomValues(new Int32Array(12)),
          log:(x)=>console.log('ZZZZZ', x)
         }
