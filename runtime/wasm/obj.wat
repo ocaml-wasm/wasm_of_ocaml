@@ -183,12 +183,12 @@
    (func (export "caml_lazy_make_forward")
       (param (ref eq)) (result (ref eq))
       (array.new_fixed $block (i31.new (global.get $forward_tag))
-         (local.get $0)))
+         (local.get 0)))
 
    (func $obj_update_tag
       (param (ref eq)) (param $o i32) (param $n i32) (result i32)
       (local $b (ref $block))
-      (local.set $b (ref.cast $block (local.get $0)))
+      (local.set $b (ref.cast $block (local.get 0)))
       (if (result i32) (ref.eq (array.get $block (local.get $b) (i32.const 0))
                                (i31.new (local.get $o)))
          (then
@@ -210,7 +210,7 @@
 
    (func (export "caml_lazy_update_to_forcing")
       (param (ref eq)) (result (ref eq))
-      (if (ref.test $block (local.get $0))
+      (if (ref.test $block (local.get 0))
          (then
             (if (call $obj_update_tag (local.get 0)
                    (global.get $lazy_tag) (global.get $forcing_tag))
@@ -281,7 +281,7 @@
       (array.set $block (ref.cast $block (local.get 0)) (i32.const 2)
          (i31.new (local.get $id)))
       (global.set $caml_oo_last_id (i32.add (local.get $id) (i32.const 1)))
-      (local.get $0))
+      (local.get 0))
 
    (func (export "caml_fresh_oo_id") (param (ref eq)) (result (ref eq))
       (local $id i32)

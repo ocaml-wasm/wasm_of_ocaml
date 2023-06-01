@@ -366,12 +366,3 @@ TODO
 
 - Should be able to compare/hash JavaScript strings (string refs)
 - Objects (method calls)
-
-===========
-
-I'm working on a compiler from Ocaml to Wasm.
-
-wasm-opt is exactly what I needed to splt an hand-written runtime into multiple files and then link it the generated code.
-And I can then use wasm-metadce to eliminate unused runtime functions.
-
-This is a complementary to @chambard works. He modifies the OCaml compiler. So, he should get better performance. We plan to share the same runtime code.

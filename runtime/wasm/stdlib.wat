@@ -43,7 +43,7 @@
                (i31.get_s
                   (ref.cast i31
                      (call $caml_string_hash
-                        (i31.new (i32.const 0)) (local.get $0))))
+                        (i31.new (i32.const 0)) (local.get 0))))
                (global.get $Named_value_size)))))
 
    (func (export "caml_register_named_value")
@@ -55,17 +55,17 @@
             (i31.get_s
                (ref.cast i31
                   (call $caml_string_hash
-                     (i31.new (i32.const 0)) (local.get $0))))
+                     (i31.new (i32.const 0)) (local.get 0))))
             (global.get $Named_value_size)))
       (local.set $r
          (array.get $assoc_array
             (global.get $named_value_table) (local.get $h)))
-      (if (ref.is_null (call $find_named_value (local.get $0) (local.get $r)))
+      (if (ref.is_null (call $find_named_value (local.get 0) (local.get $r)))
          (then
             (array.set $assoc_array
                (global.get $named_value_table) (local.get $h)
                (struct.new $assoc
-                  (ref.cast $string (local.get $0))
+                  (ref.cast $string (local.get 0))
                   (local.get 1) (local.get $r)))))
       (i31.new (i32.const 0)))
 

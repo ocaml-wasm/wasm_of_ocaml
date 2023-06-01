@@ -4,7 +4,7 @@
       (func $parse_sign_and_base
          (param (ref $string)) (result i32 i32 i32 i32)))
    (import "ints" "parse_digit" (func $parse_digit (param i32) (result i32)))
-   (import "format" "parse_int_format"
+   (import "ints" "parse_int_format"
       (func $parse_int_format
          (param (ref $string)) (result i32 i32 i32 i32 i32)))
    (import "fail" "caml_failwith" (func $caml_failwith (param (ref eq))))
