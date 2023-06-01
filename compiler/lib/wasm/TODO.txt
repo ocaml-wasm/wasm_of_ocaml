@@ -358,11 +358,9 @@ print uncaught exceptions
 
 TODO
 
-- number formatting / float parsing
-  %[+ ]?#?.[0-9]+[eEfFgG]
-  hexa
 - caml_compare
 - forks of brr / gen_js_api
+- dune support
 
 - Should be able to compare/hash JavaScript strings (string refs)
 - Objects (method calls)

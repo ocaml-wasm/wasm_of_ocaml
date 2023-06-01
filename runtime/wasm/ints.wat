@@ -21,7 +21,7 @@
       (local.set $base (i32.const 10))
       (if (i32.eqz (local.get $len))
          (then
-            (local.set $c (array.get $string (local.get $s) (i32.const 0)))
+            (local.set $c (array.get_u $string (local.get $s) (i32.const 0)))
             (if (i32.eq (local.get $c) (i32.const 45))
                (then
                   (local.set $sign (i32.const -1))
@@ -29,11 +29,11 @@
                (else (if (i32.eq (local.get $c) (i32.const 43))
                   (then (local.set $i (i32.const 1)))))))
       (if (i32.lt_s (i32.add (local.get $i) (i32.const 1)) (local.get $len))
-         (then (if (i32.eq (array.get $string (local.get $s) (local.get $i))
+         (then (if (i32.eq (array.get_u $string (local.get $s) (local.get $i))
                            (i32.const 48))
             (then
                (local.set $c
-                  (array.get $string (local.get $s)
+                  (array.get_u $string (local.get $s)
                      (i32.add (local.get $i) (i32.const 1))))
                (if (i32.or (i32.eq (local.get $c) (i32.const 88))
                            (i32.eq (local.get $c) (i32.const 120)))
@@ -92,7 +92,7 @@
       (local.set $base (tuple.extract 3 (local.get $t)))
       (local.set $threshold (i32.div_u (i32.const -1) (local.get $base)))
       (local.set $d
-         (call $parse_digit (array.get $string (local.get $s) (local.get $i))))
+         (call $parse_digit (array.get_u $string (local.get $s) (local.get $i))))
       (if (i32.ge_u (local.get $d) (local.get $base))
          (then (call $caml_failwith (local.get $errmsg))))
       (local.set $res (local.get $d))
@@ -100,7 +100,7 @@
          (local.set $i (i32.add (local.get $i) (i32.const 1)))
          (if (i32.lt_s (local.get $i) (local.get $len))
             (then
-               (local.set $c (array.get $string (local.get $s) (local.get $i)))
+               (local.set $c (array.get_u $string (local.get $s) (local.get $i)))
                (br_if $loop (i32.eq (local.get $c) (i32.const 95))) ;; '_'
                (local.set $d (call $parse_digit (local.get $c)))
                (if (i32.ge_u (local.get $d) (local.get $base))
@@ -217,9 +217,9 @@
          (block $bad_format
             (br_if $bad_format (i32.lt_u (local.get $len) (i32.const 2)))
             (br_if $bad_format
-               (i32.ne (array.get $string (local.get $s) (i32.const 0))
+               (i32.ne (array.get_u $string (local.get $s) (i32.const 0))
                        (i32.const 37))) ;; '%'
-            (local.set $c (array.get $string (local.get $s) (i32.const 1)))
+            (local.set $c (array.get_u $string (local.get $s) (i32.const 1)))
             (if (i32.eq (local.get $c) (i32.const 43)) ;; '+'
                (then
                   (local.set $sign_style (i32.const 1))
@@ -233,7 +233,7 @@
                   (local.set $alternate (i32.const 1))
                   (local.set $i (i32.add (local.get $i) (i32.const 1)))))
             (br_if $bad_format (i32.eq (local.get $i) (local.get $len)))
-            (local.set $c (array.get $string (local.get $s) (local.get $i)))
+            (local.set $c (array.get_u $string (local.get $s) (local.get $i)))
             (if (i32.or (i32.or (i32.eq (local.get $c) (i32.const 76)) ;; 'L'
                                 (i32.eq (local.get $c) (i32.const 108))) ;; 'l'
                         (i32.eq (local.get $c) (i32.const 110))) ;; 'n'
@@ -241,7 +241,7 @@
                   (local.set $i (i32.add (local.get $i) (i32.const 1)))
                   (br_if $bad_format (i32.eq (local.get $i) (local.get $len)))
                   (local.set $c
-                     (array.get $string (local.get $s) (local.get $i)))))
+                     (array.get_u $string (local.get $s) (local.get $i)))))
             (br_if $bad_format
               (i32.ne (i32.add (local.get $i) (i32.const 1)) (local.get $len)))
             (if (i32.or (i32.eq (local.get $c) (i32.const 100)) ;; 'd'
@@ -288,7 +288,7 @@
       (local.set $s (ref.cast $string (local.get 0)))
       (if (i32.eq (array.len (local.get $s)) (i32.const 2))
          (then
-            (if (i32.eq (array.get $string (local.get $s) (i32.const 1))
+            (if (i32.eq (array.get_u $string (local.get $s) (i32.const 1))
                         (i32.const 100)) ;; 'd'
                (then (return_call $format_int_default (local.get $d))))))
       (local.set $format (call $parse_int_format (local.get $s)))
