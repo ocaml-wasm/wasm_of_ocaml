@@ -229,6 +229,7 @@ Js_of_ocaml fixes:
 ==> sys_random_seed
 ==> update to forcing
 ==> gc stats / caml_gc_get
+==> Condition.wait should throw (never makes sense)
 
 ===============================
 
