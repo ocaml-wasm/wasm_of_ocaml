@@ -1,5 +1,6 @@
 #!/usr/bin/env -S node --experimental-wasm-stringref --experimental-wasm-gc
 (async function () {
+    "use strict";
     const src = 'CODE';
     function loadRelative(src) {
       const path = require('path');
@@ -7,7 +8,7 @@
       return require('fs/promises').readFile(f)
     }
     const isNode =
-          this.process && process.versions && process.versions.node;
+          globalThis.process && process.versions && process.versions.node;
     const code = isNode?loadRelative(src):fetch(src);
 
     var caml_callback, caml_alloc_tm;
