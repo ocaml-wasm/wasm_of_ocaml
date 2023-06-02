@@ -2,32 +2,41 @@
    (import "bindings" "identity" (func $to_float (param anyref) (result f64)))
    (import "bindings" "identity" (func $from_float (param f64) (result anyref)))
    (import "bindings" "identity" (func $to_bool (param anyref) (result i32)))
-   (import "bindings" "identity" (func $ref_cast_string (param anyref) (result stringref)))
+   (import "bindings" "identity"
+      (func $ref_cast_string (param anyref) (result (ref string))))
    (import "bindings" "from_bool" (func $from_bool (param i32) (result anyref)))
    (import "bindings" "eval" (func $eval (param anyref) (result anyref)))
-   (import "bindings" "get" (func $get (param externref) (param anyref) (result anyref)))
-   (import "bindings" "set" (func $set (param anyref) (param anyref) (param anyref)))
+   (import "bindings" "get"
+      (func $get (param (ref extern)) (param anyref) (result anyref)))
+   (import "bindings" "set"
+      (func $set (param anyref) (param anyref) (param anyref)))
    (import "bindings" "delete" (func $delete (param anyref) (param anyref)))
    (import "bindings" "instanceof"
       (func $instanceof (param anyref) (param anyref) (result i32)))
    (import "bindings" "typeof" (func $typeof (param anyref) (result anyref)))
-   (import "bindings" "equals" (func $equals (param anyref) (param anyref) (result i32)))
-   (import "bindings" "strict_equals" (func $strict_equals (param anyref) (param anyref) (result i32)))
+   (import "bindings" "equals"
+      (func $equals (param anyref) (param anyref) (result i32)))
+   (import "bindings" "strict_equals"
+      (func $strict_equals (param anyref) (param anyref) (result i32)))
    (import "bindings" "fun_call"
       (func $fun_call
          (param anyref) (param anyref) (param anyref) (result anyref)))
-   (import "bindings" "meth_call" (func $meth_call (param anyref) (param anyref) (param anyref) (result anyref)))
-   (import "bindings" "new" (func $new (param anyref) (param anyref) (result anyref)))
+   (import "bindings" "meth_call"
+      (func $meth_call
+         (param anyref) (param anyref) (param anyref) (result anyref)))
+   (import "bindings" "new"
+      (func $new (param anyref) (param anyref) (result anyref)))
    (import "bindings" "new_obj" (func $new_obj (result anyref)))
-   (import "bindings" "new_array" (func $new_array (param i32) (result externref)))
+   (import "bindings" "new_array"
+      (func $new_array (param i32) (result (ref extern))))
    (import "bindings" "iter_props"
       (func $iter_props (param anyref) (param anyref)))
    (import "bindings" "array_length"
-      (func $array_length (param externref) (result i32)))
+      (func $array_length (param (ref extern)) (result i32)))
    (import "bindings" "array_get"
-      (func $array_get (param externref) (param i32) (result anyref)))
+      (func $array_get (param (ref extern)) (param i32) (result anyref)))
    (import "bindings" "array_set"
-      (func $array_set (param externref) (param i32) (param anyref)))
+      (func $array_set (param (ref extern)) (param i32) (param anyref)))
    (import "bindings" "wrap_callback"
       (func $wrap_callback (param (ref eq)) (result anyref)))
    (import "bindings" "wrap_callback_args"
@@ -41,7 +50,8 @@
    (import "bindings" "wrap_meth_callback_args"
       (func $wrap_meth_callback_args (param (ref eq)) (result anyref)))
    (import "bindings" "wrap_meth_callback_strict"
-      (func $wrap_meth_callback_strict (param i32) (param (ref eq)) (result anyref)))
+      (func $wrap_meth_callback_strict
+         (param i32) (param (ref eq)) (result anyref)))
    (import "bindings" "wrap_meth_callback_unsafe"
       (func $wrap_meth_callback_unsafe (param (ref eq)) (result anyref)))
    (import "bindings" "wrap_fun_arguments"
@@ -139,7 +149,8 @@
          (then
             (local.set 1 (call $caml_jsstring_of_string (local.get 1)))))
       (return_call $wrap
-         (call $get (extern.externalize (call $unwrap (local.get 0)))
+         (call $get
+            (ref.as_non_null (extern.externalize (call $unwrap (local.get 0))))
             (call $unwrap (local.get 1)))))
 
    (func (export "caml_js_set")
@@ -214,7 +225,7 @@
    (func $caml_js_from_array (export "caml_js_from_array")
       (param (ref eq)) (result (ref eq))
       (local $a (ref $block))
-      (local $a' externref)
+      (local $a' (ref extern))
       (local $i i32) (local $l i32)
       (local.set $a (ref.cast $block (local.get 0)))
       (local.set $l (i32.sub (array.len (local.get $a)) (i32.const 1)))
@@ -232,10 +243,11 @@
 
    (func (export "caml_js_to_array")
       (param (ref eq)) (result (ref eq))
-      (local $a externref)
+      (local $a (ref extern))
       (local $a' (ref $block))
       (local $i i32) (local $l i32)
-      (local.set $a (extern.externalize (call $unwrap (local.get 0))))
+      (local.set $a
+         (ref.as_non_null (extern.externalize (call $unwrap (local.get 0)))))
       (local.set $l (call $array_length (local.get $a)))
       (local.set $a'
          (array.new $block (i31.new (i32.const 0))
@@ -400,7 +412,7 @@
    (export "caml_js_to_string" (func $caml_string_of_jsstring))
    (func $caml_string_of_jsstring (export "caml_string_of_jsstring")
       (param (ref eq)) (result (ref eq))
-      (local $s stringref)
+      (local $s (ref string))
       (local $l i32)
       (local $s' (ref $string))
       ;; ZZZ ref.cast string not yet implemented by V8
@@ -414,7 +426,7 @@
 
    (func (export "caml_string_of_jsbytes")
       (param (ref eq)) (result (ref eq))
-      (local $s stringref)
+      (local $s (ref string))
       (local $l i32) (local $i i32) (local $n i32) (local $c i32)
       (local $s' (ref $string)) (local $s'' (ref $string))
       ;; ZZZ ref.cast string not yet implemented by V8
@@ -467,7 +479,7 @@
    (func (export "caml_list_to_js_array")
       (param (ref eq)) (result (ref eq))
       (local $i i32)
-      (local $a externref)
+      (local $a (ref extern))
       (local $l (ref eq))
       (local $b (ref $block))
       (local.set $i (i32.const 0))
@@ -497,8 +509,9 @@
       (local $l (ref eq))
       (local $i i32)
       (local $len i32)
-      (local $a externref)
-      (local.set $a (extern.externalize (call $unwrap (local.get 0))))
+      (local $a (ref extern))
+      (local.set $a
+         (ref.as_non_null (extern.externalize (call $unwrap (local.get 0)))))
       (local.set $len (call $array_length (local.get $a)))
       (local.set $i (i32.const 0))
       (local.set $l (i31.new (i32.const 0)))
