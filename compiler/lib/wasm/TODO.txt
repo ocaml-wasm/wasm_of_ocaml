@@ -323,7 +323,12 @@ print uncaught exceptions
 TODO
 
 - caml_compare
-- forks of brr / gen_js_api
 - dune support
 
 - Should be able to compare/hash JavaScript strings (string refs)
+
+=================================
+
+Binding changes:
+- explicit coercion for floats
+- cannot use ocaml physical equality to compare JavaScript values
