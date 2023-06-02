@@ -247,14 +247,12 @@ Compilation process
 wasm_of_ocaml foo.bc ==> foo.js / foo.wasm
    - compile to a temp file (.wat file with -S option)
 minify js runtime
-share types between runtime files
 
 ===
 
 TODO:
 
 Implement runtime code
-- numbers <-> string conversion
 - file system access
 - marshalling
 - lexing/parsing
@@ -274,10 +272,11 @@ Optimizations
 - unboxed float arrays
 - try to eliminate some casts / boxing
 - more direct calls when we known which function is called
+- objects (method calls)
 
 =================
 
-* array     (but arrays of float are boxed)
+* array
 * backtrace (stubs)
   bigarray
   bigstring
@@ -285,23 +284,23 @@ Optimizations
 * domain (stubs)
   dynlink
   effects
-  format
+* format
   fs
 * gc (stubs)
   graphics
 * hash
-  ieee_754 (mostly done)
-  int64 (format)
-  int (format)
+* ieee_754
+* int64
+* int
   io
 * jslib
   jslib_js_of_ocaml
   lexing
   marshal
   md5
-  string
+* mlBytes
   nat
-  obj
+* obj
   parsing
 * prng
   runtime_events
@@ -312,42 +311,6 @@ Optimizations
   toplevel
   unix (gettimeofday / time / gmtime)
   weak
-
-* Array
-* Atomic
-  Bigarray
-* Buffer
-* Bytes
-  Callback
-  Dynlink
-  Format (all but float formatting)
-  Condition
-  Digest
-* Domain (stubs)
-  Effect
-  Ephemeron
-  Float (mostly done)
-* Gc (stubs)
-* Hashtbl
-  In_channel
-* Int
-* Int32
-* Int64
-* Lazy
-  Lexing
-  Marshal
-* Mutex (stubs)
-* Nativeint
-* Obj (Obj.truncate and Obj.add_offset cannot be implemented)
-  Out_channel
-  Parsing
-* Printexc (stubs)
-* Random
-* String
-  Str
-  Sys
-  Unix
-  Weak
 
 - node bindings (I/Os)
 - virtual filesystem
@@ -364,4 +327,3 @@ TODO
 - dune support
 
 - Should be able to compare/hash JavaScript strings (string refs)
-- Objects (method calls)
