@@ -46,7 +46,6 @@
       (func $wrap_meth_callback_unsafe (param (ref eq)) (result anyref)))
    (import "bindings" "wrap_fun_arguments"
       (func $wrap_fun_arguments (param anyref) (result anyref)))
-   (import "bindings" "get_int" (func $get_int (param externref) (param i32) (result i32)))
 
    (type $block (array (mut (ref eq))))
    (type $float (struct (field f64)))

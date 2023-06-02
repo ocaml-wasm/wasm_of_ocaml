@@ -5,7 +5,7 @@
    (import "bindings" "format_float"
       (func $format_float
          (param i32) (param i32) (param f64) (result (ref string))))
-   (import "bindings" "parse_float"
+   (import "bindings" "identity"
       (func $parse_float (param anyref) (result f64)))
    (import "Math" "exp" (func $exp (param f64) (result f64)))
    (import "fail" "caml_failwith" (func $caml_failwith (param (ref eq))))
