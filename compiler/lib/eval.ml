@@ -155,7 +155,7 @@ let eval_prim ~target x =
                ( Regular
                , match target with
                  | `JavaScript -> 32l
-                 | `Wasm -> 32l ))
+                 | `Wasm -> 31l ))
       | "caml_sys_const_big_endian", [ _ ] -> Some (Int (Regular, 0l))
       | "caml_sys_const_naked_pointers_checked", [ _ ] -> Some (Int (Regular, 0l))
       | _ -> None)

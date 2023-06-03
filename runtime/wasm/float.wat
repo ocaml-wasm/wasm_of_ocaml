@@ -633,7 +633,7 @@
          (array.new_data $string $float_of_string (i32.const 0) (i32.const 15)))
       (return (struct.new $float (f64.const 0))))
 
-   (func (export "caml_nextafter")
+   (func (export "caml_nextafter_float")
       (param (ref eq)) (param (ref eq)) (result (ref eq))
       (local $x f64) (local $y f64) (local $i i64) (local $j i64)
       (local.set $x (struct.get $float 0 (ref.cast $float (local.get 0))))
@@ -841,7 +841,7 @@
       (i31.new
          (i32.add
             (i32.sub (f64.gt (local.get $x) (local.get $y))
-                     (f64.lt (local.get $y) (local.get $x)))
+                     (f64.lt (local.get $x) (local.get $y)))
             (i32.sub (f64.eq (local.get $x) (local.get $x))
                      (f64.eq (local.get $y) (local.get $y))))))
 )

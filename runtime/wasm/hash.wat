@@ -187,7 +187,7 @@
                                        (global.get $MAX_FORWARD_DEREFERENCE)))
                                  (br $forward)))
                               (br $again))))
-                     (if (i32.eqz (local.get $tag) (global.get $object_tag))
+                     (if (i32.eq (local.get $tag) (global.get $object_tag))
                         (then
                            (local.set $h
                               (call $caml_hash_mix_int (local.get $h)

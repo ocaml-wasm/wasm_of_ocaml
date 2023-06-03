@@ -324,11 +324,13 @@ TODO
 
 - caml_compare
 - dune support
+- Random needs digest...
+- basic node output (fot tests)
 
 - Should be able to compare/hash JavaScript strings (string refs)
 
 =================================
 
-Binding changes:
+Doc: binding changes
 - explicit coercion for floats
 - cannot use ocaml physical equality to compare JavaScript values

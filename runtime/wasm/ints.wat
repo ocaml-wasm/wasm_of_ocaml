@@ -154,8 +154,8 @@
       (i31.new
          (i32.or
             (i32.shl (i32.and (local.get $x) (i32.const 0xFF)) (i32.const 8))
-            (i32.shr_u (i32.and (local.get $x) (i32.const 0x00FF))
-               (i32.const 8)))))
+            (i32.and
+               (i32.shr_u (local.get $x) (i32.const 8)) (i32.const 0xFF)))))
 
    (func (export "%caml_format_int_special") (param (ref eq)) (result (ref eq))
       (return_call $format_int_default
