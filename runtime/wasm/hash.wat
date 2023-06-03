@@ -205,7 +205,8 @@
                      (local.set $h
                         (call $caml_hash_mix_int (local.get $h)
                            (i32.or
-                              (i32.sub (local.get $len) (i32.const 1))
+                              (i32.shl (i32.sub (local.get $len) (i32.const 1))
+                                 (i32.const 10))
                               (local.get $tag))))
                      (local.set $i (i32.const 1))
                      (loop $block_iter

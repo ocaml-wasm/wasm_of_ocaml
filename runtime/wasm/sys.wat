@@ -30,7 +30,7 @@
 
    (func (export "caml_sys_argv") (param (ref eq)) (result (ref eq))
       ;; ZZZ
-      (call $log_js (string.const "caml_sys_argv"))
+      ;; (call $log_js (string.const "caml_sys_argv"))
       (array.new_fixed $block (i31.new (i32.const 0))
          (array.new_fixed $string (i32.const 97))))
 
