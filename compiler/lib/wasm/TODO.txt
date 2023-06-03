@@ -230,6 +230,8 @@ Js_of_ocaml fixes:
 ==> update to forcing
 ==> gc stats / caml_gc_get
 ==> Condition.wait should throw (never makes sense)
+==> round
+==> hash nan
 
 ===============================
 
@@ -297,7 +299,7 @@ Optimizations
   jslib_js_of_ocaml
   lexing
   marshal
-  md5
+  md5 (not channel)
 * mlBytes
   nat
 * obj
@@ -318,16 +320,35 @@ Optimizations
 
 print uncaught exceptions
 
+Other libraries
+==> base
+==> ppx_expect
+==> time_now
+
 =========================
 
 TODO
 
 - caml_compare
 - dune support
-- Random needs digest...
-- basic node output (fot tests)
+  ==> link (wasm_runtime) wat/wast/wasm files
 
 - Should be able to compare/hash JavaScript strings (string refs)
+
+Base_internalhash_fold_int
+Base_internalhash_get_hash_value
+time_now_nanoseconds_since_unix_epoch_or_zero
+===> ./lib/time_now/runtime.js
+expect_test_collector_before_test
+expect_test_collector_after_test
+caml_out_channel_pos_fd
+===> ./lib/ppx_expect/collector/runtime.js
+caml_ephe_get_key
+caml_ephe_check_key
+Base_internalhash_fold_string
+Base_clear_caml_backtrace_pos
+Base_am_testing
+...
 
 =================================
 

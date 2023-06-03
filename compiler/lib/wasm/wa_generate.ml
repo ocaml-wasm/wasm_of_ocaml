@@ -242,7 +242,7 @@ module Generate (Target : Wa_target_sig.S) = struct
         | Extern "caml_ceil_float", [ f ] -> float_un_op stack_ctx x Ceil f
         | Extern "caml_floor_float", [ f ] -> float_un_op stack_ctx x Floor f
         | Extern "caml_trunc_float", [ f ] -> float_un_op stack_ctx x Trunc f
-        | Extern "caml_round_float", [ f ] -> float_un_op stack_ctx x Nearest f
+        | Extern "caml_round_float", [ f ] -> float_un_op' stack_ctx x Math.round f
         | Extern "caml_sqrt_float", [ f ] -> float_un_op stack_ctx x Sqrt f
         | Extern "caml_eq_float", [ f; g ] -> float_comparison Eq f g
         | Extern "caml_neq_float", [ f; g ] -> float_comparison Ne f g

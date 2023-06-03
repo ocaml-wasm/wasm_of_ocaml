@@ -846,4 +846,20 @@
                      (f64.lt (local.get $x) (local.get $y)))
             (i32.sub (f64.eq (local.get $x) (local.get $x))
                      (f64.eq (local.get $y) (local.get $y))))))
+
+   (func (export "caml_round") (param $x f64) (result f64)
+      (local $y f64)
+      (if (result f64) (f64.ge (local.get $x) (f64.const 0))
+         (then
+            (local.set $y (f64.floor (local.get $x)))
+            (if (result f64)
+                (f64.ge (f64.sub (local.get $x) (local.get $y)) (f64.const 0.5))
+               (then (f64.add (local.get $y) (f64.const 1)))
+               (else (local.get $y))))
+         (else
+            (local.set $y (f64.ceil (local.get $x)))
+            (if (result f64)
+                (f64.ge (f64.sub (local.get $y) (local.get $x)) (f64.const 0.5))
+               (then (f64.sub (local.get $y) (f64.const 1)))
+               (else (local.get $y))))))
 )
