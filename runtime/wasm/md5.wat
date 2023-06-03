@@ -41,9 +41,8 @@
       (param $a i32) (param $b i32) (param $c i32) (param $d i32) (param $x i32)
       (param $s i32) (param $t i32) (result i32)
       (call $xx
-         (i32.or (i32.and (local.get $b) (local.get $c))
-            (i32.and (i32.xor (local.get $b) (i32.const -1))
-                     (local.get $d)))
+         (i32.xor (local.get $d)
+            (i32.and (local.get $b) (i32.xor (local.get $c) (local.get $d))))
          (local.get $a) (local.get $b)
          (local.get $x) (local.get $s) (local.get $t)))
 
@@ -51,9 +50,8 @@
       (param $a i32) (param $b i32) (param $c i32) (param $d i32) (param $x i32)
       (param $s i32) (param $t i32) (result i32)
       (call $xx
-         (i32.or (i32.and (local.get $b) (local.get $d))
-            (i32.and (i32.xor (local.get $d) (i32.const -1))
-                     (local.get $c)))
+         (i32.xor (local.get $c)
+            (i32.and (local.get $d) (i32.xor (local.get $b) (local.get $c))))
          (local.get $a) (local.get $b)
          (local.get $x) (local.get $s) (local.get $t)))
 
