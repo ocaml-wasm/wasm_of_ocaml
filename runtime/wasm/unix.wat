@@ -1,8 +1,9 @@
 (module
    (import "bindings" "gettimeofday" (func $gettimeofday (result f64)))
-   (import "bindings" "gmtime" (func $gmtime (param f64) (result (ref eq))))
+   (import "bindings" "gmtime"
+      (func $gmtime (param (ref func)) (param f64) (result (ref eq))))
    (import "bindings" "localtime"
-      (func $localtime (param f64) (result (ref eq))))
+      (func $localtime (param (ref func)) (param f64) (result (ref eq))))
    (import "bindings" "mktime"
       (func $mktime
          (param i32) (param i32) (param i32) (param i32) (param i32) (param i32)
@@ -15,7 +16,7 @@
       (param (ref eq)) (result (ref eq))
       (struct.new $float (call $gettimeofday)))
 
-   (func (export "caml_alloc_tm")
+   (func $caml_alloc_tm
       (param $sec i32) (param $min i32) (param $hour i32) (param $mday i32)
       (param $mon i32) (param $year i32) (param $wday i32) (param $yday i32)
       (param $isdst i32) (result (ref eq))
@@ -31,10 +32,12 @@
          (i31.new (local.get $isdst))))
 
    (func (export "unix_gmtime") (param (ref eq)) (result (ref eq))
-      (call $gmtime (struct.get $float 0 (ref.cast $float (local.get 0)))))
+      (call $gmtime (ref.func $caml_alloc_tm)
+         (struct.get $float 0 (ref.cast $float (local.get 0)))))
 
    (func (export "unix_localtime") (param (ref eq)) (result (ref eq))
-      (call $localtime (struct.get $float 0 (ref.cast $float (local.get 0)))))
+      (call $localtime (ref.func $caml_alloc_tm)
+         (struct.get $float 0 (ref.cast $float (local.get 0)))))
 
    (func (export "unix_time") (param (ref eq)) (result (ref eq))
       (struct.new $float (f64.floor (call $gettimeofday))))
@@ -68,7 +71,7 @@
             (f64.const 1000)))
       (array.new_fixed $block (i31.new (i32.const 0))
          (struct.new $float (local.get $t))
-         (call $localtime (local.get $t))))
+         (call $localtime (ref.func $caml_alloc_tm) (local.get $t))))
 
    (func (export "unix_inet_addr_of_string")
       (param (ref eq)) (result (ref eq))
