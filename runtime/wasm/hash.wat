@@ -145,8 +145,13 @@
                   (drop (block $not_int (result (ref eq))
                      (local.set $h
                         (call $caml_hash_mix_int (local.get $h)
-                           (i31.get_s
-                              (br_on_cast_fail $not_int i31 (local.get $v)))))
+                           (i32.add
+                              (i32.shl
+                                 (i31.get_s
+                                    (br_on_cast_fail $not_int i31
+                                       (local.get $v)))
+                                 (i32.const 1))
+                              (i32.const 1))))
                      (local.set $num (i32.sub (local.get $num) (i32.const 1)))
                      (br $loop)))
                   (drop (block $not_string (result (ref eq))

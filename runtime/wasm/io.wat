@@ -1,5 +1,8 @@
 (module
    (import "bindings" "log" (func $log_js (param anyref)))
+   (import "bindings" "write" (func $write (param (ref string))))
+
+   (type $string (array (mut i8)))
 
    (func (export "caml_sys_open")
       (param (ref eq)) (param (ref eq)) (param (ref eq)) (result (ref eq))
@@ -22,19 +25,19 @@
    (func (export "caml_ml_out_channels_list")
       (param (ref eq)) (result (ref eq))
       ;; ZZZ
-      (call $log_js (string.const "caml_ml_out_channels_list"))
+      ;; (call $log_js (string.const "caml_ml_out_channels_list"))
       (i31.new (i32.const 0)))
 
    (func (export "caml_ml_open_descriptor_in")
       (param (ref eq)) (result (ref eq))
       ;; ZZZ
-      (call $log_js (string.const "caml_ml_open_descriptor_in"))
+      ;; (call $log_js (string.const "caml_ml_open_descriptor_in"))
       (i31.new (i32.const 0)))
 
    (func (export "caml_ml_open_descriptor_out")
       (param (ref eq)) (result (ref eq))
       ;; ZZZ
-      (call $log_js (string.const "caml_ml_open_descriptor_out"))
+      ;; (call $log_js (string.const "caml_ml_open_descriptor_out"))
       (i31.new (i32.const 0)))
 
    (func (export "caml_ml_close_channel")
@@ -105,14 +108,20 @@
 
    (func (export "caml_ml_flush") (param (ref eq)) (result (ref eq))
       ;; ZZZ
-      (call $log_js (string.const "caml_ml_flush"))
+      ;; (call $log_js (string.const "caml_ml_flush"))
       (i31.new (i32.const 0)))
 
-   (func (export "caml_ml_output")
+   (func $caml_ml_output (export "caml_ml_output")
       (param (ref eq)) (param (ref eq)) (param (ref eq)) (param (ref eq))
       (result (ref eq))
       ;; ZZZ
-      (call $log_js (string.const "caml_ml_output"))
+      ;; (call $log_js (string.const "caml_ml_output"))
+      (local $s (ref $string))
+      (local.set $s (ref.cast $string (local.get 1)))
+      (call $write
+         (string.new_wtf8_array replace (local.get $s)
+            (i31.get_u (ref.cast i31 (local.get 2)))
+            (i31.get_u (ref.cast i31 (local.get 3)))))
       (i31.new (i32.const 0)))
 
    (func (export "caml_ml_output_bytes")
@@ -125,8 +134,11 @@
    (func (export "caml_ml_output_char")
       (param (ref eq)) (param (ref eq)) (result (ref eq))
       ;; ZZZ
-      (call $log_js (string.const "caml_ml_output_char"))
-      (i31.new (i32.const 0)))
+      ;;(call $log_js (string.const "caml_ml_output_char"))
+      (return_call $caml_ml_output (local.get 0)
+         (array.new $string
+            (i31.get_u (ref.cast i31 (local.get 1))) (i32.const 1))
+         (i31.new (i32.const 0)) (i31.new (i32.const 1))))
 
    (func (export "caml_output_value")
       (param (ref eq)) (param (ref eq)) (param (ref eq)) (result (ref eq))

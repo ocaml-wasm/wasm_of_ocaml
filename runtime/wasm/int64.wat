@@ -259,7 +259,8 @@
                   (if (i64.eq (local.get $base) (i64.const 16))
                      (then
                         (array.set $string (local.get $s) (i32.const 1)
-                           (i32.const 120)))))))) ;; 'x'
+                           (select (i32.const 88) (i32.const 120) ;; 'X' 'x'
+                              (local.get $uppercase)))))))))
       (local.get $s))
 
 )

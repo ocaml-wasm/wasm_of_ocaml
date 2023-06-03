@@ -256,7 +256,8 @@
       (local.set $negative
          (i32.wrap_i64 (i64.shr_u (local.get $b) (i64.const 63))))
       (local.set $i
-         (i32.or (local.get $negative) (local.get $sign_style)))
+         (i32.or (local.get $negative)
+                 (i32.ne (local.get $sign_style) (i32.const 0))))
       (local.set $s
          (block $sign (result (ref $string))
             (local.set $exp
@@ -271,7 +272,8 @@
                            (global.get $inf))
                         (else
                            (local.set $negative (i32.const 0))
-                           (local.set $i (local.get $sign_style))
+                           (local.set $i
+                              (i32.ne (local.get $sign_style) (i32.const 0)))
                            (global.get $nan))))
                   (local.set $len (array.len (local.get $txt)))
                   (local.set $s

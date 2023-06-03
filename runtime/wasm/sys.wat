@@ -22,9 +22,9 @@
    (func $caml_sys_getenv (export "caml_sys_getenv")
       (param (ref eq)) (result (ref eq))
       ;; ZZZ
-      (call $log_js (string.const "caml_sys_getenv"))
-      (call $log_js
-         (call $unwrap (call $caml_jsstring_of_string (local.get 0))))
+      ;; (call $log_js (string.const "caml_sys_getenv"))
+      ;; (call $log_js
+      ;;   (call $unwrap (call $caml_jsstring_of_string (local.get 0))))
       (call $caml_raise_not_found)
       (i31.new (i32.const 0)))
 
@@ -113,7 +113,7 @@
    (func (export "caml_sys_get_config")
       (param (ref eq)) (result (ref eq))
       ;; ZZZ
-      (call $log_js (string.const "caml_sys_get_config"))
+      ;; (call $log_js (string.const "caml_sys_get_config"))
       (array.new_fixed $block (i31.new (i32.const 0))
          (array.new_data $string $Unix (i32.const 0) (i32.const 4))
          (i31.new (i32.const 32))

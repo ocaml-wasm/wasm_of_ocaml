@@ -212,6 +212,7 @@
          },
          mktime:(year,month,day,h,m,s)=>new Date(year,month,day,h,m,s).getTime(),
          random_seed:()=>crypto.getRandomValues(new Int32Array(12)),
+         write:(s)=>isNode&&require('fs').writeSync(1,s),
          log:(x)=>console.log('ZZZZZ', x)
         }
     const imports = {Math:math,bindings:bindings}
@@ -232,7 +233,7 @@
           const exn_tag = wasmModule.instance.exports.ocaml_exception;
           if (exn_tag && e.is(exn_tag)) {
             console.log('Uncaught exception')
-            isNode && process.exit(1)
+            isNode && process.exit(2)
           }
         } else {
             throw e;
