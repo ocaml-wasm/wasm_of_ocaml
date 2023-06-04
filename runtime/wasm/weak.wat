@@ -11,7 +11,8 @@
       (param (ref eq)) (result (ref eq))
       ;;ZZZ
       (call $log_js (string.const "caml_ephe_create"))
-      (i31.new (i32.const 0)))
+      (array.new $block (i31.new (i32.const 0))
+         (i32.add (i31.get_u (ref.cast i31 (local.get 0))) (i32.const 1))))
 
    (func (export "caml_ephe_get_data")
       (param (ref eq)) (result (ref eq))
