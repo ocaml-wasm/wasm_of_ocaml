@@ -211,6 +211,7 @@
          mktime:(year,month,day,h,m,s)=>new Date(year,month,day,h,m,s).getTime(),
          random_seed:()=>crypto.getRandomValues(new Int32Array(12)),
          write:(s)=>isNode&&require('fs').writeSync(1,s),
+         argv:()=>isNode?process.argv.slice(1):['a.out'],
          log:(x)=>console.log('ZZZZZ', x)
         }
     const imports = {Math:math,bindings:bindings}

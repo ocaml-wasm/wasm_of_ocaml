@@ -6,9 +6,17 @@
       (func $ta_get_i32 (param (ref extern)) (param i32) (result i32)))
    (import "bindings" "random_seed" (func $random_seed (result (ref extern))))
    (import "jslib" "unwrap" (func $unwrap (param (ref eq)) (result anyref)))
+   (import "jslib" "wrap" (func $wrap (param anyref) (result (ref eq))))
    (import "jslib" "caml_jsstring_of_string"
       (func $caml_jsstring_of_string (param (ref eq)) (result (ref eq))))
+   (import "jslib" "caml_string_of_jsstring"
+      (func $caml_string_of_jsstring (param (ref eq)) (result (ref eq))))
    (import "fail" "caml_raise_not_found" (func $caml_raise_not_found))
+   (import "bindings" "argv" (func $argv (result (ref extern))))
+   (import "bindings" "array_length"
+      (func $array_length (param (ref extern)) (result i32)))
+   (import "bindings" "array_get"
+      (func $array_get (param (ref extern)) (param i32) (result anyref)))
 
    (type $block (array (mut (ref eq))))
    (type $string (array (mut i8)))
@@ -30,9 +38,25 @@
 
    (func (export "caml_sys_argv") (param (ref eq)) (result (ref eq))
       ;; ZZZ
-      ;; (call $log_js (string.const "caml_sys_argv"))
-      (array.new_fixed $block (i31.new (i32.const 0))
-         (array.new_fixed $string (i32.const 97))))
+      (local $a (ref extern)) (local $a' (ref $block))
+      (local $l i32) (local $i i32)
+      (local.set $a (call $argv))
+      (local.set $l (call $array_length (local.get $a)))
+      (local.set $a'
+         (array.new $block (i31.new (i32.const 0))
+            (i32.add (local.get $l) (i32.const 1))))
+      (local.set $i (i32.const 0))
+      (loop $loop
+         (if (i32.lt_u (local.get $i) (local.get $l))
+            (then
+               (array.set $block (local.get $a')
+                  (i32.add (local.get $i) (i32.const 1))
+                  (call $caml_string_of_jsstring
+                     (call $wrap
+                        (call $array_get (local.get $a) (local.get $i)))))
+               (local.set $i (i32.add (local.get $i) (i32.const 1)))
+               (br $loop))))
+      (local.get $a'))
 
    (func (export "caml_sys_executable_name")
       (param (ref eq)) (result (ref eq))

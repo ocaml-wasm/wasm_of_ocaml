@@ -1,11 +1,13 @@
 (module
    (import "bindings" "log" (func $log_js (param anyref)))
 
+   (type $string (array (mut i8)))
+
    (func (export "caml_sys_getcwd")
       (param (ref eq)) (result (ref eq))
       ;; ZZZ
       (call $log_js (string.const "caml_sys_getcwd"))
-      (i31.new (i32.const 0)))
+      (array.new_fixed $string))
 
    (func (export "caml_sys_mkdir")
       (param (ref eq)) (param (ref eq)) (result (ref eq))
