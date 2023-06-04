@@ -321,9 +321,29 @@ Optimizations
 print uncaught exceptions
 
 Other libraries
-==> base
-==> ppx_expect
-==> time_now
+  alcotest
+  base
+  base_bigstring
+  bigstringaf
+  bin_prot
+  bls12-381
+  bls12-381-signature
+  class_group_vdf
+  core
+  core_kernel
+  cstruct
+  ctypes_stubs_js
+  eliom
+  incr_dom
+  integers_stubs_js
+* ojs
+  ppx_expect
+  ppx_inline_test
+  secp256k1-internal
+  time_now
+  timezone
+  virtual_dom
+  zarith_stubs_js
 
 =========================
 
@@ -355,3 +375,7 @@ Base_am_testing
 Doc: binding changes
 - explicit coercion for floats
 - cannot use ocaml physical equality to compare JavaScript values
+
+====
+
+--traps-never-happen,-tnh ?
