@@ -18,7 +18,8 @@
       ))
    (type $custom (struct (field (ref $custom_operations))))
 
-   (func $caml_hash_mix_int (param $h i32) (param $d i32) (result i32)
+   (func $caml_hash_mix_int (export "caml_hash_mix_int")
+      (param $h i32) (param $d i32) (result i32)
       (i32.add
          (i32.mul
             (i32.rotl
@@ -33,7 +34,8 @@
             (i32.const 5))
          (i32.const 0xe6546b64)))
 
-   (func $caml_hash_mix_final (param $h i32) (result i32)
+   (func $caml_hash_mix_final (export "caml_hash_mix_final")
+      (param $h i32) (result i32)
       (local.set $h
          (i32.xor (local.get $h) (i32.shr_u (local.get $h) (i32.const 16))))
       (local.set $h (i32.mul (local.get $h) (i32.const 0x85ebca6b)))
@@ -60,7 +62,7 @@
          (then (local.set $i (i64.const 0))))
       (return_call $caml_hash_mix_int64 (local.get $h) (local.get $i)))
 
-   (func $caml_hash_mix_string
+   (func $caml_hash_mix_string (export "caml_hash_mix_string")
       (param $h i32) (param $s (ref $string)) (result i32)
       (local $i i32) (local $len i32) (local $w i32)
       (local.set $len (array.len (local.get $s)))

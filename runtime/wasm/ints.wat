@@ -19,7 +19,7 @@
       (local.set $signedness (i32.const 1))
       (local.set $sign (i32.const 1))
       (local.set $base (i32.const 10))
-      (if (i32.eqz (local.get $len))
+      (if (i32.ne (local.get $len) (i32.const 0))
          (then
             (local.set $c (array.get_u $string (local.get $s) (i32.const 0)))
             (if (i32.eq (local.get $c) (i32.const 45))

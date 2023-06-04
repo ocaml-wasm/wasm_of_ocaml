@@ -25,6 +25,18 @@
       (call $log_js (string.const "caml_ephe_set_data"))
       (i31.new (i32.const 0)))
 
+   (func (export "caml_ephe_get_key")
+      (param (ref eq) (ref eq)) (result (ref eq))
+      ;;ZZZ
+      (call $log_js (string.const "caml_ephe_get_key"))
+      (i31.new (i32.const 0)))
+
+   (func (export "caml_ephe_check_key")
+      (param (ref eq) (ref eq)) (result (ref eq))
+      ;;ZZZ
+      (call $log_js (string.const "caml_ephe_check_key"))
+      (i31.new (i32.const 0)))
+
    (func (export "caml_ephe_set_key")
       (param (ref eq) (ref eq) (ref eq)) (result (ref eq))
       ;;ZZZ

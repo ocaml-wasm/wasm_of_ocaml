@@ -56,6 +56,8 @@ module Js = struct
 
     external equals : 'a -> 'b -> bool = "caml_js_equals"
 
+    external strict_equals : 'a -> 'b -> bool = "caml_js_strict_equals"
+
     external pure_expr : (unit -> 'a) -> 'a = "caml_js_pure_expr"
 
     external eval_string : string -> 'a = "caml_js_eval_string"
@@ -164,17 +166,17 @@ module Js = struct
 
     let return = def
 
-    let map x f = if x == undefined then undefined else return (f x)
+    let map x f = if Unsafe.strict_equals x undefined then undefined else return (f x)
 
-    let bind x f = if x == undefined then undefined else f x
+    let bind x f = if Unsafe.strict_equals x undefined then undefined else f x
 
-    let test x = x != undefined
+    let test x = not (Unsafe.strict_equals x undefined)
 
-    let iter x f = if x != undefined then f x
+    let iter x f = if not (Unsafe.strict_equals x undefined) then f x
 
-    let case x f g = if x == undefined then f () else g x
+    let case x f g = if Unsafe.strict_equals x undefined then f () else g x
 
-    let get x f = if x == undefined then f () else x
+    let get x f = if Unsafe.strict_equals x undefined then f () else x
 
     let option x =
       match x with

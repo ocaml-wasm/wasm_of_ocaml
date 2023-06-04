@@ -20,6 +20,10 @@ void caml_js_on_ie () {
   fprintf(stderr, "Unimplemented Javascript primitive caml_js_on_ie!\n");
   exit(1);
 }
+void caml_js_strict_equals () {
+  fprintf(stderr, "Unimplemented Javascript primitive caml_js_strict_equals!\n");
+  exit(1);
+}
 void caml_xmlhttprequest_create () {
   fprintf(stderr, "Unimplemented Javascript primitive caml_xmlhttprequest_create!\n");
   exit(1);
