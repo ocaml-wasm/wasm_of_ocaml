@@ -342,19 +342,22 @@
                   (i32.eqz (ref.test $closure_last_arg (local.get $f))))))
          (else
             (local.set $i (i32.const 0))
-            (loop $loop
-               (if (i32.lt_u (local.get $i) (local.get $count))
-                  (then
-                     (local.set $acc
-                        (call_ref $function_1
-                           (call $wrap
-                              (call $get (local.get $args)
-                                 (i31.new (local.get $i))))
-                           (local.get $acc)
-                           (struct.get $closure 0
-                              (ref.cast $closure (local.get $acc)))))
-                     (local.set $i (i32.add (local.get $i) (i32.const 1)))
-                     (br $loop))))
+            (drop (block $done (result (ref eq))
+               (loop $loop
+                  (if (i32.lt_u (local.get $i) (local.get $count))
+                     (then
+                        (local.set $acc
+                           (call_ref $function_1
+                              (call $wrap
+                                 (call $get (local.get $args)
+                                    (i31.new (local.get $i))))
+                              (local.get $acc)
+                              (struct.get $closure 0
+                                 (br_on_cast_fail $done $closure
+                                    (local.get $acc)))))
+                        (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                        (br $loop))))
+               (i31.new (i32.const 0))))
             (if (local.get $kind)
                (then
                   (if (ref.test $closure (local.get $acc))

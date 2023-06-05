@@ -27,6 +27,8 @@
    (type $int64
       (sub $custom (struct (field (ref $custom_operations)) (field i64))))
 
+   ;;;;;; base
+
    (func (export "Base_internalhash_fold_int")
       (param (ref eq)) (param (ref eq)) (result (ref eq))
       (i31.new
@@ -57,25 +59,57 @@
       (call $log_js (string.const "Base_am_testing"))
       (i31.new (i32.const 1)))
 
+   ;;;;;; time_now
+
    (func (export "time_now_nanoseconds_since_unix_epoch_or_zero")
       (param (ref eq)) (result (ref eq))
       (call $caml_copy_int64
          (i64.trunc_sat_f64_s (f64.mul (call $gettimeofday) (f64.const 2e9)))))
 
+   ;;;;;; ppx_expect
+
+   (type $channel
+      (struct
+         (field (mut i32)) ;; fd
+         (field (mut i64)) ;; offset
+         (field (mut (ref extern))) ;; buffer
+         (field (mut i32)) ;; current position in buffer
+         (field (mut i32)) ;; logical end of the buffer (for input)
+         (field (mut i32)) ;; buffer size
+         (field (mut i32)))) ;; flags
+
+   (global $saved_stdout (mut i32) (i32.const 0))
+   (global $saved_stderr (mut i32) (i32.const 0))
+
    (func (export "expect_test_collector_before_test")
-      (param (ref eq)) (param (ref eq)) (param (ref eq)) (result (ref eq))
-      ;; ZZZ
-      (call $log_js (string.const "expect_test_collector_before_test"))
+      (param $voutput (ref eq)) (param $vstdout (ref eq))
+      (param $vstderr (ref eq)) (result (ref eq))
+      (local $output (ref $channel))
+      (local $stdout (ref $channel))
+      (local $stderr (ref $channel))
+      (local $fd i32)
+      (local.set $output (ref.cast $channel (local.get $voutput)))
+      (local.set $stdout (ref.cast $channel (local.get $vstdout)))
+      (local.set $stderr (ref.cast $channel (local.get $vstderr)))
+      (global.set $saved_stdout (struct.get $channel 0 (local.get $stdout)))
+      (global.set $saved_stderr (struct.get $channel 0 (local.get $stderr)))
+      (local.set $fd (struct.get $channel 0 (local.get $output)))
+      (struct.set $channel 0 (local.get $stdout) (local.get $fd))
+      (struct.set $channel 0 (local.get $stderr) (local.get $fd))
       (i31.new (i32.const 0)))
 
    (func (export "expect_test_collector_after_test")
-      (param (ref eq)) (param (ref eq)) (result (ref eq))
-      ;; ZZZ
-      (call $log_js (string.const "expect_test_collector_after_test"))
+      (param $vstdout (ref eq)) (param $vstderr (ref eq)) (result (ref eq))
+      (local $stdout (ref $channel))
+      (local $stderr (ref $channel))
+      (local.set $stdout (ref.cast $channel (local.get $vstdout)))
+      (local.set $stderr (ref.cast $channel (local.get $vstderr)))
+      (struct.set $channel 0 (local.get $stdout) (global.get $saved_stdout))
+      (struct.set $channel 0 (local.get $stderr) (global.get $saved_stderr))
       (i31.new (i32.const 0)))
 
    (func (export "caml_out_channel_pos_fd") (param (ref eq)) (result (ref eq))
-      ;; ZZZ
-      (call $log_js (string.const "caml_out_channel_pos_fd"))
-      (i31.new (i32.const 0)))
+      (i31.new
+         (i32.wrap_i64
+            (struct.get $channel 1 (ref.cast $channel (local.get $0))))))
 )

@@ -330,20 +330,6 @@ TODO
 
 - Should be able to compare/hash JavaScript strings (string refs)
 
-Base_internalhash_fold_int
-Base_internalhash_get_hash_value
-Base_internalhash_fold_string
-Base_clear_caml_backtrace_pos
-Base_am_testing
-
-time_now_nanoseconds_since_unix_epoch_or_zero
-===> ./lib/time_now/runtime.js
-
-expect_test_collector_before_test
-expect_test_collector_after_test
-caml_out_channel_pos_fd
-===> ./lib/ppx_expect/collector/runtime.js
-
 =================================
 
 Doc: binding changes

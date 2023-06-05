@@ -3,17 +3,22 @@
    (import "jslib" "unwrap" (func $unwrap (param (ref eq)) (result anyref)))
    (import "jslib" "caml_jsstring_of_string"
       (func $caml_jsstring_of_string (param (ref eq)) (result (ref eq))))
-   (import "bindings" "write"
-      (func $write
-         (param i32) (param (ref extern)) (param i32) (param i32) (result i32)))
    (import "bindings" "open"
       (func $open (param anyref) (param i32) (param i32) (result i32)))
    (import "bindings" "close" (func $close (param i32)))
+   (import "bindings" "write"
+      (func $write
+         (param i32) (param (ref extern)) (param i32) (param i32) (result i32)))
+   (import "bindings" "read"
+      (func $read
+         (param i32) (param (ref extern)) (param i32) (param i32) (result i32)))
    (import "bindings" "ta_new" (func $ta_new (param i32) (result (ref extern))))
    (import "bindings" "ta_copy"
       (func $ta_copy (param (ref extern)) (param i32) (param i32) (param i32)))
    (import "bindings" "ta_set_ui8"
       (func $ta_set_ui8 (param (ref extern)) (param i32) (param i32))) ;; ZZZ ??
+   (import "bindings" "ta_get_ui8"
+      (func $ta_get_ui8 (param (ref extern)) (param i32) (result i32)))
 
    (type $block (array (mut (ref eq))))
    (type $string (array (mut i8)))
@@ -76,8 +81,6 @@
 
    (func (export "caml_ml_set_channel_name")
       (param (ref eq)) (param (ref eq)) (result (ref eq))
-      ;; ZZZ
-      (call $log_js (string.const "caml_ml_set_channel_name"))
       (i31.new (i32.const 0)))
 
    (func (export "caml_ml_out_channels_list")
@@ -110,16 +113,65 @@
 
    (func (export "caml_ml_close_channel")
       (param (ref eq)) (result (ref eq))
-      ;; ZZZ
-      (call $log_js (string.const "caml_ml_close_channel"))
+      (local $ch (ref $channel))
+      (local $fd i32)
+      (local.set $ch (ref.cast $channel (local.get 0)))
+      (struct.set $channel 3 (local.get $ch) (i32.const 0))
+      (struct.set $channel 4 (local.get $ch) (i32.const 0))
+      (struct.set $channel 5 (local.get $ch) (i32.const 0))
+      (local.set $fd (struct.get $channel 0 (local.get $ch)))
+      (if (i32.ne (local.get $fd) (i32.const -1))
+         (then
+            (struct.set $channel 0 (local.get $ch) (i32.const -1))
+            (call $close (local.get $fd))))
       (i31.new (i32.const 0)))
 
    (func (export "caml_ml_input")
-      (param (ref eq)) (param (ref eq)) (param (ref eq)) (param (ref eq))
-      (result (ref eq))
-      ;; ZZZ
-      (call $log_js (string.const "caml_ml_input"))
-      (i31.new (i32.const 0)))
+      (param $vch (ref eq)) (param $vs (ref eq)) (param $vpos (ref eq))
+      (param $vlen (ref eq)) (result (ref eq))
+      (local $ch (ref $channel)) (local $s (ref $string))
+      (local $pos i32) (local $len i32) (local $curr i32)
+      (local $i i32) (local $avail i32) (local $nread $i32)
+      (local $buf (ref extern))
+      (local.set $ch (ref.cast $channel (local.get $vch)))
+      (local.set $s (ref.cast $string (local.get $vs)))
+      (local.set $pos (i31.get_u (ref.cast i31 (local.get $vpos))))
+      (local.set $len (i31.get_u (ref.cast i31 (local.get $vlen))))
+      (local.set $buf (struct.get $channel 2 (local.get $ch)))
+      (local.set $curr (struct.get $channel 3 (local.get $ch)))
+      (local.set $avail
+         (i32.sub (struct.get $channel 4 (local.get $ch)) (local.get $curr)))
+      (if (i32.gt_u (local.get $len) (local.get $avail))
+         (then
+            (if (i32.gt_u (local.get $avail) (i32.const 0))
+               (then
+                  (local.set $len (local.get $avail)))
+               (else
+                  (local.set $nread
+                     (call $read
+                        (struct.get $channel 0 (local.get $ch))
+                        (local.get $buf)
+                        (i32.const 0)
+                        (struct.get $channel 5 (local.get $ch))))
+                  (struct.set $channel 1 (local.get $ch)
+                     (i64.add (struct.get $channel 1 (local.get $ch))
+                        (i64.extend_i32_u (local.get $nread))))
+                  (struct.set $channel 4 (local.get $ch) (local.get $nread))
+                  (local.set $curr (i32.const 0))
+                  (if (i32.gt_u (local.get $len) (local.get $nread))
+                     (then (local.set $len (local.get $nread))))))))
+      (loop $loop
+         (if (i32.lt_u (local.get $i) (local.get $len))
+            (then
+               (array.set $string (local.get $s)
+                  (i32.add (local.get $pos) (local.get $i))
+                  (call $ta_get_ui8 (local.get $buf)
+                     (i32.add (local.get $curr) (local.get $i))))
+               (local.set $i (i32.add (local.get $i) (i32.const 1)))
+               (br $loop))))
+      (struct.set $channel 3 (local.get $ch)
+         (i32.add (local.get $curr) (local.get $len)))
+      (i31.new (local.get $len)))
 
    (func (export "caml_input_value") (param (ref eq)) (result (ref eq))
       ;; ZZZ
@@ -249,7 +301,7 @@
                (local.set $pos (i32.add (local.get $pos) (local.get $written)))
                (local.set $len (i32.sub (local.get $len) (local.get $written)))
                (br $loop))))
-;;      (drop (call $caml_ml_flush (local.get 0))) ;; ZZZ
+      (drop (call $caml_ml_flush (local.get 0))) ;; ZZZ
       (i31.new (i32.const 0)))
 
    (func (export "caml_ml_output_char")

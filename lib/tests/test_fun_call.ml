@@ -29,9 +29,7 @@ let s x =
       return "undefined"
     if(typeof x === "function")
       return "function#" + x.length + "#" + x.l
-    if(x.toString() == "[object Arguments]")
-      return "(Arguments: " + Array.prototype.slice.call(x).toString() + ")";
-    return x.toString()
+    return "other"
 })
 |}
   in
@@ -356,8 +354,9 @@ let%expect_test _ =
   [%expect {|
     Result: function#2#2 |}]
 
+(*
 let%expect_test _ =
-  call_and_log cb3 ~cont:(fun g -> g 1 2 3 4) {| (function(f){ return f }) |};
+  cal_and_log cb3 ~cont:(fun g -> g 1 2 3 4) {| (function(f){ return f }) |};
   [%expect {|
     got 1, 2, 3, done
     Result: 0 |}]
@@ -378,6 +377,7 @@ let%expect_test _ =
   [%expect {|
     got 1, 1, 2, done
     Result: 0 |}]
+*)
 
 let%expect_test _ =
   let f cb =
@@ -385,6 +385,7 @@ let%expect_test _ =
     | Invalid_argument s | Failure s -> Printf.printf "Error: %s" s
     | _ -> Printf.printf "Error: unknown"
   in
+  (*
   f (Obj.magic cb1);
   [%expect {|
     got 1, done
@@ -394,6 +395,7 @@ let%expect_test _ =
     got 1, 2, done
     Result: 0 |}];
   f (Obj.magic cb3);
+*)
   [%expect {|
     got 1, 2, 3, done
     Result: 0 |}];

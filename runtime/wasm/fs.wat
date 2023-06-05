@@ -1,9 +1,13 @@
 (module
    (import "bindings" "log" (func $log_js (param anyref)))
    (import "bindings" "getcwd" (func $getcwd (result anyref)))
+   (import "bindings" "unlink" (func $unlink (param anyref)))
    (import "jslib" "wrap" (func $wrap (param anyref) (result (ref eq))))
+   (import "jslib" "unwrap" (func $unwrap (param (ref eq)) (result anyref)))
    (import "jslib" "caml_string_of_jsstring"
       (func $caml_string_of_jsstring (param (ref eq)) (result (ref eq))))
+   (import "jslib" "caml_jsstring_of_string"
+      (func $caml_jsstring_of_string (param (ref eq)) (result (ref eq))))
 
    (type $string (array (mut i8)))
 
@@ -25,8 +29,7 @@
 
    (func (export "caml_sys_remove")
       (param (ref eq)) (result (ref eq))
-      ;; ZZZ
-      (call $log_js (string.const "caml_sys_remove"))
+      (call $unlink (call $unwrap (call $caml_jsstring_of_string (local.get 0))))
       (i31.new (i32.const 0)))
 
    (func (export "caml_sys_rename")

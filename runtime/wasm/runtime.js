@@ -223,8 +223,10 @@
          open:(p,flags,perm)=>
            fs.openSync(p,open_flags.reduce((f,v,i)=>(flags&(1<<i))?(f|v):f,0),
                        perm),
-         close:(fd)=>fs&&fs.closeSync(fd),
-         write:(fd,b,o,l)=>fs&&fs.writeSync(fd,b,o,l),
+         close:(fd)=>fs.closeSync(fd),
+         write:(fd,b,o,l)=>fs.writeSync(fd,b,o,l),
+         read:(fd,b,o,l)=>fs.readSync(fd,b,o,l),
+         unlink:(p)=>fs.unlinkSync(p),
          argv:()=>isNode?process.argv.slice(1):['a.out'],
          getcwd:()=>isNode?process.cwd():'/static',
          log:(x)=>console.log('ZZZZZ', x)
