@@ -25,6 +25,10 @@
        Uint16Array, Int32Array, Int32Array, Int32Array, Int32Array,
        Float32Array, Float64Array, Uint8Array]
 
+    let open_flags =
+      isNode?[fs.RDONLY,fs.O_WRONLY,fs.O_APPEND,fs.O_CREAT,fs.O_TRUNC,fs.O_EXCL,
+              fs.O_NONBLOCK]:[]
+
     let bindings =
         {identity:(x)=>x,
          from_bool:(x)=>!!x,
@@ -213,6 +217,9 @@
          write:(s)=>isNode&&require('fs').writeSync(1,s),
          argv:()=>isNode?process.argv.slice(1):['a.out'],
          getcwd:()=>isNode?process.cwd():'/static',
+         open:(p,flags,perm)=>
+           fs.openSync(p,open_flags.reduce((f,v,i)=>(flags&(1<<i))?(f|v):f,0),
+                       perm),
          log:(x)=>console.log('ZZZZZ', x)
         }
     const imports = {Math:math,bindings:bindings}

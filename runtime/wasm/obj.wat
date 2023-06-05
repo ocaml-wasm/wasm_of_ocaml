@@ -169,9 +169,7 @@
       (if (ref.test $closure (local.get $v))
          (then (return (i31.new (global.get $closure_tag)))))
       ;; ZZZ float array
-      (if (ref.test $js (local.get $v))
-         (then (return (i31.new (global.get $abstract_tag)))))
-      (unreachable))
+      (i31.new (global.get $abstract_tag)))
 
    (func (export "caml_obj_make_forward")
       (param $b (ref eq)) (param $v (ref eq)) (result (ref eq))
