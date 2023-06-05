@@ -8,6 +8,7 @@
          (param i32) (param (ref extern)) (param i32) (param i32) (result i32)))
    (import "bindings" "open"
       (func $open (param anyref) (param i32) (param i32) (result i32)))
+   (import "bindings" "close" (func $close (param i32)))
    (import "bindings" "ta_new" (func $ta_new (param i32) (result (ref extern))))
    (import "bindings" "ta_copy"
       (func $ta_copy (param (ref extern)) (param i32) (param i32) (param i32)))
@@ -69,10 +70,8 @@
             (call $convert_flag_list (local.get $flags))
             (i31.get_u (ref.cast i31 (local.get $perm))))))
 
-   (func (export "caml_sys_close")
-      (param (ref eq)) (result (ref eq))
-      ;; ZZZ
-      (call $log_js (string.const "caml_sys_close"))
+   (func (export "caml_sys_close") (param (ref eq)) (result (ref eq))
+      (call $close (i31.get_u (ref.cast i31 (local.get 0))))
       (i31.new (i32.const 0)))
 
    (func (export "caml_ml_set_channel_name")
@@ -175,13 +174,12 @@
       (call $log_js (string.const "caml_ml_input_scan_line"))
       (i31.new (i32.const 0)))
 
-   (func (export "caml_ml_flush") (param (ref eq)) (result (ref eq))
-      ;; ZZZ
-      ;; (call $log_js (string.const "caml_ml_flush"))
+   (func $caml_ml_flush (export "caml_ml_flush") (param $ch (ref eq)) (result (ref eq))
+      (loop $loop
+         (br_if $loop
+            (i32.eqz
+               (call $caml_flush_partial (ref.cast $channel (local.get $ch))))))
       (i31.new (i32.const 0)))
-
-;; ta_new : (len)=> new UInt8Array (len)
-;; ta_copy : (ta,t,s,n)=>ta.copyWithin(t,s,n)
 
    (func $caml_flush_partial (param $ch (ref $channel)) (result i32)
       (local $towrite i32) (local $written i32)
@@ -234,24 +232,24 @@
          (then (drop (call $caml_flush_partial (local.get $ch)))))
       (local.get $len))
 
+   (export "caml_ml_output_bytes" (func $caml_ml_output))
    (func $caml_ml_output (export "caml_ml_output")
-      (param (ref eq)) (param (ref eq)) (param (ref eq)) (param (ref eq))
-      (result (ref eq))
-      ;; ZZZ
-      ;; (call $log_js (string.const "caml_ml_output"))
-      (local $s (ref $string))
-      (local.set $s (ref.cast $string (local.get 1)))
-      (call $write
-         (string.new_wtf8_array replace (local.get $s)
-            (i31.get_u (ref.cast i31 (local.get 2)))
-            (i31.get_u (ref.cast i31 (local.get 3)))))
-      (i31.new (i32.const 0)))
-
-   (func (export "caml_ml_output_bytes")
-      (param (ref eq)) (param (ref eq)) (param (ref eq)) (param (ref eq))
-      (result (ref eq))
-      ;; ZZZ
-      (call $log_js (string.const "caml_ml_output_bytes"))
+      (param $ch (ref eq)) (param $s (ref eq)) (param $vpos (ref eq))
+      (param $vlen (ref eq)) (result (ref eq))
+      (local $pos i32) (local $len i32) (local $written i32)
+      (local.set $pos (i31.get_u (ref.cast i31 (local.get $vpos))))
+      (local.set $len (i31.get_u (ref.cast i31 (local.get $vlen))))
+      (loop $loop
+         (if (i32.gt_u (local.get $len) (i32.const 0))
+            (then
+               (local.set $written
+                  (call $caml_putblock (ref.cast $channel (local.get $ch))
+                     (ref.cast $string (local.get $s))
+                     (local.get $pos) (local.get $len)))
+               (local.set $pos (i32.add (local.get $pos) (local.get $written)))
+               (local.set $len (i32.sub (local.get $len) (local.get $written)))
+               (br $loop))))
+;;      (drop (call $caml_ml_flush (local.get 0))) ;; ZZZ
       (i31.new (i32.const 0)))
 
    (func (export "caml_ml_output_char")

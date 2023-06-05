@@ -25,9 +25,13 @@
        Uint16Array, Int32Array, Int32Array, Int32Array, Int32Array,
        Float32Array, Float64Array, Uint8Array]
 
+    const fs = isNode&&require('fs')
+
+    let fs_cst = fs?.constants;
+
     let open_flags =
-      isNode?[fs.RDONLY,fs.O_WRONLY,fs.O_APPEND,fs.O_CREAT,fs.O_TRUNC,fs.O_EXCL,
-              fs.O_NONBLOCK]:[]
+      fs?[fs_cst.RDONLY,fs_cst.O_WRONLY,fs_cst.O_APPEND,fs_cst.O_CREAT,
+          fs_cst.O_TRUNC,fs_cst.O_EXCL,fs_cst.O_NONBLOCK]:[]
 
     let bindings =
         {identity:(x)=>x,
@@ -71,6 +75,8 @@
          ta_set_ui16:(a,i,v)=>a[i]=v,
          ta_set_i8:(a,i,v)=>a[i]=v,
          ta_set_ui8:(a,i,v)=>a[i]=v,
+         ta_new:(len)=> new Uint8Array(len),
+         ta_copy:(ta,t,s,n)=>ta.copyWithin(t,s,n),
          wrap_callback:(callback, f)=>function (){
              var n = arguments.length;
              if(n > 0) {
@@ -214,12 +220,13 @@
          },
          mktime:(year,month,day,h,m,s)=>new Date(year,month,day,h,m,s).getTime(),
          random_seed:()=>crypto.getRandomValues(new Int32Array(12)),
-         write:(s)=>isNode&&require('fs').writeSync(1,s),
-         argv:()=>isNode?process.argv.slice(1):['a.out'],
-         getcwd:()=>isNode?process.cwd():'/static',
          open:(p,flags,perm)=>
            fs.openSync(p,open_flags.reduce((f,v,i)=>(flags&(1<<i))?(f|v):f,0),
                        perm),
+         close:(fd)=>fs&&fs.closeSync(fd),
+         write:(fd,b,o,l)=>fs&&fs.writeSync(fd,b,o,l),
+         argv:()=>isNode?process.argv.slice(1):['a.out'],
+         getcwd:()=>isNode?process.cwd():'/static',
          log:(x)=>console.log('ZZZZZ', x)
         }
     const imports = {Math:math,bindings:bindings}
