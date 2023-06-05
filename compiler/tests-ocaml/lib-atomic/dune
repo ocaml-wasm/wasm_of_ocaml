@@ -7,4 +7,4 @@
  (alias runtest)
  (deps test_atomic.bc.js)
  (action
-  (run node test_atomic.bc.js)))
+  (run node --experimental-wasm-stringref --experimental-wasm-gc test_atomic.bc.js)))

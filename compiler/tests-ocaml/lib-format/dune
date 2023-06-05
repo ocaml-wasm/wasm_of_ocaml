@@ -11,7 +11,7 @@
  (action
   (with-stdout-to
    %{target}
-   (run node ./pr6824.bc.js))))
+   (run node --experimental-wasm-stringref --experimental-wasm-gc ./pr6824.bc.js))))
 
 (rule
  (alias runtest)
@@ -25,7 +25,7 @@
  (action
   (with-stdout-to
    %{target}
-   (run node ./print_if_newline.bc.js))))
+   (run node --experimental-wasm-stringref --experimental-wasm-gc ./print_if_newline.bc.js))))
 
 (rule
  (alias runtest)
@@ -39,7 +39,7 @@
  (action
   (with-stdout-to
    %{target}
-   (run node ./pp_print_custom_break.bc.js))))
+   (run node --experimental-wasm-stringref --experimental-wasm-gc ./pp_print_custom_break.bc.js))))
 
 (rule
  (alias runtest)
@@ -53,7 +53,7 @@
  (action
   (with-stdout-to
    %{target}
-   (run node ./print_seq.bc.js))))
+   (run node --experimental-wasm-stringref --experimental-wasm-gc ./print_seq.bc.js))))
 
 (rule
  (alias runtest)
@@ -67,7 +67,7 @@
  (action
   (with-stdout-to
    %{target}
-   (run node ./tformat.bc.js))))
+   (run node --experimental-wasm-stringref --experimental-wasm-gc ./tformat.bc.js))))
 
 (rule
  (alias runtest)

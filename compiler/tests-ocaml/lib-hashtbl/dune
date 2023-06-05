@@ -18,7 +18,7 @@
  (action
   (with-stdout-to
    %{target}
-   (run node ./hfun.bc.js))))
+   (run node --experimental-wasm-stringref --experimental-wasm-gc ./hfun.bc.js))))
 
 (rule
  (alias runtest)
@@ -34,7 +34,7 @@
  (action
   (with-stdout-to
    %{target}
-   (run node ./htbl.bc.js))))
+   (run node --experimental-wasm-stringref --experimental-wasm-gc ./htbl.bc.js))))
 
 (rule
  (alias runtest)

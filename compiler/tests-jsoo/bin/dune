@@ -11,7 +11,7 @@
    2
    (with-outputs-to
     %{target}
-    (run node %{dep:error1.bc.js})))))
+    (run node --experimental-wasm-stringref --experimental-wasm-gc %{dep:error1.bc.js})))))
 
 (rule
  (alias runtest)
@@ -27,7 +27,7 @@
    2
    (with-outputs-to
     %{target}
-    (run node %{dep:error1.bc.js} unregister)))))
+    (run node --experimental-wasm-stringref --experimental-wasm-gc %{dep:error1.bc.js} unregister)))))
 
 (rule
  (alias runtest)
@@ -43,7 +43,7 @@
    2
    (with-outputs-to
     %{target}
-    (run node %{dep:error2.bc.js})))))
+    (run node --experimental-wasm-stringref --experimental-wasm-gc %{dep:error2.bc.js})))))
 
 (rule
  (alias runtest)
@@ -61,7 +61,7 @@
    2
    (with-outputs-to
     %{target}
-    (run node %{dep:error2.bc.js} unregister)))))
+    (run node --experimental-wasm-stringref --experimental-wasm-gc %{dep:error2.bc.js} unregister)))))
 
 (rule
  (alias runtest)
@@ -79,7 +79,7 @@
    7
    (with-outputs-to
     %{target}
-    (run node %{dep:error3.bc.js})))))
+    (run node --experimental-wasm-stringref --experimental-wasm-gc %{dep:error3.bc.js})))))
 
 (rule
  (target error3-unregister.actual)
@@ -90,4 +90,4 @@
    7
    (with-outputs-to
     %{target}
-    (run node %{dep:error3.bc.js} unregister)))))
+    (run node --experimental-wasm-stringref --experimental-wasm-gc %{dep:error3.bc.js} unregister)))))

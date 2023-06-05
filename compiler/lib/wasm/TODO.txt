@@ -320,31 +320,6 @@ Optimizations
 
 print uncaught exceptions
 
-Other libraries
-  alcotest
-  base
-  base_bigstring
-  bigstringaf
-  bin_prot
-  bls12-381
-  bls12-381-signature
-  class_group_vdf
-  core
-  core_kernel
-  cstruct
-  ctypes_stubs_js
-  eliom
-  incr_dom
-  integers_stubs_js
-* ojs
-  ppx_expect
-  ppx_inline_test
-  secp256k1-internal
-  time_now
-  timezone
-  virtual_dom
-  zarith_stubs_js
-
 =========================
 
 TODO
@@ -357,18 +332,17 @@ TODO
 
 Base_internalhash_fold_int
 Base_internalhash_get_hash_value
+Base_internalhash_fold_string
+Base_clear_caml_backtrace_pos
+Base_am_testing
+
 time_now_nanoseconds_since_unix_epoch_or_zero
 ===> ./lib/time_now/runtime.js
+
 expect_test_collector_before_test
 expect_test_collector_after_test
 caml_out_channel_pos_fd
 ===> ./lib/ppx_expect/collector/runtime.js
-caml_ephe_get_key
-caml_ephe_check_key
-Base_internalhash_fold_string
-Base_clear_caml_backtrace_pos
-Base_am_testing
-...
 
 =================================
 
@@ -377,5 +351,7 @@ Doc: binding changes
 - cannot use ocaml physical equality to compare JavaScript values
 
 ====
+
+wasm-opt -g only if --pretty
 
 --traps-never-happen,-tnh ?

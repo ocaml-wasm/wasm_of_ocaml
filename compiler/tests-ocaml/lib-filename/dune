@@ -9,7 +9,7 @@
  (action
   (with-stdout-to
    %{target}
-   (run node ./suffix.bc.js))))
+   (run node --experimental-wasm-stringref --experimental-wasm-gc ./suffix.bc.js))))
 
 (rule
  (alias runtest)
@@ -23,7 +23,7 @@
  (action
   (with-stdout-to
    %{target}
-   (run node ./extension.bc.js))))
+   (run node --experimental-wasm-stringref --experimental-wasm-gc ./extension.bc.js))))
 
 (rule
  (alias runtest)

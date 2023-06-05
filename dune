@@ -9,6 +9,9 @@
     (:standard --enable effects))
    (build_runtime_flags
     (:standard --enable effects))))
+ (wasm
+  (js_of_ocaml
+   (compilation_mode wasm)))
  (bench_no_debug
   (flags
    (:standard \ -g))

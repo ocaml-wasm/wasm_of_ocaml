@@ -58,7 +58,7 @@
  (action
   (with-stdout-to
    %{target}
-   (run node ./effects.bc.js))))
+   (run node --experimental-wasm-stringref --experimental-wasm-gc ./effects.bc.js))))
 
 (rule
  (alias runtest)
@@ -76,7 +76,7 @@
  (action
   (with-stdout-to
    %{target}
-   (run node ./evenodd.bc.js))))
+   (run node --experimental-wasm-stringref --experimental-wasm-gc ./evenodd.bc.js))))
 
 (rule
  (alias runtest)
@@ -94,7 +94,7 @@
  (action
   (with-stdout-to
    %{target}
-   (run node ./manylive.bc.js))))
+   (run node --experimental-wasm-stringref --experimental-wasm-gc ./manylive.bc.js))))
 
 (rule
  (alias runtest)
@@ -112,7 +112,7 @@
  (action
   (with-stdout-to
    %{target}
-   (run node ./overflow.bc.js))))
+   (run node --experimental-wasm-stringref --experimental-wasm-gc ./overflow.bc.js))))
 
 (rule
  (alias runtest)
@@ -130,7 +130,7 @@
  (action
   (with-stdout-to
    %{target}
-   (run node ./partial.bc.js))))
+   (run node --experimental-wasm-stringref --experimental-wasm-gc ./partial.bc.js))))
 
 (rule
  (alias runtest)
@@ -148,7 +148,7 @@
  (action
   (with-stdout-to
    %{target}
-   (run node ./reperform.bc.js))))
+   (run node --experimental-wasm-stringref --experimental-wasm-gc ./reperform.bc.js))))
 
 (rule
  (alias runtest)
@@ -166,7 +166,7 @@
  (action
   (with-stdout-to
    %{target}
-   (run node ./sched.bc.js))))
+   (run node --experimental-wasm-stringref --experimental-wasm-gc ./sched.bc.js))))
 
 (rule
  (alias runtest)
@@ -184,7 +184,7 @@
  (action
   (with-stdout-to
    %{target}
-   (run node ./shallow_state_io.bc.js))))
+   (run node --experimental-wasm-stringref --experimental-wasm-gc ./shallow_state_io.bc.js))))
 
 (rule
  (alias runtest)
@@ -202,7 +202,7 @@
  (action
   (with-stdout-to
    %{target}
-   (run node ./shallow_state.bc.js))))
+   (run node --experimental-wasm-stringref --experimental-wasm-gc ./shallow_state.bc.js))))
 
 (rule
  (alias runtest)
@@ -220,7 +220,7 @@
  (action
   (with-stdout-to
    %{target}
-   (run node ./test10.bc.js))))
+   (run node --experimental-wasm-stringref --experimental-wasm-gc ./test10.bc.js))))
 
 (rule
  (alias runtest)
@@ -238,7 +238,7 @@
  (action
   (with-stdout-to
    %{target}
-   (run node ./test11.bc.js))))
+   (run node --experimental-wasm-stringref --experimental-wasm-gc ./test11.bc.js))))
 
 (rule
  (alias runtest)
@@ -256,7 +256,7 @@
  (action
   (with-stdout-to
    %{target}
-   (run node ./test1.bc.js))))
+   (run node --experimental-wasm-stringref --experimental-wasm-gc ./test1.bc.js))))
 
 (rule
  (alias runtest)
@@ -274,7 +274,7 @@
  (action
   (with-stdout-to
    %{target}
-   (run node ./test2.bc.js))))
+   (run node --experimental-wasm-stringref --experimental-wasm-gc ./test2.bc.js))))
 
 (rule
  (alias runtest)
@@ -292,7 +292,7 @@
  (action
   (with-stdout-to
    %{target}
-   (run node ./test3.bc.js))))
+   (run node --experimental-wasm-stringref --experimental-wasm-gc ./test3.bc.js))))
 
 (rule
  (alias runtest)
@@ -310,7 +310,7 @@
  (action
   (with-stdout-to
    %{target}
-   (run node ./test4.bc.js))))
+   (run node --experimental-wasm-stringref --experimental-wasm-gc ./test4.bc.js))))
 
 (rule
  (alias runtest)
@@ -328,7 +328,7 @@
  (action
   (with-stdout-to
    %{target}
-   (run node ./test5.bc.js))))
+   (run node --experimental-wasm-stringref --experimental-wasm-gc ./test5.bc.js))))
 
 (rule
  (alias runtest)
@@ -346,7 +346,7 @@
  (action
   (with-stdout-to
    %{target}
-   (run node ./test6.bc.js))))
+   (run node --experimental-wasm-stringref --experimental-wasm-gc ./test6.bc.js))))
 
 (rule
  (alias runtest)
@@ -364,7 +364,7 @@
  (action
   (with-stdout-to
    %{target}
-   (run node ./test_lazy.bc.js))))
+   (run node --experimental-wasm-stringref --experimental-wasm-gc ./test_lazy.bc.js))))
 
 (rule
  (alias runtest)
@@ -386,7 +386,7 @@
    2
    (with-outputs-to
     %{target}
-    (run node ./unhandled_unlinked.bc.js)))))
+    (run node --experimental-wasm-stringref --experimental-wasm-gc ./unhandled_unlinked.bc.js)))))
 
 (rule
  (alias runtest)
@@ -406,7 +406,7 @@
  (action
   (with-stdout-to
    %{target}
-   (run node ./used_cont.bc.js))))
+   (run node --experimental-wasm-stringref --experimental-wasm-gc ./used_cont.bc.js))))
 
 (rule
  (alias runtest)
@@ -424,7 +424,7 @@
  (action
   (with-stdout-to
    %{target}
-   (run node ./cmphash.bc.js))))
+   (run node --experimental-wasm-stringref --experimental-wasm-gc ./cmphash.bc.js))))
 
 (rule
  (alias runtest)
@@ -442,7 +442,7 @@
  (action
   (with-stdout-to
    %{target}
-   (run node ./marshal.bc.js))))
+   (run node --experimental-wasm-stringref --experimental-wasm-gc ./marshal.bc.js))))
 
 (rule
  (alias runtest)

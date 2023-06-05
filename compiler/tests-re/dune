@@ -12,4 +12,4 @@
  (alias runtest)
  (deps test_str.bc.js)
  (action
-  (run node ./test_str.bc.js)))
+  (run node --experimental-wasm-stringref --experimental-wasm-gc ./test_str.bc.js)))

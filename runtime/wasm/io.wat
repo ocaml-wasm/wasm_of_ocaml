@@ -1,5 +1,8 @@
 (module
    (import "bindings" "log" (func $log_js (param anyref)))
+   (import "jslib" "unwrap" (func $unwrap (param (ref eq)) (result anyref)))
+   (import "jslib" "caml_jsstring_of_string"
+      (func $caml_jsstring_of_string (param (ref eq)) (result (ref eq))))
    (import "bindings" "write" (func $write (param (ref string))))
 
    (type $string (array (mut i8)))
@@ -8,6 +11,7 @@
       (param (ref eq)) (param (ref eq)) (param (ref eq)) (result (ref eq))
       ;; ZZZ
       (call $log_js (string.const "caml_sys_open"))
+      (call $log_js (call $unwrap (call $caml_jsstring_of_string (local.get 0))))
       (i31.new (i32.const 0)))
 
    (func (export "caml_sys_close")

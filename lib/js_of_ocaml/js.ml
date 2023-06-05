@@ -801,10 +801,12 @@ let _ =
       | Js_error.Exn e -> Some (Js_error.to_string e)
       | _ -> None)
 
-let _ =
-  Printexc.register_printer (fun e ->
-      let e : < .. > t = Obj.magic e in
-      if instanceof e array_constructor then None else Some (to_string e##toString))
+(*ZZZ
+  let _ =
+    Printexc.register_printer (fun e ->
+        let e : < .. > t = Obj.magic e in
+        if instanceof e array_constructor then None else Some (to_string e##toString))
+*)
 
 let export_js (field : js_string t) x =
   Unsafe.set

@@ -212,6 +212,7 @@
          random_seed:()=>crypto.getRandomValues(new Int32Array(12)),
          write:(s)=>isNode&&require('fs').writeSync(1,s),
          argv:()=>isNode?process.argv.slice(1):['a.out'],
+         getcwd:()=>isNode?process.cwd():'/static',
          log:(x)=>console.log('ZZZZZ', x)
         }
     const imports = {Math:math,bindings:bindings}
@@ -228,7 +229,18 @@
             isNode && process.exit(e.getArg(exit_tag, 0));
           const exn_tag = wasmModule.instance.exports.ocaml_exception;
           if (exn_tag && e.is(exn_tag)) {
-            console.log('Uncaught exception')
+            var exn = e.getArg(exn_tag, 0)
+            var handle_uncaught_exception =
+              wasmModule.instance.exports.caml_named_value
+                ('Printexc.handle_uncaught_exception');
+            if (handle_uncaught_exception)
+              wasmModule.instance.exports.caml_callback
+                (handle_uncaught_exception, 2, [exn, 0], 0)
+            else
+              console.error
+                ("Fatal error: exception " +
+                 wasmModule.instance.exports.caml_format_exception(exn) +
+                 "\n");
             isNode && process.exit(2)
           }
         } else {

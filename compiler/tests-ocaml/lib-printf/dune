@@ -13,7 +13,7 @@
  (action
   (with-stdout-to
    %{target}
-   (run node ./pr6534.bc.js))))
+   (run node --experimental-wasm-stringref --experimental-wasm-gc ./pr6534.bc.js))))
 
 (rule
  (alias runtest)
@@ -27,7 +27,7 @@
  (action
   (with-stdout-to
    %{target}
-   (run node ./pr6938.bc.js))))
+   (run node --experimental-wasm-stringref --experimental-wasm-gc ./pr6938.bc.js))))
 
 (rule
  (alias runtest)
@@ -41,7 +41,7 @@
  (action
   (with-stdout-to
    %{target}
-   (run node ./tprintf.bc.js))))
+   (run node --experimental-wasm-stringref --experimental-wasm-gc ./tprintf.bc.js))))
 
 (rule
  (alias runtest)

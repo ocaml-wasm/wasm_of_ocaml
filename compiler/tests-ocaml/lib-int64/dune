@@ -9,7 +9,7 @@
  (action
   (with-stdout-to
    %{target}
-   (run node ./test.bc.js))))
+   (run node --experimental-wasm-stringref --experimental-wasm-gc ./test.bc.js))))
 
 (rule
  (alias runtest)
@@ -23,7 +23,7 @@
  (action
   (with-stdout-to
    %{target}
-   (run node ./issue9460.bc.js))))
+   (run node --experimental-wasm-stringref --experimental-wasm-gc ./issue9460.bc.js))))
 
 (rule
  (alias runtest)

@@ -1,13 +1,15 @@
 (module
    (import "bindings" "log" (func $log_js (param anyref)))
+   (import "bindings" "getcwd" (func $getcwd (result anyref)))
+   (import "jslib" "wrap" (func $wrap (param anyref) (result (ref eq))))
+   (import "jslib" "caml_string_of_jsstring"
+      (func $caml_string_of_jsstring (param (ref eq)) (result (ref eq))))
 
    (type $string (array (mut i8)))
 
    (func (export "caml_sys_getcwd")
       (param (ref eq)) (result (ref eq))
-      ;; ZZZ
-      (call $log_js (string.const "caml_sys_getcwd"))
-      (array.new_fixed $string))
+      (return_call $caml_string_of_jsstring (call $wrap (call $getcwd))))
 
    (func (export "caml_sys_mkdir")
       (param (ref eq)) (param (ref eq)) (result (ref eq))
