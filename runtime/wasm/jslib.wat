@@ -338,6 +338,7 @@
                      (local.get $acc)
                      (struct.get $closure 0
                         (ref.cast $closure (local.get $acc)))))
+               (local.set $i (i32.add (local.get $i) (i32.const 1)))
                (br_if $loop
                   (i32.eqz (ref.test $closure_last_arg (local.get $f))))))
          (else

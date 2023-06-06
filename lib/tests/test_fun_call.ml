@@ -29,10 +29,7 @@ let s x =
       return "undefined"
     if(typeof x === "function")
       return "function#" + x.length + "#" + x.l
-    if(typeof x === "number")
-      return "" + x
-    if(typeof x === "string")
-      return x
+    if (x.toString) return x.toString();
     return "other"
 })
 |}
@@ -398,8 +395,8 @@ let%expect_test _ =
   [%expect {|
     got 1, 2, done
     Result: 0 |}];
-  f (Obj.magic cb3);
 *)
+  f (Obj.magic cb3);
   [%expect {|
     got 1, 2, 3, done
     Result: 0 |}];
