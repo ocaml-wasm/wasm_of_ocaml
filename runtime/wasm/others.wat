@@ -68,15 +68,18 @@
 
    ;;;;;; ppx_expect
 
+   (type $offset_array (array (mut i64)))
+
+   (import "env" "fd_offsets" (global $fd_offsets (mut (ref $offset_array))))
+
    (type $channel
       (struct
-         (field (mut i32)) ;; fd
-         (field (mut i64)) ;; offset
-         (field (mut (ref extern))) ;; buffer
-         (field (mut i32)) ;; current position in buffer
-         (field (mut i32)) ;; logical end of the buffer (for input)
-         (field (mut i32)) ;; buffer size
-         (field (mut i32)))) ;; flags
+         (field $fd (mut i32))
+         (field $buffer (mut (ref extern)))
+         (field $curr (mut i32))
+         (field $max (mut i32))
+         (field $size (mut i32))
+         (field $flags (mut i32)))) ;; flags
 
    (global $saved_stdout (mut i32) (i32.const 0))
    (global $saved_stderr (mut i32) (i32.const 0))
@@ -91,11 +94,11 @@
       (local.set $output (ref.cast $channel (local.get $voutput)))
       (local.set $stdout (ref.cast $channel (local.get $vstdout)))
       (local.set $stderr (ref.cast $channel (local.get $vstderr)))
-      (global.set $saved_stdout (struct.get $channel 0 (local.get $stdout)))
-      (global.set $saved_stderr (struct.get $channel 0 (local.get $stderr)))
-      (local.set $fd (struct.get $channel 0 (local.get $output)))
-      (struct.set $channel 0 (local.get $stdout) (local.get $fd))
-      (struct.set $channel 0 (local.get $stderr) (local.get $fd))
+      (global.set $saved_stdout (struct.get $channel $fd (local.get $stdout)))
+      (global.set $saved_stderr (struct.get $channel $fd (local.get $stderr)))
+      (local.set $fd (struct.get $channel $fd (local.get $output)))
+      (struct.set $channel $fd (local.get $stdout) (local.get $fd))
+      (struct.set $channel $fd (local.get $stderr) (local.get $fd))
       (i31.new (i32.const 0)))
 
    (func (export "expect_test_collector_after_test")
@@ -104,12 +107,18 @@
       (local $stderr (ref $channel))
       (local.set $stdout (ref.cast $channel (local.get $vstdout)))
       (local.set $stderr (ref.cast $channel (local.get $vstderr)))
-      (struct.set $channel 0 (local.get $stdout) (global.get $saved_stdout))
-      (struct.set $channel 0 (local.get $stderr) (global.get $saved_stderr))
+      (struct.set $channel $fd (local.get $stdout) (global.get $saved_stdout))
+      (struct.set $channel $fd (local.get $stderr) (global.get $saved_stderr))
       (i31.new (i32.const 0)))
 
    (func (export "caml_out_channel_pos_fd") (param (ref eq)) (result (ref eq))
       (i31.new
          (i32.wrap_i64
-            (struct.get $channel 1 (ref.cast $channel (local.get $0))))))
+            (array.get $offset_array (global.get $fd_offsets)
+               (struct.get $channel $fd (ref.cast $channel (local.get 0)))))))
+
+   ;;;; compiler/test-jsoo
+
+   (func (export "flush_stdout_stderr") (param (ref eq)) (result (ref eq))
+      (i31.new (i32.const 0)))
 )

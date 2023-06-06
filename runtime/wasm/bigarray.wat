@@ -411,6 +411,34 @@
          (local.get $ba) (local.get $i) (local.get $v))
       (i31.new (i32.const 0)))
 
+   (func (export "caml_ba_set_2")
+      (param (ref eq) (ref eq) (ref eq) (ref eq)) (result (ref eq))
+      ;; ZZZ
+      (call $log_js (string.const "caml_ba_set_2"))
+      (i31.new (i32.const 0)))
+
+   (func (export "caml_ba_sub")
+      (param (ref eq) (ref eq) (ref eq)) (result (ref eq))
+      ;; ZZZ
+      (call $log_js (string.const "caml_ba_sub"))
+      (local.get $0))
+
+   (func (export "caml_ba_fill") (param (ref eq) (ref eq)) (result (ref eq))
+      ;; ZZZ
+      (call $log_js (string.const "caml_ba_fill"))
+      (i31.new (i32.const 0)))
+
+   (func (export "caml_ba_reshape") (param (ref eq) (ref eq)) (result (ref eq))
+      ;; ZZZ
+      (call $log_js (string.const "caml_ba_reshape"))
+      (local.get $0))
+
+   (func (export "caml_ba_change_layout")
+      (param (ref eq) (ref eq)) (result (ref eq))
+      ;; ZZZ
+      (call $log_js (string.const "caml_ba_reshape"))
+      (local.get $0))
+
    (func (export "caml_string_of_array") (param (ref eq)) (result (ref eq))
       ;; used to convert a typed array to a string
       (local $a (ref extern)) (local $len i32) (local $i i32)

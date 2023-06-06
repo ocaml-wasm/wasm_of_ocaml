@@ -106,8 +106,9 @@ let dead_code_elimination in_file out_file =
 let optimize in_file out_file =
   command
     (("wasm-opt" :: common_binaryen_options)
-    @ [ "--traps-never-happen"
-      ; "-O3"
+    @ [ (*"--traps-never-happen"
+          ;*)
+        "-O3"
       ; (*"--gufa"; "-O3";*)
         Filename.quote in_file
       ; "-o"

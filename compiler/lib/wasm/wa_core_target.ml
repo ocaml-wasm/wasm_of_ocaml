@@ -589,6 +589,8 @@ module Math = struct
 
   let exp f = unary "exp" f
 
+  let exp2 f = unary "exp2" f
+
   let expm1 f = unary "expm1" f
 
   let log f = unary "log" f

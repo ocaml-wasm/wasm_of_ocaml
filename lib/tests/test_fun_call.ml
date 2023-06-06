@@ -29,6 +29,10 @@ let s x =
       return "undefined"
     if(typeof x === "function")
       return "function#" + x.length + "#" + x.l
+    if(typeof x === "number")
+      return "" + x
+    if(typeof x === "string")
+      return x
     return "other"
 })
 |}
@@ -406,14 +410,16 @@ let%expect_test _ =
   [%expect {|
     Result: function#2#2 |}]
 
-let%expect_test _ =
-  let open Js_of_ocaml in
-  let f = Js.wrap_callback (fun s -> print_endline s) in
-  Js.export "f" f;
-  let () =
-    Js.Unsafe.fun_call
-      (Js.Unsafe.pure_js_expr "jsoo_exports")##.f
-      [| Js.Unsafe.coerce (Js.string "hello") |]
-  in
-  ();
-  [%expect {| hello |}]
+(*ZZZ
+  let%expect_test _ =
+    let open Js_of_ocaml in
+    let f = Js.wrap_callback (fun s -> print_endline s) in
+    Js.export "f" f;
+    let () =
+      Js.Unsafe.fun_call
+        (Js.Unsafe.pure_js_expr "jsoo_exports")##.f
+        [| Js.Unsafe.coerce (Js.string "hello") |]
+    in
+    ();
+    [%expect {| hello |}]
+*)

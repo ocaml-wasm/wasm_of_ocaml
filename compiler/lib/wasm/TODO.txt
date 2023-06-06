@@ -297,7 +297,7 @@ Optimizations
   io
 * jslib
   jslib_js_of_ocaml
-  lexing
+* lexing
   marshal
   md5 (not channel)
 * mlBytes
@@ -318,8 +318,6 @@ Optimizations
 - virtual filesystem
 - toplevel
 
-print uncaught exceptions
-
 =========================
 
 TODO
@@ -327,6 +325,7 @@ TODO
 - caml_compare
 - dune support
   ==> link (wasm_runtime) wat/wast/wasm files
+  ==> wasm_files
 
 - Should be able to compare/hash JavaScript strings (string refs)
 

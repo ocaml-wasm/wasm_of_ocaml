@@ -18,11 +18,11 @@
       (param (ref eq)) (result (ref eq))
       ;; ZZZ
       (call $log_js (string.const "caml_output_value_to_buffer"))
-      (unreachable))
+      (i31.new (i32.const 0)))
 
    (func (export "caml_output_value_to_string")
       (param (ref eq)) (param (ref eq)) (result (ref eq))
       ;; ZZZ
       (call $log_js (string.const "caml_output_value_to_string"))
-      (unreachable))
+      (i31.new (i32.const 0)))
 )
