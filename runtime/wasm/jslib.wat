@@ -153,7 +153,7 @@
       (param (ref eq)) (param (ref eq)) (result (ref eq))
       (if (ref.test $string (local.get 1))
          (then
-            (local.set 1 (call $caml_jsstring_of_string (local.get 1)))))
+            (local.set 1 (call $caml_jsbytes_of_string (local.get 1)))))
       (return_call $wrap
          (call $get
             (ref.as_non_null (extern.externalize (call $unwrap (local.get 0))))
@@ -163,7 +163,7 @@
       (param (ref eq)) (param (ref eq)) (param (ref eq)) (result (ref eq))
       (if (ref.test $string (local.get 1))
          (then
-            (local.set 1 (call $caml_jsstring_of_string (local.get 1)))))
+            (local.set 1 (call $caml_jsbytes_of_string (local.get 1)))))
       (call $set (call $unwrap (local.get 0)) (call $unwrap (local.get 1))
          (call $unwrap (local.get 2)))
       (i31.new (i32.const 0)))
