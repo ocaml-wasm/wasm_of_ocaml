@@ -242,6 +242,15 @@ Performance improvements:
 - float arrays
 - use unboxed primitives for int64/int32/nativeint
 
+===================================
+
+C API
+=====
+- https://github.com/hoodmane/libffi-emscripten
+- use externref_t in clang-17
+  typedef __externref_t externref_t;
+  clang -c  --target=wasm32  -mreference-types
+
 ====================================================
 
 Compilation process
