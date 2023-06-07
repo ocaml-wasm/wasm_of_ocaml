@@ -232,6 +232,7 @@ Js_of_ocaml fixes:
 ==> Condition.wait should throw (never makes sense)
 ==> round
 ==> hash nan
+==> caml_set_parser_trace is not const
 
 ===============================
 

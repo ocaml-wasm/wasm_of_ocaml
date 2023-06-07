@@ -125,15 +125,24 @@
          (global.get $IO_BUFFER_SIZE)
          (i32.const 0)))
 
+   (global $caml_stderr (export "caml_stderr")
+      (mut (ref eq)) (i31.new (i32.const 0)))
+
    (func (export "caml_ml_open_descriptor_out")
       (param $fd (ref eq)) (result (ref eq))
-      (struct.new $channel
-         (i31.get_u (ref.cast i31 (local.get $fd)))
-         (call $ta_new (global.get $IO_BUFFER_SIZE))
-         (i32.const 0)
-         (i32.const -1)
-         (global.get $IO_BUFFER_SIZE)
-         (i32.const 0)))
+      (local $res (ref eq))
+      (local.set $res
+         (struct.new $channel
+            (i31.get_u (ref.cast i31 (local.get $fd)))
+            (call $ta_new (global.get $IO_BUFFER_SIZE))
+            (i32.const 0)
+            (i32.const -1)
+            (global.get $IO_BUFFER_SIZE)
+            (i32.const 0)))
+      (if (ref.eq (local.get $fd) (i31.new (i32.const 2)))
+         (then
+            (global.set $caml_stderr (local.get $res))))
+      (local.get $res))
 
    (func (export "caml_ml_close_channel")
       (param (ref eq)) (result (ref eq))
@@ -255,7 +264,8 @@
       (call $log_js (string.const "caml_ml_input_scan_line"))
       (i31.new (i32.const 0)))
 
-   (func $caml_ml_flush (export "caml_ml_flush") (param $ch (ref eq)) (result (ref eq))
+   (func $caml_ml_flush (export "caml_ml_flush")
+      (param $ch (ref eq)) (result (ref eq))
       (loop $loop
          (br_if $loop
             (i32.eqz
