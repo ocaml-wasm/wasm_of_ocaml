@@ -339,6 +339,11 @@ TODO
 
 - Should be able to compare/hash JavaScript strings (string refs)
 
+- catch and wrap javascript exceptions
+
+    try ... with Jstag e -> wrap_exn (e)
+    wrap_exn e ==> throw (Error e)
+
 =================================
 
 Doc: binding changes
@@ -354,10 +359,3 @@ wasm-opt -g only if --pretty
 =====
 
 NativeString ==> string.const
-
-=====
-
-catch and wrap javascript exceptions
-
-    try ... with Jstag e -> wrap_exn (e)
-    wrap_exn e ==> throw (Error e)
