@@ -285,6 +285,8 @@ Optimizations
 - try to eliminate some casts / boxing
 - more direct calls when we known which function is called
 - objects (method calls)
+- propagate more information from ocaml
+  (extern statements / big array information / unsafe operation information)
 
 =================
 
@@ -334,6 +336,8 @@ TODO
 
 - fix md5.wat
 
+- explicit float conversions
+
 - caml_compare
 - dune support
   ==> link (wasm_runtime) wat/wast/wasm files
@@ -361,3 +365,16 @@ wasm-opt -g only if --pretty
 =====
 
 NativeString ==> string.const
+
+=====================================
+
+wasm_of_ocaml
+- easy to use (do not need to reinstall many libraries specifically for wasm)
+
+flambda-to-wasmgc
+- behaves as a cross-compiler
+- more optimizations: flambda (2) optimizations, unboxing, ...
+
+We can cooperate:
+- common runtime
+- common interface with JavaScript / C
