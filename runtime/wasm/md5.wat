@@ -447,10 +447,12 @@
          (then
             (local.set $i (local.get $in_buf))
             (loop $loop
-               (array.set $string
-                  (local.get $buffer) (local.get $i) (i32.const 0))
-               (local.set $i (i32.add (local.get $i) (i32.const 1)))
-               (br_if $loop (i32.lt_u (local.get $i) (i32.const 64))))
+               (if (i32.lt_u (local.get $i) (i32.const 64))
+                  (then
+                     (array.set $string
+                        (local.get $buffer) (local.get $i) (i32.const 0))
+                     (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                     (br $loop))))
             (call $MD5Transform (struct.get $context 0 (local.get $ctx))
                (struct.get $context 2 (local.get $ctx))
                (local.get $buffer)

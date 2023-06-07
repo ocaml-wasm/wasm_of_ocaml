@@ -303,7 +303,7 @@ Optimizations
 * mlBytes
   nat
 * obj
-  parsing
+* parsing
 * prng
   runtime_events
   stdlib
@@ -340,3 +340,14 @@ Doc: binding changes
 wasm-opt -g only if --pretty
 
 --traps-never-happen,-tnh ?
+
+=====
+
+NativeString ==> string.const
+
+=====
+
+catch and wrap javascript exceptions
+
+    try ... with Jstag e -> wrap_exn (e)
+    wrap_exn e ==> throw (Error e)

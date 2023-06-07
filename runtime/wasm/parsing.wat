@@ -200,7 +200,11 @@
                              (i32.const 1))))
                     (array.set $block (local.get $env) (global.get $env_lval)
                        (i31.new (i32.const 0)))))
-                 ;; if (caml_parser_trace) print_token (state, arg);
+(;ZZZ
+                 (if (global.get $caml_parser_trace)
+                    (then (call $print_token
+                       (local.get $state) (local.get,$varg))))
+;)
                  ;; Fall through
                 ;; testshift:
                 (local.set $n1
@@ -298,8 +302,12 @@
                                              (local.get $n2))
                                           (global.get $ERRCODE))
                                       (then
-                                         ;;if (caml_parser_trace)
+(;ZZZZ
+                                         (if (global.get $caml_parser_trace)
+                                            (then
+                                               (call $print (
                                          ;;  log("Recovering in state " + state1);
+;)
                                          (local.set $cmd
                                             (global.get $shift_recover))
                                          (br $next)))))))
