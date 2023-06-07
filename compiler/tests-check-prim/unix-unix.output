@@ -8,7 +8,6 @@ caml_dynlink_close_lib
 caml_dynlink_get_current_libs
 caml_dynlink_lookup_symbol
 caml_dynlink_open_lib
-caml_float_of_int
 caml_get_current_environment
 caml_get_section_table
 caml_int64_add_native

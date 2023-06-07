@@ -94,6 +94,10 @@ module Js = struct
 
   (****)
 
+  external equals : _ -> _ -> bool = "caml_js_equals"
+
+  external strict_equals : _ -> _ -> bool = "caml_js_strict_equals"
+
   type 'a opt = 'a
 
   type 'a optdef = 'a
@@ -139,17 +143,17 @@ module Js = struct
 
     let return = some
 
-    let map x f = if Unsafe.equals x null then null else return (f x)
+    let map x f = if equals x null then null else return (f x)
 
-    let bind x f = if Unsafe.equals x null then null else f x
+    let bind x f = if equals x null then null else f x
 
-    let test x = not (Unsafe.equals x null)
+    let test x = not (equals x null)
 
-    let iter x f = if not (Unsafe.equals x null) then f x
+    let iter x f = if not (equals x null) then f x
 
-    let case x f g = if Unsafe.equals x null then f () else g x
+    let case x f g = if equals x null then f () else g x
 
-    let get x f = if Unsafe.equals x null then f () else x
+    let get x f = if equals x null then f () else x
 
     let option x =
       match x with
@@ -166,17 +170,17 @@ module Js = struct
 
     let return = def
 
-    let map x f = if Unsafe.strict_equals x undefined then undefined else return (f x)
+    let map x f = if strict_equals x undefined then undefined else return (f x)
 
-    let bind x f = if Unsafe.strict_equals x undefined then undefined else f x
+    let bind x f = if strict_equals x undefined then undefined else f x
 
-    let test x = not (Unsafe.strict_equals x undefined)
+    let test x = not (strict_equals x undefined)
 
-    let iter x f = if not (Unsafe.strict_equals x undefined) then f x
+    let iter x f = if not (strict_equals x undefined) then f x
 
-    let case x f g = if Unsafe.strict_equals x undefined then f () else g x
+    let case x f g = if strict_equals x undefined then f () else g x
 
-    let get x f = if Unsafe.strict_equals x undefined then f () else x
+    let get x f = if strict_equals x undefined then f () else x
 
     let option x =
       match x with

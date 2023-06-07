@@ -168,6 +168,14 @@ external wrap_meth_callback : ('b -> 'a) -> ('b, 'a) meth_callback
       Javascript.  The first parameter of the function will be bound
       to the value of the [this] implicit parameter. *)
 
+(** {2 Javascript comparisons} *)
+
+val equals : _ t -> _ t -> bool
+(** Javascript [==] equality operator. *)
+
+val strict_equals : _ t -> _ t -> bool
+(** Javascript [===] equality operator. *)
+
 (** {2 Javascript standard objects} *)
 
 val _true : bool t
@@ -986,6 +994,12 @@ module Unsafe : sig
 
   external meth_callback_with_arity : int -> ('b -> 'a) -> ('b, 'a) meth_callback
     = "caml_js_wrap_meth_callback_strict"
+
+  val equals : _ -> _ -> bool
+  (** Javascript [==] equality operator. *)
+
+  val strict_equals : _ -> _ -> bool
+  (** Javascript [===] equality operator. *)
 
   (** {3 Deprecated functions.} *)
 
