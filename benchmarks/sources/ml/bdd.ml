@@ -243,12 +243,8 @@ let test_hwb bdd vars =
   eval bdd vars = if !ntrue > 0 then vars.(!ntrue - 1) else false
 
 let main () =
-  (*
   let n = if Array.length Sys.argv >= 2 then int_of_string Sys.argv.(1) else 22 in
   let ntests = if Array.length Sys.argv >= 3 then int_of_string Sys.argv.(2) else 100 in
-*)
-  let n = 22 in
-  let ntests = 100 in
   let bdd = hwb n in
   let succeeded = ref true in
   for _ = 1 to ntests do

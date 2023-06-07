@@ -332,6 +332,8 @@ Optimizations
 
 TODO
 
+- fix md5.wat
+
 - caml_compare
 - dune support
   ==> link (wasm_runtime) wat/wast/wasm files

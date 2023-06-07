@@ -8,7 +8,6 @@
   cmdliner
   compiler-libs.common
   js_of_ocaml-compiler.runtime-files
-  unix
   (select
    findlib_support.ml
    from

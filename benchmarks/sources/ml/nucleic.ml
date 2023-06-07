@@ -7242,7 +7242,7 @@ let list_of_atoms = function
 let maximum = function
   | x :: xs ->
       let rec iter m = function
-        | [] -> (m : float)
+        | [] -> m
         | a :: b -> iter (if a > m then a else m) b
       in
       iter x xs
