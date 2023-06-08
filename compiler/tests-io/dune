@@ -20,7 +20,7 @@
    %{target}
    (pipe-stdout
     (run printf "echo \226\152\160")
-    (run node --experimental-wasm-stringref --experimental-wasm-gc %{dep:./cat.bc.js})))))
+    (run node --experimental-wasm-stringref --experimental-wasm-gc --experimental-wasm-stack-switching %{dep:./cat.bc.js})))))
 
 (rule
  (alias runtest)
@@ -52,18 +52,18 @@
   (with-stdout-to
    %{target}
    (progn
-    (run node --experimental-wasm-stringref --experimental-wasm-gc %{dep:md5.bc.js} %{dep:md5.bc.js})
-    (run node --experimental-wasm-stringref --experimental-wasm-gc %{dep:md5.bc.js} %{dep:md5.bc.js} %{dep:md5.bc.js})
-    (run node --experimental-wasm-stringref --experimental-wasm-gc %{dep:md5.bc.js} -offset 2000 -length 4000 %{dep:md5.bc.js})
+    (run node --experimental-wasm-stringref --experimental-wasm-gc --experimental-wasm-stack-switching %{dep:md5.bc.js} %{dep:md5.bc.js})
+    (run node --experimental-wasm-stringref --experimental-wasm-gc --experimental-wasm-stack-switching %{dep:md5.bc.js} %{dep:md5.bc.js} %{dep:md5.bc.js})
+    (run node --experimental-wasm-stringref --experimental-wasm-gc --experimental-wasm-stack-switching %{dep:md5.bc.js} -offset 2000 -length 4000 %{dep:md5.bc.js})
     (pipe-stdout
      (echo "tests")
-     (run node --experimental-wasm-stringref --experimental-wasm-gc %{dep:md5.bc.js}))
+     (run node --experimental-wasm-stringref --experimental-wasm-gc --experimental-wasm-stack-switching %{dep:md5.bc.js}))
     (pipe-stdout
      (echo "teststeststests")
-     (run node --experimental-wasm-stringref --experimental-wasm-gc %{dep:md5.bc.js} -offset 5 -length 5))
+     (run node --experimental-wasm-stringref --experimental-wasm-gc --experimental-wasm-stack-switching %{dep:md5.bc.js} -offset 5 -length 5))
     (pipe-stdout
      (echo "teststeststests")
-     (run node --experimental-wasm-stringref --experimental-wasm-gc %{dep:md5.bc.js} -offset 2 -length 5))))))
+     (run node --experimental-wasm-stringref --experimental-wasm-gc --experimental-wasm-stack-switching %{dep:md5.bc.js} -offset 2 -length 5))))))
 
 (rule
  (alias runtest)

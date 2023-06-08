@@ -33,6 +33,12 @@
       fs?[fs_cst.RDONLY,fs_cst.O_WRONLY,fs_cst.O_APPEND,fs_cst.O_CREAT,
           fs_cst.O_TRUNC,fs_cst.O_EXCL,fs_cst.O_NONBLOCK]:[]
 
+    var start_fiber
+
+    function wrap_fun (t,f,a) {
+       return WebAssembly.Function?new WebAssembly.Function(t,f,a):f
+    }
+
     let bindings =
         {identity:(x)=>x,
          from_bool:(x)=>!!x,
@@ -229,6 +235,13 @@
          unlink:(p)=>fs.unlinkSync(p),
          argv:()=>isNode?process.argv.slice(1):['a.out'],
          getcwd:()=>isNode?process.cwd():'/static',
+         start_fiber:(x)=>start_fiber(x),
+         suspend_fiber:
+         wrap_fun(
+             {parameters: ['externref','funcref','eqref'], results: ['eqref']},
+             ((f, env)=>new Promise((k)=> f(k, env))),
+             {suspending:"first"}),
+         resume_fiber:(k,v)=>k(v),
          log:(x)=>console.log('ZZZZZ', x)
         }
     const imports = {Math:math,bindings:bindings}
@@ -236,8 +249,19 @@
           isNode?await WebAssembly.instantiate(await code, imports)
                 :await WebAssembly.instantiateStreaming(code,imports)
 
+    start_fiber = wrap_fun(
+        {parameters: ['eqref'], results: ['externref']},
+        wasmModule.instance.exports.caml_start_fiber,
+        {promising: 'first'}
+    )
+    var _initialize = wrap_fun(
+        {parameters: [], results: ['externref']},
+        wasmModule.instance.exports._initialize,
+        {promising: 'first'}
+    )
+
     try {
-        wasmModule.instance.exports._initialize()
+        await _initialize()
     } catch (e) {
         if (e instanceof WebAssembly.Exception) {
           const exit_tag = wasmModule.instance.exports.ocaml_exit;

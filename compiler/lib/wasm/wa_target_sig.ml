@@ -259,5 +259,6 @@ module type S = sig
     -> Wa_ast.instruction list
     -> Wa_ast.instruction list
 
-  val entry_point : context:Wa_code_generation.context -> unit Wa_code_generation.t
+  val entry_point :
+    context:Wa_code_generation.context -> Wa_ast.func_type * unit Wa_code_generation.t
 end

@@ -117,6 +117,8 @@
             (array.get $offset_array (global.get $fd_offsets)
                (struct.get $channel $fd (ref.cast $channel (local.get 0)))))))
 
+   ;;;; incr_mod
+
    ;;;; compiler/test-jsoo
 
    (func (export "flush_stdout_stderr") (param (ref eq)) (result (ref eq))

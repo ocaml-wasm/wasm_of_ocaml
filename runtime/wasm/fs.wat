@@ -44,6 +44,12 @@
       (call $log_js (string.const "caml_sys_file_exists"))
       (i31.new (i32.const 0)))
 
+   (func (export "caml_read_file_content")
+      (param (ref eq) (ref eq)) (result (ref eq))
+      ;; ZZZ
+      (call $log_js (string.const "caml_read_file_content"))
+      (i31.new (i32.const 0)))
+
    (func (export "caml_fs_init") (result (ref eq))
       (i31.new (i32.const 0)))
 )

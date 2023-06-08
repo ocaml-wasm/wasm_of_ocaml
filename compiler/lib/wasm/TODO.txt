@@ -342,6 +342,7 @@ TODO
 - dune support
   ==> link (wasm_runtime) wat/wast/wasm files
   ==> wasm_files
+  ==> node options
 
 - Should be able to compare/hash JavaScript strings (string refs)
 
@@ -349,6 +350,8 @@ TODO
 
     try ... with Jstag e -> wrap_exn (e)
     wrap_exn e ==> throw (Error e)
+
+- we should link-in javascript files that are not divided into fragments
 
 =================================
 
@@ -381,7 +384,11 @@ We can cooperate:
 
 =============================
 
-incr_dom (js_prof)
+Effects:
+- investigate test_lazy.ml
+- start stacks lazily
+
+============================
 base
 core
 bin_prot

@@ -1,7 +1,7 @@
 [
   {
     "name": "root",
-    "reaches": ["init", "exn", "exit", "named_values", "format_exn", "callback"],
+    "reaches": ["init", "exn", "exit", "named_values", "format_exn", "callback","effects"],
     "root": true
   },
   {
@@ -19,6 +19,10 @@
   {
     "name": "format_exn",
     "export": "caml_format_exception"
+  },
+  {
+    "name": "effects",
+    "export": "caml_start_fiber"
   },
   {
     "name": "exn",

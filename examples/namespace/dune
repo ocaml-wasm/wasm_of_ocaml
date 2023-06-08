@@ -55,7 +55,7 @@
  (action
   (with-outputs-to
    %{target}
-   (run node --experimental-wasm-stringref --experimental-wasm-gc for-node.js))))
+   (run node --experimental-wasm-stringref --experimental-wasm-gc --experimental-wasm-stack-switching for-node.js))))
 
 (rule
  (alias runtest)

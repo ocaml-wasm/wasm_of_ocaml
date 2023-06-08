@@ -16,4 +16,4 @@
  (enabled_if
   (>= %{ocaml_version} 5.1.0))
  (action
-  (run node --experimental-wasm-stringref --experimental-wasm-gc ./test_runtime_events.bc.js)))
+  (run node --experimental-wasm-stringref --experimental-wasm-gc --experimental-wasm-stack-switching ./test_runtime_events.bc.js)))

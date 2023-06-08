@@ -379,6 +379,12 @@
       (call $log_js (string.const "caml_ml_set_buffered"))
       (i31.new (i32.const 0)))
 
+   (func (export "caml_ml_set_channel_refill")
+      (param (ref eq) (ref eq)) (result (ref eq))
+      ;; ZZZ
+      (call $log_js (string.const "caml_ml_set_channel_refill"))
+      (i31.new (i32.const 0)))
+
    (func (export "caml_ml_channel_size") (param (ref eq)) (result (ref eq))
       ;; ZZZ
       (call $log_js (string.const "caml_ml_channel_size"))
