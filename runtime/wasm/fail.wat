@@ -17,6 +17,10 @@
 
    (global $FAILURE_EXN i32 (i32.const 2))
 
+   (func (export "caml_failwith_tag") (result (ref eq))
+       (array.get $block (global.get $caml_global_data)
+          (global.get $FAILURE_EXN)))
+
    (func (export "caml_failwith") (param $arg (ref eq))
        (return_call $caml_raise_with_arg
            (array.get $block (global.get $caml_global_data)
