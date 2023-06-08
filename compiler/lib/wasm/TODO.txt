@@ -378,3 +378,11 @@ flambda-to-wasmgc
 We can cooperate:
 - common runtime
 - common interface with JavaScript / C
+
+=============================
+
+incr_dom (js_prof)
+base
+core
+bin_prot
+base_bigstring
