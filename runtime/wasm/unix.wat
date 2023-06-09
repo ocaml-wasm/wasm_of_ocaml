@@ -73,7 +73,8 @@
          (struct.new $float (local.get $t))
          (call $localtime (ref.func $caml_alloc_tm) (local.get $t))))
 
-   (func (export "unix_inet_addr_of_string")
+   (export "caml_unix_inet_addr_of_string" (func $unix_inet_addr_of_string))
+   (func $unix_inet_addr_of_string (export "unix_inet_addr_of_string")
       (param (ref eq)) (result (ref eq))
       (i31.new (i32.const 0)))
 )

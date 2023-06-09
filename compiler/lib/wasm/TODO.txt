@@ -334,8 +334,6 @@ Optimizations
 
 TODO
 
-- fix md5.wat
-
 - explicit float conversions
 
 - caml_compare
