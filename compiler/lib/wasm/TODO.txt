@@ -340,7 +340,7 @@ TODO
 - dune support
   ==> link (wasm_runtime) wat/wast/wasm files
   ==> wasm_files
-  ==> node options
+  ==> node options ===> (node_flags ...)
 
 - Should be able to compare/hash JavaScript strings (string refs)
 
