@@ -334,6 +334,8 @@ Optimizations
 
 TODO
 
+- bind globalThis
+
 - explicit float conversions
 
 - caml_compare
@@ -387,7 +389,9 @@ Effects:
 - start stacks lazily
 
 ============================
-base
-core
-bin_prot
-base_bigstring
+
+* incr_mod
+* base
+  core
+  bin_prot
+  base_bigstring

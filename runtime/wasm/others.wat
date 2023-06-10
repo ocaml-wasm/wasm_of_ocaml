@@ -18,7 +18,12 @@
          (result (ref eq))))
    (import "int64" "caml_copy_int64"
       (func $caml_copy_int64 (param i64) (result (ref $int64))))
+   (import "array" "caml_array_blit"
+      (func $caml_array_blit
+         (param (ref eq)) (param (ref eq)) (param (ref eq)) (param (ref eq))
+         (param (ref eq)) (result (ref eq))))
 
+   (type $block (array (mut (ref eq))))
    (type $string (array (mut i8)))
    (type $float (struct (field f64)))
    (type $value->value->int
@@ -177,6 +182,183 @@
       (param (ref eq)) (result (ref eq))
       (return_call $caml_copy_int64
          (i64.trunc_sat_f64_s (f64.mul (call $gettimeofday) (f64.const 2e9)))))
+
+   ;;;;;; core
+
+   ;; ZZZ float arrays
+   (export "core_array_unsafe_int_blit" (func $caml_array_blit))
+   (export "core_array_unsafe_float_blit" (func $caml_array_blit))
+
+   (import "jslib" "caml_js_get"
+      (func $caml_js_get (param (ref eq)) (param (ref eq)) (result (ref eq))))
+   (import "jslib" "caml_js_new"
+      (func $caml_js_new (param (ref eq)) (param (ref eq)) (result (ref eq))))
+   (import "jslib" "caml_js_fun_call"
+      (func $caml_js_fun_call
+         (param (ref eq)) (param (ref eq)) (result (ref eq))))
+   (import "jslib" "caml_js_from_array"
+      (func $caml_js_from_array (param (ref eq)) (result (ref eq))))
+   (import "jslib" "caml_js_from_float"
+      (func $caml_js_from_float (param (ref eq)) (result (ref eq))))
+   (import "jslib" "caml_pure_js_expr"
+      (func $caml_pure_js_expr (param (ref eq)) (result (ref eq))))
+   (import "jslib" "wrap" (func $wrap (param anyref) (result (ref eq))))
+   (import "jslib" "caml_string_of_jsstring"
+      (func $caml_string_of_jsstring (param (ref eq)) (result (ref eq))))
+   (import "jslib" "caml_jsstring_of_string"
+      (func $caml_jsstring_of_string (param (ref eq)) (result (ref eq))))
+
+   (func (export "core_time_ns_format")
+      (param $time (ref eq)) (param $format (ref eq)) (result (ref eq))
+      (local $d (ref eq))
+      (local.set $d
+         (call $caml_js_new
+            (call $caml_js_get
+               (call $caml_pure_js_expr
+                  (call $wrap (string.const "globalThis")))
+               (call $wrap (string.const "Date")))
+            (call $caml_js_from_array
+               (array.new_fixed $block (i31.new (i32.const 0))
+                  (call $caml_js_from_float
+                     (struct.new $float
+                        (f64.mul
+                           (struct.get $float 0
+                              (ref.cast $float (local.get $time)))
+                           (f64.const 1000.))))))))
+      (return_call $caml_string_of_jsstring
+         (call $caml_js_fun_call
+            (call $caml_js_get
+               (call $caml_pure_js_expr
+                  (call $wrap (string.const "globalThis")))
+               (call $wrap (string.const "strftime")))
+            (call $caml_js_from_array
+               (array.new_fixed $block (i31.new (i32.const 0))
+                  (call $caml_jsstring_of_string (local.get $format))
+                  (local.get $d))))))
+
+   (func (export "core_gc_compactions") (param (ref eq)) (result (ref eq))
+      (i31.new (i32.const 0)))
+
+   (func (export "core_gc_heap_chunks") (param (ref eq)) (result (ref eq))
+      (i31.new (i32.const 0)))
+
+   (func (export "core_gc_heap_words") (param (ref eq)) (result (ref eq))
+      (i31.new (i32.const 0)))
+
+   (func (export "core_gc_major_collections") (param (ref eq)) (result (ref eq))
+      (i31.new (i32.const 0)))
+
+   (func (export "core_gc_major_plus_minor_words")
+      (param (ref eq)) (result (ref eq))
+      (i31.new (i32.const 0)))
+
+   (func (export "core_gc_major_words") (param (ref eq)) (result (ref eq))
+      (i31.new (i32.const 0)))
+
+   (func (export "core_gc_minor_collections") (param (ref eq)) (result (ref eq))
+      (i31.new (i32.const 0)))
+
+   (func (export "core_gc_minor_words") (param (ref eq)) (result (ref eq))
+      (i31.new (i32.const 0)))
+
+   (func (export "core_gc_promoted_words") (param (ref eq)) (result (ref eq))
+      (i31.new (i32.const 0)))
+
+   (func (export "core_gc_top_heap_words") (param (ref eq)) (result (ref eq))
+      (i31.new (i32.const 0)))
+
+   (func (export "core_gc_run_memprof_callbacks")
+      (param (ref eq)) (result (ref eq))
+      (i31.new (i32.const 0)))
+
+   (import "md5" "caml_md5_chan"
+      (func $caml_md5_chan (param (ref eq)) (param (ref eq)) (result (ref eq))))
+   (import "io" "caml_ml_open_descriptor_in"
+      (func $caml_ml_open_descriptor_in (param (ref eq)) (result (ref eq))))
+   (import "io" "caml_ml_close_channel"
+      (func $caml_ml_close_channel (param (ref eq)) (result (ref eq))))
+   (import "fail" "ocaml_exception" (tag $ocaml_exception (param (ref eq))))
+
+   (func (export "core_md5_fd") (param $fd (ref eq)) (result (ref eq))
+      (local $ic (ref eq))
+      (local $s (ref eq))
+      (local.set $ic (call $caml_ml_open_descriptor_in (local.get $fd)))
+      (local.set $s
+         (try (result (ref eq)) ;; ZZZ Javascript exceptions
+            (do
+              (call $caml_md5_chan (local.get $ic) (i31.new (i32.const -1))))
+            (catch $ocaml_exception
+               (drop (pop (ref eq)))
+               (drop (call $caml_ml_close_channel (local.get $ic)))
+               (rethrow 0))))
+      (drop (call $caml_ml_close_channel (local.get $ic)))
+      (return (local.get $s)))
+
+(;
+
+//Provides: core_md5_digest_subbigstring
+//Requires: caml_md5_string, caml_blit_string, caml_create_bytes
+//Requires: bigstring_blit_bigstring_bytes_stub, caml_string_of_bytes
+function core_md5_digest_subbigstring(buf, ofs, len, res){
+    var bytes = caml_create_bytes(len);
+    bigstring_blit_bigstring_bytes_stub(buf, ofs, bytes, 0, len);
+    var res2 = caml_md5_string(caml_string_of_bytes(bytes), 0, len);
+    caml_blit_string(res2, 0, res, 0, 16);
+    return 0;
+}
+
+//Bigstring
+
+//Provides: bigstring_destroy_stub
+//Requires: caml_invalid_argument
+function bigstring_destroy_stub(v_bstr) {
+  if (v_bstr.hasOwnProperty('__is_deallocated')) {
+    caml_invalid_argument("bigstring_destroy: bigstring is already deallocated");
+  }
+  // Mutate the original bigstring in-place, to simulate what the C version does
+  v_bstr.__is_deallocated = true;
+  v_bstr.data = new v_bstr.data.__proto__.constructor(0);
+  v_bstr.dims = [ 0 ];
+  return 0;
+}
+
+//Provides: bigstring_realloc
+//Requires: caml_invalid_argument, caml_ba_create_unsafe, bigstring_destroy_stub
+function bigstring_realloc(bigstring, size) {
+    if (bigstring.hasOwnProperty('__is_deallocated')) {
+        caml_invalid_argument("bigstring_realloc: bigstring is already deallocated");
+    }
+
+    var new_data = new bigstring.data.__proto__.constructor(size);
+    new_data.set(bigstring.data.slice(0, size));
+    var new_bigstring = caml_ba_create_unsafe(bigstring.kind, bigstring.layout, [size], new_data);
+    bigstring_destroy_stub(bigstring);
+
+    return new_bigstring;
+}
+
+//Provides: core_heap_block_is_heap_block
+function core_heap_block_is_heap_block(x){
+  return +(x instanceof Array);
+}
+;)
+   (import "obj" "lazy_tag" (global $lazy_tag i32))
+   (import "obj" "forward_tag" (global $forward_tag i32))
+
+   (func "core_heap_block_is_heap_block" (param (ref eq)) (result (ref eq))
+      (local $tag i32)
+      (drop (block $not_block (result (ref eq))
+         (local.set $tag
+            (i31.get_u
+               (ref.cast i31
+               (array.get $block
+                  (br_on_cast_fail $not_block $block (local.get $0))
+                  (i32.const 0)))))
+         (i31.new
+            (i32.eqz
+               (i32.or (i32.eq (local.get $tag) (global.get $lazy_tag))
+                       (i32.eq (local.get $tag) (global.get $forward_tag)))))))
+      (i31.new (i32.const 0)))
 
    ;;;;;; ppx_expect
 
