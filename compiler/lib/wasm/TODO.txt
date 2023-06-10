@@ -384,14 +384,8 @@ We can cooperate:
 
 =============================
 
-Effects:
-- investigate test_lazy.ml
-- start stacks lazily
-
-============================
-
 * incr_mod
 * base
-  core
+* core
   bin_prot
   base_bigstring

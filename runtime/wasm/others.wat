@@ -171,17 +171,100 @@
          (i31.new (i32.const 1)) (i31.new (i32.const 1)) (i31.new (i32.const 0))
          (local.get $d)))
 
+   (global $Base_am_testing_flag (export "Base_am_testing_flag") (mut (i32))
+      (i32.const 0))
+
    (func (export "Base_am_testing") (param (ref eq)) (result (ref eq))
-      ;; ZZZ
       (call $log_js (string.const "Base_am_testing"))
-      (i31.new (i32.const 1)))
+      (i31.new (global.get $Base_am_testing_flag)))
 
-   ;;;;;; time_now
+   ;;;;;; base_bigstring
 
-   (func (export "time_now_nanoseconds_since_unix_epoch_or_zero")
+   (import "bigarray" "caml_ba_create"
+      (func $caml_ba_create
+         (param (ref eq)) (param (ref eq)) (param (ref eq)) (result (ref eq))))
+
+   (import "bigstring" "caml_bigstring_blit_ba_to_ba"
+      (func $bigstring_blit_stub
+         (param (ref eq)) (param (ref eq)) (param (ref eq)) (param (ref eq))
+         (param (ref eq)) (result (ref eq))))
+
+   (import "bigstring" "caml_bigstring_blit_bytes_to_ba"
+      (func $bigstring_blit_bytes_bigstring_stub
+         (param (ref eq)) (param (ref eq)) (param (ref eq)) (param (ref eq))
+         (param (ref eq)) (result (ref eq))))
+
+   (import "bigstring" "caml_bigstring_blit_string_to_ba"
+      (func $bigstring_blit_string_bigstring_stub
+         (param (ref eq)) (param (ref eq)) (param (ref eq)) (param (ref eq))
+         (param (ref eq)) (result (ref eq))))
+
+   (import "bigstring" "caml_bigstring_blit_ba_to_bytes"
+      (func $bigstring_blit_bigstring_bytes_stub
+         (param (ref eq)) (param (ref eq)) (param (ref eq)) (param (ref eq))
+         (param (ref eq)) (result (ref eq))))
+
+   (import "bigstring" "caml_bigstring_memcmp"
+      (func $bigstring_memcmp_stub
+         (param (ref eq)) (param (ref eq)) (param (ref eq)) (param (ref eq))
+         (param (ref eq)) (result (ref eq))))
+
+   (func (export "bigstring_alloc")
+       (param (ref eq)) (param $size (ref eq)) (result (ref eq))
+       (return_call $caml_ba_create
+          (i31.new (i32.const 12)) (i31.new (i32.const 0))
+          (array.new_fixed $block (i31.new (i32.const 0)) (local.get $size))))
+
+   (func (export "bigstring_is_mmapped_stub") (param (ref eq)) (result (ref eq))
+      (i31.new (i32.const 0)))
+
+   (export "bigstring_blit_stub" (func $bigstring_blit_stub))
+
+   (export "bigstring_blit_bytes_bigstring_stub"
+      (func $bigstring_blit_bytes_bigstring_stub))
+
+   (export "bigstring_blit_bigstring_bytes_stub"
+      (func $bigstring_blit_bigstring_bytes_stub))
+
+   (export "bigstring_blit_string_bigstring_stub"
+      (func $bigstring_blit_string_bigstring_stub))
+
+   (export "bigstring_memcmp_stub"
+      (func $bigstring_memcmp_stub))
+
+   (func (export "bigstring_memset_stub")
+      (param (ref eq)) (param (ref eq)) (param (ref eq)) (param (ref eq))
+      (result (ref eq))
+      ;; ZZZ
+      (call $log_js (string.const "bigstring_memset_stub"))
+      (i31.new (i32.const 0)))
+
+   (func (export "bigstring_memcmp_bytes_stub")
+      (param (ref eq)) (param (ref eq)) (param (ref eq)) (param (ref eq))
       (param (ref eq)) (result (ref eq))
-      (return_call $caml_copy_int64
-         (i64.trunc_sat_f64_s (f64.mul (call $gettimeofday) (f64.const 2e9)))))
+      ;; ZZZ
+      (call $log_js (string.const "bigstring_memcmp_bytes_stub"))
+      (i31.new (i32.const 0)))
+
+   (func (export "internalhash_fold_bigstring")
+      (param (ref eq)) (param (ref eq)) (result (ref eq))
+      ;; ZZZ
+      (call $log_js (string.const "internalhash_fold_bigstring"))
+      (i31.new (i32.const 0)))
+
+   (func (export "bigstring_find")
+      (param (ref eq)) (param (ref eq)) (param (ref eq)) (param (ref eq))
+      (result (ref eq))
+      ;; ZZZ
+      (call $log_js (string.const "bigstring_find"))
+      (i31.new (i32.const 0)))
+
+   (func (export "bigstring_memmem_bytecode")
+      (param (ref eq)) (param (ref eq)) (param (ref eq)) (param (ref eq))
+      (param (ref eq)) (result (ref eq))
+      ;; ZZZ
+      (call $log_js (string.const "bigstring_memmem_bytecode"))
+      (i31.new (i32.const 0)))
 
    ;;;;;; core
 
@@ -294,54 +377,108 @@
       (drop (call $caml_ml_close_channel (local.get $ic)))
       (return (local.get $s)))
 
-(;
+   (import "string" "caml_create_bytes"
+      (func $caml_create_bytes (param (ref eq)) (result (ref eq))))
+   (import "string" "caml_blit_string"
+      (func $caml_blit_string
+         (param (ref eq)) (param (ref eq)) (param (ref eq)) (param (ref eq))
+         (param (ref eq)) (result (ref eq))))
+   (import "md5" "caml_md5_string"
+      (func $caml_md5_string
+         (param (ref eq)) (param (ref eq)) (param (ref eq)) (result (ref eq))))
 
-//Provides: core_md5_digest_subbigstring
-//Requires: caml_md5_string, caml_blit_string, caml_create_bytes
-//Requires: bigstring_blit_bigstring_bytes_stub, caml_string_of_bytes
-function core_md5_digest_subbigstring(buf, ofs, len, res){
-    var bytes = caml_create_bytes(len);
-    bigstring_blit_bigstring_bytes_stub(buf, ofs, bytes, 0, len);
-    var res2 = caml_md5_string(caml_string_of_bytes(bytes), 0, len);
-    caml_blit_string(res2, 0, res, 0, 16);
-    return 0;
-}
+   (func (export "core_md5_digest_subbigstring")
+      (param $buf (ref eq)) (param $ofs (ref eq)) (param $len (ref eq))
+      (param $res (ref eq)) (result (ref eq))
+      (local $bytes (ref eq))
+      (local $res2 (ref eq))
+      (local.set $bytes (call $caml_create_bytes (local.get $len)))
+      (drop
+         (call $bigstring_blit_bigstring_bytes_stub
+            (local.get $buf) (local.get $ofs) (local.get $bytes)
+            (i31.new (i32.const 0)) (local.get $len)))
+      (local.set $res2
+         (call $caml_md5_string
+            (local.get $bytes) (i31.new (i32.const 0)) (local.get $len)))
+      (drop
+         (call $caml_blit_string
+           (local.get $res2) (i31.new (i32.const 0))
+           (local.get $res) (i31.new (i32.const 0))
+           (i31.new (i32.const 16))))
+     (i31.new (i32.const 0)))
 
-//Bigstring
+   (type $int_array (array (mut i32)))
 
-//Provides: bigstring_destroy_stub
-//Requires: caml_invalid_argument
-function bigstring_destroy_stub(v_bstr) {
-  if (v_bstr.hasOwnProperty('__is_deallocated')) {
-    caml_invalid_argument("bigstring_destroy: bigstring is already deallocated");
-  }
-  // Mutate the original bigstring in-place, to simulate what the C version does
-  v_bstr.__is_deallocated = true;
-  v_bstr.data = new v_bstr.data.__proto__.constructor(0);
-  v_bstr.dims = [ 0 ];
-  return 0;
-}
+   (type $bigarray
+      (sub $custom
+         (struct
+            (field $ba_ops (ref $custom_operations))
+            (field $ba_data (mut (ref extern))) ;; data
+            (field $ba_dim (ref $int_array)) ;; size in each dimension
+            (field $ba_num_dims i8) ;; number of dimensions
+            (field $ba_kind i8) ;; kind
+            (field $ba_layout i8)))) ;; layout
 
-//Provides: bigstring_realloc
-//Requires: caml_invalid_argument, caml_ba_create_unsafe, bigstring_destroy_stub
-function bigstring_realloc(bigstring, size) {
-    if (bigstring.hasOwnProperty('__is_deallocated')) {
-        caml_invalid_argument("bigstring_realloc: bigstring is already deallocated");
-    }
+   (import "fail" "caml_invalid_argument"
+      (func $caml_invalid_argument (param (ref eq))))
 
-    var new_data = new bigstring.data.__proto__.constructor(size);
-    new_data.set(bigstring.data.slice(0, size));
-    var new_bigstring = caml_ba_create_unsafe(bigstring.kind, bigstring.layout, [size], new_data);
-    bigstring_destroy_stub(bigstring);
+   (data $bigstring_destroy_already_deallocated
+      "bigstring_destroy: bigstring is already deallocated")
 
-    return new_bigstring;
-}
+   (func $bigstring_destroy_stub (export "bigstring_destroy_stub")
+      (param $v (ref eq)) (result (ref eq))
+      (local $b (ref $bigarray))
+      (local.set $b (ref.cast $bigarray (local.get $v)))
+      (if (ref.test i31
+            (extern.internalize (struct.get $bigarray $ba_data (local.get $b))))
+         (then
+            (call $caml_invalid_argument
+               (array.new_data $string $bigstring_destroy_already_deallocated
+                  (i32.const 0) (i32.const 51)))))
+      (struct.set $bigarray $ba_data (local.get $b)
+         (extern.externalize (i31.new (i32.const 0))))
+      (array.set $int_array (struct.get_u $bigarray $ba_dim (local.get $b))
+            (i32.const 0)
+            (i32.const 0))
+      (i31.new (i32.const 0)))
 
-//Provides: core_heap_block_is_heap_block
-function core_heap_block_is_heap_block(x){
-  return +(x instanceof Array);
-}
-;)
+   (data $bigstring_realloc_already_deallocated
+      "bigstring_realloc: bigstring is already deallocated")
+
+   (import "bigarray" "caml_ba_create_buffer"
+      (func $caml_ba_create_buffer
+         (param i32) (param i32) (result (ref extern))))
+
+   (func (export "bigstring_realloc_stub")
+      (param $vbigstring (ref eq)) (param $vsize (ref eq))
+      (result (ref eq))
+      (local $bigstring (ref $bigarray)) (local $new_bigstring (ref $bigarray))
+      (local $size i32)
+      (local $new_data (ref extern))
+      (local.set $bigstring (ref.cast $bigarray (local.get $vbigstring)))
+      (local.set $size (i31.get_u (ref.cast i31 (local.get $vsize))))
+      (if (ref.test i31
+            (extern.internalize
+               (struct.get $bigarray $ba_data (local.get $bigstring))))
+         (then
+            (call $caml_invalid_argument
+               (array.new_data $string $bigstring_realloc_already_deallocated
+                  (i32.const 0) (i32.const 51)))))
+      (local.set $new_data
+         (call $caml_ba_create_buffer
+            (struct.get $bigarray $ba_kind (local.get $bigstring))
+            (local.get $size)))
+      (local.set $new_bigstring
+         (struct.new $bigarray
+            (struct.get $bigarray $ba_ops (local.get $bigstring))
+            (local.get $new_data)
+            (array.new_fixed $int_array (local.get $size))
+            (i32.const 1)
+            (struct.get $bigarray $ba_kind (local.get $bigstring))
+            (struct.get $bigarray $ba_layout (local.get $bigstring))))
+      (drop (call $bigstring_destroy_stub (local.get $bigstring)))
+      (local.get $new_bigstring))
+
    (import "obj" "lazy_tag" (global $lazy_tag i32))
    (import "obj" "forward_tag" (global $forward_tag i32))
 
@@ -358,6 +495,78 @@ function core_heap_block_is_heap_block(x){
             (i32.eqz
                (i32.or (i32.eq (local.get $tag) (global.get $lazy_tag))
                        (i32.eq (local.get $tag) (global.get $forward_tag)))))))
+      (i31.new (i32.const 0)))
+
+   ;;;;;; time_now
+
+   (func (export "time_now_nanoseconds_since_unix_epoch_or_zero")
+      (param (ref eq)) (result (ref eq))
+      (return_call $caml_copy_int64
+         (i64.trunc_sat_f64_s (f64.mul (call $gettimeofday) (f64.const 2e9)))))
+
+   ;;;;;; bin_prot
+
+   (import "fail" "caml_array_bound_error" (func $caml_array_bound_error))
+   (import "bigarray" "caml_bigstring_blit_string_to_ba"
+      (func $caml_bigstring_blit_string_to_ba
+         (param (ref eq)) (param (ref eq)) (param (ref eq)) (param (ref eq))
+         (param (ref eq)) (result (ref eq))))
+   (import "bigarray" "caml_bigstring_blit_ba_to_bytes"
+      (func $caml_bigstring_blit_ba_to_bytes
+         (param (ref eq)) (param (ref eq)) (param (ref eq)) (param (ref eq))
+         (param (ref eq)) (result (ref eq))))
+
+   (func (export "caml_check_bound_bigstring")
+      (param $bigstring (ref eq)) (param $i (ref eq)) (result (ref eq))
+      (if (i32.ge_u (i31.get_s (ref.cast i31 (local.get $i)))
+             (array.get $int_array
+                (struct.get $bigarray $ba_dim
+                   (ref.cast $bigarray (local.get $bigstring)))
+                (i32.const 0)))
+         (then (call $caml_array_bound_error)))
+      (i31.new (i32.const 0)))
+
+   (func (export "bin_prot_blit_buf_float_array_stub")
+      (param $src_pos (ref eq)) (param $src (ref eq))
+      (param $dst_pos (ref eq)) (param $dst (ref eq))
+      (param $len (ref eq)) (result (ref eq))
+      ;; ZZZ
+      (call $log_js (string.const "bin_prot_blit_buf_float_array_stub"))
+      (i31.new (i32.const 0)))
+
+   (func (export "bin_prot_blit_buf_bytes_stub")
+      (param $src_pos (ref eq)) (param $src (ref eq))
+      (param $dst_pos (ref eq)) (param $dst (ref eq))
+      (param $len (ref eq)) (result (ref eq))
+      (return_call $caml_bigstring_blit_ba_to_bytes
+         (local.get $src) (local.get $src_pos)
+         (local.get $dst) (local.get $dst_pos)
+         (local.get $len)))
+
+   (func (export "bin_prot_blit_float_array_buf_stub")
+      (param $src_pos (ref eq)) (param $src (ref eq))
+      (param $dst_pos (ref eq)) (param $dst (ref eq))
+      (param $len (ref eq)) (result (ref eq))
+      ;; ZZZ
+      (call $log_js (string.const "bin_prot_blit_float_array_buf_stub"))
+      (i31.new (i32.const 0)))
+
+   (export "bin_prot_blit_bytes_buf_stub" (func $bin_prot_blit_string_buf_stub))
+   (func $bin_prot_blit_string_buf_stub (export "bin_prot_blit_string_buf_stub")
+      (param $src_pos (ref eq)) (param $src (ref eq))
+      (param $dst_pos (ref eq)) (param $dst (ref eq))
+      (param $len (ref eq)) (result (ref eq))
+      (return_call $caml_bigstring_blit_string_to_ba
+         (local.get $src) (local.get $src_pos)
+         (local.get $dst) (local.get $dst_pos)
+         (local.get $len)))
+
+   (func (export "bin_prot_blit_buf_stub")
+      (param $src_pos (ref eq)) (param $src (ref eq))
+      (param $dst_pos (ref eq)) (param $dst (ref eq))
+      (param $len (ref eq)) (result (ref eq))
+      ;; ZZZ
+      (call $log_js (string.const "bin_prot_blit_buf_stub"))
       (i31.new (i32.const 0)))
 
    ;;;;;; ppx_expect
@@ -410,6 +619,11 @@ function core_heap_block_is_heap_block(x){
          (i32.wrap_i64
             (array.get $offset_array (global.get $fd_offsets)
                (struct.get $channel $fd (ref.cast $channel (local.get 0)))))))
+
+   (func $set_am_testing
+      (global.set $Base_am_testing_flag (i32.const 1)))
+
+   (start $set_am_testing)
 
    ;;;; compiler/test-jsoo
 
