@@ -10,6 +10,7 @@
    (build_runtime_flags
     (:standard --enable effects))))
  (wasm
+  (binaries (tools/node_wrapper.sh as node))
   (js_of_ocaml
    (compilation_mode wasm)))
  (bench_no_debug
@@ -18,7 +19,9 @@
   (ocamlc_flags
    (:standard \ -g))
   (link_flags
-   (:standard \ -g))))
+   (:standard \ -g)))
+ (_
+  (binaries compiler/tests-num/nodexx)))
 
 (rule
  (targets version.ml.in)

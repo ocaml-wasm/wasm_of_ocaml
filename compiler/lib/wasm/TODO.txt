@@ -344,6 +344,11 @@ TODO
 
 =================================
 
+Linker:
+annotate provides to indicate that they should be available in Wasm
+
+============================
+
 Doc: binding changes
 - explicit coercion for floats
 - cannot use ocaml physical equality to compare JavaScript values
@@ -397,26 +402,22 @@ We might be able to make this easier to think about by providing examples of low
 
 ================
 
-I don't have a good view of how much JavaScript stubs you have.
-
-I did not really realized there could be an issue with JavaScript stubs. There are not that many of them in the opam packages maintained by Jane Street.
-
-Js_of_ocaml bindings using the Js_of_ocaml library (Js, Dom_html,  ...) are mostly unchanged. One just needs to add explicit float coercions (about 20 lines changed for Bonsai, for instance).
-
-- JavaScript code that relies on Js_of_ocaml value representation has to
-  be rewritten.
-  ==> write wasm stubs
-      (one may still be able to keep a large part of the code in JavaScript,
-       for zarith for instance)
-  ==> define an API to manipulate OCaml values in JavaScript
-      https://v2.ocaml.org/manual/intfc.html
-
-- Compile existing C librairies to Wasm might be worth exploring
-
 Flamba2
-==> 
+==> Pierre Chambard is probably the right person to work on this
+==> generating Wasm code from flambda2 not a huge effort
+==> do we need to keep anything from js_of_ocaml? many optimizations
+already dones by flambda2. dead code elimination?
+==> with Pierre, we agree on the representation of OCaml values,
+    so we can have share a common runtime
 ==> not sure about how to represent unboxed types in Wasm
     gc friendly => array of values
     no-gc
     => struct (but we need the whole struct information,
                or at least a prefix to access a value)
+
+With wasm_of_ocaml, we implement a large part of what is needed to run OCaml on Webassembly.
+Flambda2 backend
+==> same runtime
+==> same APIs
+==> get some idea from the js_of_ocaml implementation
+    (like how to recover a structered control flow)

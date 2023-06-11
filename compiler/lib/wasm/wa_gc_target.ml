@@ -370,7 +370,7 @@ module Memory = struct
   let wasm_struct_get ty e i =
     let* e = e in
     match e with
-    | W.RefCast (_, GlobalGet nm) -> (
+    | W.RefCast (_, GlobalGet (V nm)) -> (
         let* init = get_global nm in
         match init with
         | Some (W.StructNew (_, l)) ->
@@ -485,7 +485,7 @@ module Memory = struct
     in
     let* ty = Type.int32_type in
     let* e = e in
-    return (W.StructNew (ty, [ GlobalGet int32_ops; e ]))
+    return (W.StructNew (ty, [ GlobalGet (V int32_ops); e ]))
 
   let box_int32 _ _ e = make_int32 ~kind:`Int32 e
 
@@ -503,7 +503,7 @@ module Memory = struct
     in
     let* ty = Type.int64_type in
     let* e = e in
-    return (W.StructNew (ty, [ GlobalGet int64_ops; e ]))
+    return (W.StructNew (ty, [ GlobalGet (V int64_ops); e ]))
 
   let box_int64 _ _ e = make_int64 e
 
@@ -523,8 +523,8 @@ module Constant = struct
 
   let store_in_global c =
     let name = Code.Var.fresh_n "const" in
-    let* () = register_global name { mut = false; typ = Type.value } c in
-    return (W.GlobalGet name)
+    let* () = register_global (V name) { mut = false; typ = Type.value } c in
+    return (W.GlobalGet (V name))
 
   let rec translate_rec c =
     match c with
@@ -621,12 +621,12 @@ module Constant = struct
       let* () =
         register_global
           ~constant:true
-          name
+          (V name)
           { mut = true; typ = Type.value }
           (W.I31New (Const (I32 0l)))
       in
-      let* () = register_init_code (instr (W.GlobalSet (name, c))) in
-      return (W.GlobalGet name)
+      let* () = register_init_code (instr (W.GlobalSet (V name, c))) in
+      return (W.GlobalGet (V name))
 end
 
 module Closure = struct
@@ -652,7 +652,7 @@ module Closure = struct
       let name = Code.Var.fresh_n "closure" in
       let* () =
         register_global
-          name
+          (V name)
           { mut = false; typ = Type.value }
           (W.StructNew
              ( typ
@@ -663,7 +663,7 @@ module Closure = struct
                then Const (I32 (Int32.of_int arity)) :: code_pointers
                else code_pointers ))
       in
-      return (W.GlobalGet name)
+      return (W.GlobalGet (V name))
     else
       let free_variable_count = List.length free_variables in
       match info.Wa_closure_conversion.functions with

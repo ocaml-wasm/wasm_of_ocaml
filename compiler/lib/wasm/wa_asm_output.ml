@@ -292,7 +292,7 @@ module Output () = struct
              ^^ string (select offs offs offs offs offset))
     | LocalGet i -> line (string "local.get " ^^ integer i)
     | LocalTee (i, e') -> expression e' ^^ line (string "local.tee " ^^ integer i)
-    | GlobalGet nm -> line (string "global.get " ^^ index nm)
+    | GlobalGet nm -> line (string "global.get " ^^ symbol nm 0)
     | BlockExpr (ty, l) ->
         line (string "block" ^^ block_type ty)
         ^^ indent (concat_map instruction l)
@@ -343,7 +343,7 @@ module Output () = struct
              ^^ string "store8 "
              ^^ string (select offs offs offs offs offset))
     | LocalSet (i, e) -> expression e ^^ line (string "local.set " ^^ integer i)
-    | GlobalSet (nm, e) -> expression e ^^ line (string "global.set " ^^ index nm)
+    | GlobalSet (nm, e) -> expression e ^^ line (string "global.set " ^^ symbol nm 0)
     | Loop (ty, l) ->
         line (string "loop" ^^ block_type ty)
         ^^ indent (concat_map instruction l)
@@ -454,6 +454,12 @@ module Output () = struct
               (Feature.get features)))
 
   let f ch fields =
+    List.iter
+      ~f:(fun f ->
+        match f with
+        | Global { name = S name; _ } -> Var_printer.add_reserved name
+        | Import _ | Function _ | Data _ | Global { name = V _; _ } | Tag _ | Type _ -> ())
+      fields;
     to_channel ch
     @@
     let types =
@@ -475,7 +481,7 @@ module Output () = struct
               None
           | Import { import_module; import_name; name; desc = Global typ } ->
               if typ.mut then Feature.require mutable_globals;
-              Some (name, typ, Some (import_module, import_name))
+              Some (V name, typ, Some (import_module, import_name))
           | Global { name; typ; init } ->
               assert (Poly.equal init (Const (I32 0l)));
               Some (name, typ, None))
@@ -496,23 +502,23 @@ module Output () = struct
         fields
     in
     let define_symbol name =
-      line (string ".hidden " ^^ index name) ^^ line (string ".globl " ^^ index name)
+      line (string ".hidden " ^^ symbol name 0) ^^ line (string ".globl " ^^ symbol name 0)
     in
     let name_import name import =
       (match import with
       | None | Some ("env", _) -> empty
       | Some (m, _) ->
-          line (string ".import_module " ^^ index name ^^ string ", " ^^ string m))
+          line (string ".import_module " ^^ symbol name 0 ^^ string ", " ^^ string m))
       ^^
       match import with
       | None -> empty
       | Some (_, nm) ->
-          line (string ".import_name " ^^ index name ^^ string ", " ^^ string nm)
+          line (string ".import_name " ^^ symbol name 0 ^^ string ", " ^^ string nm)
     in
     let declare_global name { mut; typ } import =
       line
         (string ".globaltype "
-        ^^ index name
+        ^^ symbol name 0
         ^^ string ", "
         ^^ value_type typ
         ^^ if mut then empty else string ", immutable")
@@ -520,11 +526,11 @@ module Output () = struct
     in
     let declare_tag name typ import =
       line (string ".tagtype " ^^ index name ^^ string " " ^^ value_type typ)
-      ^^ name_import name import
+      ^^ name_import (V name) import
     in
     let declare_func_type name typ import =
       line (string ".functype " ^^ index name ^^ string " " ^^ func_type typ)
-      ^^ name_import name import
+      ^^ name_import (V name) import
     in
     let data_sections =
       concat_map
@@ -550,7 +556,7 @@ module Output () = struct
               in
               indent
                 (section_header (if read_only then "rodata" else "data") (V name)
-                ^^ define_symbol name
+                ^^ define_symbol (V name)
                 ^^ line (string ".p2align 2")
                 ^^ line (string ".size " ^^ index name ^^ string ", " ^^ integer size))
               ^^ line (index name ^^ string ":")
@@ -567,11 +573,14 @@ module Output () = struct
                               ^^ string (escape_string b)
                               ^^ string "\""
                           | DataSym (name, offset) ->
-                              string ".int32 " ^^ symbol (V name) offset
+                              string ".int32 " ^^ symbol name offset
                           | DataSpace n -> string ".space " ^^ integer n))
                       contents)
-          | Global { name; _ } | Tag { name; _ } ->
-              indent (section_header "data" (V name) ^^ define_symbol name)
+          | Global { name; _ } ->
+              indent (section_header "data" name ^^ define_symbol name)
+              ^^ line (symbol name 0 ^^ string ":")
+          | Tag { name; _ } ->
+              indent (section_header "data" (V name) ^^ define_symbol (V name))
               ^^ line (index name ^^ string ":"))
         fields
     in
@@ -582,7 +591,7 @@ module Output () = struct
           | Function { name; exported_name; typ; locals; body } ->
               indent
                 (section_header "text" (V name)
-                ^^ define_symbol name
+                ^^ define_symbol (V name)
                 ^^
                 match exported_name with
                 | None -> empty

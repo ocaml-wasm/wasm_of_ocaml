@@ -1,7 +1,7 @@
 open Stdlib
 
 type effect_kind =
-  | Global of Wa_ast.var
+  | Global of Wa_ast.symbol
   | Array
   | Memory
   | Call

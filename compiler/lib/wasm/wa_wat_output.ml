@@ -17,6 +17,11 @@ let rec format_sexp f s =
 
 let index x = Atom ("$" ^ Code.Var.to_string x)
 
+let symbol name =
+  match name with
+  | V name -> index name
+  | S name -> Atom ("$" ^ name)
+
 let heap_type (ty : heap_type) =
   match ty with
   | Func -> Atom "func"
@@ -248,7 +253,7 @@ let expression_or_instructions ctx in_function =
     | LocalGet i -> [ List [ Atom "local.get"; Atom (string_of_int i) ] ]
     | LocalTee (i, e') ->
         [ List (Atom "local.tee" :: Atom (string_of_int i) :: expression e') ]
-    | GlobalGet nm -> [ List [ Atom "global.get"; index nm ] ]
+    | GlobalGet nm -> [ List [ Atom "global.get"; symbol nm ] ]
     | BlockExpr (ty, l) -> [ List (Atom "block" :: (block_type ty @ instructions l)) ]
     | Call_indirect (typ, e, l) ->
         [ List
@@ -378,7 +383,7 @@ let expression_or_instructions ctx in_function =
     | LocalSet (i, Seq (l, e)) -> instructions (l @ [ LocalSet (i, e) ])
     | LocalSet (i, e) ->
         [ List (Atom "local.set" :: Atom (string_of_int i) :: expression e) ]
-    | GlobalSet (nm, e) -> [ List (Atom "global.set" :: index nm :: expression e) ]
+    | GlobalSet (nm, e) -> [ List (Atom "global.set" :: symbol nm :: expression e) ]
     | Loop (ty, l) -> [ List (Atom "loop" :: (block_type ty @ instructions l)) ]
     | Block (ty, l) -> [ List (Atom "block" :: (block_type ty @ instructions l)) ]
     | If (ty, e, l1, l2) ->
@@ -511,7 +516,7 @@ let data_contents ctx contents =
       | DataI64 i -> Buffer.add_int64_le b i
       | DataBytes s -> Buffer.add_string b s
       | DataSym (symb, ofs) ->
-          Buffer.add_int32_le b (Int32.of_int (lookup_symbol ctx (V symb) + ofs))
+          Buffer.add_int32_le b (Int32.of_int (lookup_symbol ctx symb + ofs))
       | DataSpace n -> Buffer.add_string b (String.make n '\000'))
     contents;
   escape_string (Buffer.contents b)
@@ -538,7 +543,7 @@ let field ctx f =
   | Function { name; exported_name; typ; locals; body } ->
       [ funct ctx name exported_name typ locals body ]
   | Global { name; typ; init } ->
-      [ List (Atom "global" :: index name :: global_type typ :: expression ctx init) ]
+      [ List (Atom "global" :: symbol name :: global_type typ :: expression ctx init) ]
   | Tag { name; typ } ->
       [ List [ Atom "tag"; index name; List [ Atom "param"; value_type typ ] ] ]
   | Import _ -> []

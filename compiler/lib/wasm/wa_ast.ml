@@ -130,7 +130,7 @@ type expression =
   | Load8 of signage * (memarg, memarg, memarg, memarg) op * expression
   | LocalGet of int
   | LocalTee of int * expression
-  | GlobalGet of var
+  | GlobalGet of symbol
   | BlockExpr of func_type * instruction list
   | Call_indirect of func_type * expression * expression list
   | Call of var * expression list
@@ -162,7 +162,7 @@ and instruction =
   | Store of (memarg, memarg, memarg, memarg) op * expression * expression
   | Store8 of (memarg, memarg, memarg, memarg) op * expression * expression
   | LocalSet of int * expression
-  | GlobalSet of var * expression
+  | GlobalSet of symbol * expression
   | Loop of func_type * instruction list
   | Block of func_type * instruction list
   | If of func_type * expression * instruction list * instruction list
@@ -195,7 +195,7 @@ type data =
   | DataI32 of int32
   | DataI64 of int64
   | DataBytes of string
-  | DataSym of var * int
+  | DataSym of symbol * int
   | DataSpace of int
 
 type type_field =
@@ -220,7 +220,7 @@ type module_field =
       ; contents : data list
       }
   | Global of
-      { name : var
+      { name : symbol
       ; typ : global_type
       ; init : expression
       }

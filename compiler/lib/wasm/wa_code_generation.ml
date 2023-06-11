@@ -111,13 +111,16 @@ let register_type nm gen_typ st =
 
 let register_global name ?(constant = false) typ init st =
   st.context.other_fields <- W.Global { name; typ; init } :: st.context.other_fields;
-  st.context.constant_globals <-
-    Var.Map.add
-      name
-      { init = (if not typ.mut then Some init else None)
-      ; constant = (not typ.mut) || constant
-      }
-      st.context.constant_globals;
+  (match name with
+  | S _ -> ()
+  | V name ->
+      st.context.constant_globals <-
+        Var.Map.add
+          name
+          { init = (if not typ.mut then Some init else None)
+          ; constant = (not typ.mut) || constant
+          }
+          st.context.constant_globals);
   (), st
 
 let global_is_constant name =
@@ -300,7 +303,7 @@ end
 let is_small_constant e =
   match e with
   | W.ConstSym _ | W.Const _ | W.I31New (W.Const _) | W.RefFunc _ -> return true
-  | W.GlobalGet name -> global_is_constant name
+  | W.GlobalGet (V name) -> global_is_constant name
   | _ -> return false
 
 let load x =
