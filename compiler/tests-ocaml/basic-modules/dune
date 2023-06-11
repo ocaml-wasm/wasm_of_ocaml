@@ -9,7 +9,7 @@
  (action
   (with-stdout-to
    %{target}
-   (run node --experimental-wasm-stringref --experimental-wasm-gc --experimental-wasm-stack-switching ./recursive_module_init.bc.js))))
+   (run node ./recursive_module_init.bc.js))))
 
 (rule
  (alias runtest)

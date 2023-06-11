@@ -13,7 +13,7 @@
  (action
   (with-stdout-to
    %{target}
-   (run node --experimental-wasm-stringref --experimental-wasm-gc --experimental-wasm-stack-switching ./test_string.bc.js))))
+   (run node ./test_string.bc.js))))
 
 (rule
  (alias runtest)
@@ -29,4 +29,4 @@
   (>= %{ocaml_version} 5))
  (deps binary.bc.js)
  (action
-  (run node --experimental-wasm-stringref --experimental-wasm-gc --experimental-wasm-stack-switching binary.bc.js)))
+  (run node binary.bc.js)))

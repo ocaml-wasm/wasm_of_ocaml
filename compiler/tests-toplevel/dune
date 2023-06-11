@@ -16,7 +16,7 @@
  (action
   (with-stdout-to
    %{target}
-   (run node --experimental-wasm-stringref --experimental-wasm-gc --experimental-wasm-stack-switching ./test_toplevel.js))))
+   (run node ./test_toplevel.js))))
 
 (rule
  (alias runtest)

@@ -9,7 +9,7 @@
  (action
   (with-stdout-to
    %{target}
-   (run node --experimental-wasm-stringref --experimental-wasm-gc --experimental-wasm-stack-switching ./bigarrays.bc.js))))
+   (run node ./bigarrays.bc.js))))
 
 (rule
  (alias runtest)
@@ -23,7 +23,7 @@
  (action
   (with-stdout-to
    %{target}
-   (run node --experimental-wasm-stringref --experimental-wasm-gc --experimental-wasm-stack-switching ./change_layout.bc.js))))
+   (run node ./change_layout.bc.js))))
 
 (rule
  (alias runtest)
@@ -37,7 +37,7 @@
  (action
   (with-stdout-to
    %{target}
-   (run node --experimental-wasm-stringref --experimental-wasm-gc --experimental-wasm-stack-switching ./fftba.bc.js))))
+   (run node ./fftba.bc.js))))
 
 (rule
  (alias runtest)
@@ -51,7 +51,7 @@
  (action
   (with-stdout-to
    %{target}
-   (run node --experimental-wasm-stringref --experimental-wasm-gc --experimental-wasm-stack-switching ./pr5115.bc.js))))
+   (run node ./pr5115.bc.js))))
 
 (rule
  (alias runtest)
@@ -65,7 +65,7 @@
  (action
   (with-stdout-to
    %{target}
-   (run node --experimental-wasm-stringref --experimental-wasm-gc --experimental-wasm-stack-switching ./weak_bigarray.bc.js))))
+   (run node ./weak_bigarray.bc.js))))
 
 (rule
  (alias runtest)
