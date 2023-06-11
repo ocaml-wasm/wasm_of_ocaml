@@ -36,12 +36,19 @@
     var start_fiber
 
     function wrap_fun (t,f,a) {
-       return WebAssembly.Function?new WebAssembly.Function(t,f,a):f
+       // Don't wrap if js-promise-integration is not enabled
+       // There is no way to check this without calling WebAssembly.Function
+       try {
+         return new WebAssembly.Function(t,f,a)
+       } catch (e) {
+         return f
+       }
     }
 
     let bindings =
         {jstag:
          WebAssembly.JSTag||
+         // ZZZ not supported in node yet
          new WebAssembly.Tag({parameters:['externref'],results:[]}),
          identity:(x)=>x,
          from_bool:(x)=>!!x,

@@ -618,6 +618,8 @@ module Math = struct
   let fmod f g = binary "fmod" f g
 end
 
+let exception_handler_body ~typ:_ b = b
+
 let post_process_function_body ~param_count:_ ~locals:_ instrs = instrs
 
 let entry_point ~context:_ =

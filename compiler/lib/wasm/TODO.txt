@@ -46,15 +46,6 @@ Optimization phases
 
 =======
 
-Accurate compilation
-====================
-
-- exceptions using CPS transform
-  ==> trampolining
-  ==> check after external calls
-
-========
-
 Remarks
 =======
 
@@ -220,6 +211,10 @@ NativeString ==> stringref const
 
 ============================
 
+Rethrow?
+
+============================
+
 Js_of_ocaml fixes:
 ==> bound check optimization for float arrays
 ==> fix bound check for caml_bytes_getxx
@@ -344,14 +339,6 @@ TODO
   ==> node options ===> (node_flags ...)
 
 - Should be able to compare/hash JavaScript strings (string refs)
-
-- catch and wrap javascript exceptions
-
-    try ... with Jstag e -> wrap_exn (e)
-    wrap_exn e ==> throw (Error e)
-
-          jstag:WebAssembly.JSTag||new WebAssembly.Tag("externref");
-
 
 - we should link-in javascript files that are not divided into fragments
 

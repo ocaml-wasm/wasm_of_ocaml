@@ -253,6 +253,9 @@ module type S = sig
     val round : expression -> expression
   end
 
+  val exception_handler_body :
+    typ:Wa_ast.value_type list -> unit Wa_code_generation.t -> unit Wa_code_generation.t
+
   val post_process_function_body :
        param_count:int
     -> locals:Wa_ast.value_type list

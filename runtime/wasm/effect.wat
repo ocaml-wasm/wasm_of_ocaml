@@ -8,6 +8,10 @@
    (import "stdlib" "caml_named_value"
       (func $caml_named_value (param anyref) (result (ref null eq))))
    (import "fail" "ocaml_exception" (tag $ocaml_exception (param (ref eq))))
+   (import "fail" "javascript_exception"
+      (tag $javascript_exception (param externref)))
+   (import "jslib" "caml_wrap_exception"
+      (func $caml_wrap_exception (param externref) (result (ref eq))))
 
    (type $block (array (mut (ref eq))))
    (type $string (array (mut i8)))
@@ -303,9 +307,13 @@
       (global.set $current_suspender (local.get $suspender))
       (local.set $res
          (try (result (ref eq))
-            ;; ZZZ JavaScript exceptions
             (do
-               (call $apply_pair (ref.cast $pair (local.get $p))))
+               (try (result (ref eq))
+                  (do
+                     (call $apply_pair (ref.cast $pair (local.get $p))))
+                  (catch $javascript_exception
+                     (throw $ocaml_exception
+                        (call $caml_wrap_exception (pop externref))))))
             (catch $ocaml_exception
                (local.set $exn (pop (ref eq)))
                (call $call_handler (i32.const 1) (local.get $exn))

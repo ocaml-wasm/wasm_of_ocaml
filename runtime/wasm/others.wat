@@ -370,8 +370,7 @@
          (try (result (ref eq)) ;; ZZZ Javascript exceptions
             (do
               (call $caml_md5_chan (local.get $ic) (i31.new (i32.const -1))))
-            (catch $ocaml_exception
-               (drop (pop (ref eq)))
+            (catch_all
                (drop (call $caml_ml_close_channel (local.get $ic)))
                (rethrow 0))))
       (drop (call $caml_ml_close_channel (local.get $ic)))
