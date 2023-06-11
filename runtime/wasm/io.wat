@@ -214,7 +214,7 @@
    (func (export "caml_input_value") (param (ref eq)) (result (ref eq))
       ;; ZZZ
       (call $log_js (string.const "caml_input_value"))
-      (unreachable))
+      (i31.new (i32.const 0)))
 
    (func (export "caml_ml_input_char")
       (param (ref eq)) (result (ref eq))

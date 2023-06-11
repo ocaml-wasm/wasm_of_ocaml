@@ -36,6 +36,10 @@
       (func $ta_set_i8 (param (ref extern)) (param i32) (param (ref i31))))
    (import "bindings" "ta_set_ui8"
       (func $ta_set_ui8 (param (ref extern)) (param i32) (param (ref i31))))
+   (import "bindings" "ta_fill"
+      (func $ta_fill_int (param (ref extern)) (param i32)))
+   (import "bindings" "ta_fill"
+      (func $ta_fill_float (param (ref extern)) (param f64)))
    (import "fail" "caml_bound_error" (func $caml_bound_error))
    (import "fail" "caml_invalid_argument"
       (func $caml_invalid_argument (param (ref eq))))
@@ -83,11 +87,11 @@
       (sub $custom
          (struct
             (field (ref $custom_operations))
-            (field (mut (ref extern))) ;; data
-            (field (ref $int_array)) ;; size in each dimension
-            (field i8) ;; number of dimensions
-            (field i8) ;; kind
-            (field i8)))) ;; layout
+            (field $ba_data (mut (ref extern))) ;; data
+            (field $ba_dim (ref $int_array)) ;; size in each dimension
+            (field $ba_num_dims i8) ;; number of dimensions
+            (field $ba_kind i8) ;; kind
+            (field $ba_layout i8)))) ;; layout
 
    (func $bigarray_cmp (param (ref eq)) (param (ref eq)) (result i32)
       ;; ZZZ
@@ -210,12 +214,12 @@
    (func (export "caml_ba_to_typed_array") (param (ref eq)) (result (ref eq))
       (call $wrap
          (extern.internalize
-            (struct.get $bigarray 1 (ref.cast $bigarray (local.get 0))))))
+            (struct.get $bigarray $ba_data (ref.cast $bigarray (local.get 0))))))
 
    (func $caml_ba_get_at_offset
       (param $ba (ref $bigarray)) (param $i i32) (result (ref eq))
       (local $data (ref extern))
-      (local.set $data (struct.get $bigarray 1 (local.get $ba)))
+      (local.set $data (struct.get $bigarray $ba_data (local.get $ba)))
       (block $float32
        (block $float64
         (block $int8
@@ -224,14 +228,15 @@
            (block $uint16
             (block $int32
              (block $int64
-              (block $nativeint
-               (block $int
+              (block $int
+               (block $nativeint
                 (block $complex32
                  (block $complex64
                   (br_table $float32 $float64 $int8 $uint8 $int16 $uint16
-                            $int32 $int64 $nativeint $int
+                            $int32 $int64 $int $nativeint
                             $complex32 $complex64 $uint8
-                     (struct.get $bigarray 4 (local.get $ba))))
+                     (struct.get $bigarray $ba_kind (local.get $ba))))
+                 ;; complex64
                  (local.set $i (i32.shl (local.get $i) (i32.const 1)))
                  (return
                     (array.new_fixed $block
@@ -241,6 +246,7 @@
                        (struct.new $float
                           (call $ta_get_f64 (local.get $data)
                              (i32.add (local.get $i) (i32.const 1)))))))
+                ;; complex32
                 (local.set $i (i32.shl (local.get $i) (i32.const 1)))
                 (return
                    (array.new_fixed $block
@@ -250,11 +256,14 @@
                       (struct.new $float
                          (call $ta_get_f32 (local.get $data)
                             (i32.add (local.get $i) (i32.const 1)))))))
-               (return
-                  (i31.new
-                     (call $ta_get_i32 (local.get $data) (local.get $i)))))
-              (return_call $caml_copy_nativeint
-                 (call $ta_get_i32 (local.get $data) (local.get $i))))
+               ;; nativeint
+               (return_call $caml_copy_nativeint
+                  (call $ta_get_i32 (local.get $data) (local.get $i))))
+              ;; int
+              (return
+                 (i31.new
+                    (call $ta_get_i32 (local.get $data) (local.get $i)))))
+             ;; int64
              (local.set $i (i32.shl (local.get $i) (i32.const 1)))
              (return_call $caml_copy_int64
                 (i64.or
@@ -265,18 +274,25 @@
                          (call $ta_get_i32 (local.get $data)
                             (i32.add (local.get $i) (i32.const 1))))
                       (i64.const 32)))))
+            ;; int32
             (return_call $caml_copy_int32
                (call $ta_get_i32 (local.get $data) (local.get $i))))
+           ;; uint16
            (return (i31.new
                       (call $ta_get_ui16 (local.get $data) (local.get $i)))))
+          ;; int16
           (return (i31.new
                      (call $ta_get_i16 (local.get $data) (local.get $i)))))
+         ;; uint8
          (return (i31.new
                     (call $ta_get_ui8 (local.get $data) (local.get $i)))))
+        ;; int8
         (return (i31.new
                    (call $ta_get_i8 (local.get $data) (local.get $i)))))
+       ;; float64
        (return (struct.new $float
                   (call $ta_get_f64 (local.get $data) (local.get $i)))))
+      ;; float32
       (return (struct.new $float
                  (call $ta_get_f32 (local.get $data) (local.get $i)))))
 
@@ -284,7 +300,7 @@
       (param $ba (ref $bigarray)) (param $i i32) (param $v (ref eq))
       (local $data (ref extern))
       (local $b (ref $block)) (local $l i64)
-      (local.set $data (struct.get $bigarray 1 (local.get $ba)))
+      (local.set $data (struct.get $bigarray $ba_data (local.get $ba)))
       (block $float32
        (block $float64
         (block $int8
@@ -293,14 +309,15 @@
            (block $uint16
             (block $int32
              (block $int64
-              (block $nativeint
-               (block $int
+              (block $int
+               (block $nativeint
                 (block $complex32
                  (block $complex64
                   (br_table $float32 $float64 $int8 $uint8 $int16 $uint16
-                            $int32 $int64 $nativeint $int
+                            $int32 $int64 $int $nativeint
                             $complex32 $complex64 $uint8
-                     (struct.get $bigarray 4 (local.get $ba))))
+                     (struct.get $bigarray $ba_kind (local.get $ba))))
+                 ;; complex64
                  (local.set $i (i32.shl (local.get $i) (i32.const 1)))
                  (local.set $b (ref.cast $block (local.get $v)))
                  (call $ta_set_f64 (local.get $data) (local.get $i)
@@ -313,6 +330,7 @@
                        (ref.cast $float
                          (array.get $block (local.get $b) (i32.const 2)))))
                  (return))
+                ;; complex32
                 (local.set $i (i32.shl (local.get $i) (i32.const 1)))
                 (local.set $b (ref.cast $block (local.get $v)))
                 (call $ta_set_f32 (local.get $data) (local.get $i)
@@ -325,12 +343,15 @@
                       (ref.cast $float
                          (array.get $block (local.get $b) (i32.const 2)))))
                 (return))
+               ;; nativeint
                (call $ta_set_i32 (local.get $data) (local.get $i)
-                  (i31.get_s (ref.cast i31 (local.get $v))))
+                  (struct.get $int32 1 (ref.cast $int32 (local.get $v))))
                (return))
+              ;; int
               (call $ta_set_i32 (local.get $data) (local.get $i)
-                 (struct.get $int32 1 (ref.cast $int32 (local.get $v))))
+                 (i31.get_s (ref.cast i31 (local.get $v))))
               (return))
+             ;; int64
              (local.set $i (i32.shl (local.get $i) (i32.const 1)))
              (local.set $l
                 (struct.get $int64 1 (ref.cast $int64 (local.get $v))))
@@ -340,26 +361,33 @@
                 (i32.add (local.get $i) (i32.const 1))
                 (i32.wrap_i64 (i64.shr_u (local.get $l) (i64.const 32))))
              (return))
+            ;; int32
             (call $ta_set_i32 (local.get $data) (local.get $i)
                (struct.get $int32 1 (ref.cast $int32 (local.get $v))))
             (return))
+           ;; uint16
            (call $ta_set_ui16 (local.get $data) (local.get $i)
               (ref.cast i31 (local.get $v)))
            (return))
+          ;; int16
           (call $ta_set_i16 (local.get $data) (local.get $i)
              (ref.cast i31 (local.get $v)))
           (return))
+         ;; uint8
          (call $ta_set_ui8 (local.get $data) (local.get $i)
             (ref.cast i31 (local.get $v)))
          (return))
+        ;; int8
         (call $ta_set_i8 (local.get $data) (local.get $i)
            (ref.cast i31 (local.get $v)))
         (return))
+       ;; float64
        (call $ta_set_f64 (local.get $data) (local.get $i)
-          (struct.get $float 0 (ref.cast $float (local.get 0))))
+          (struct.get $float 0 (ref.cast $float (local.get $v))))
        (return))
+      ;; float32
       (call $ta_set_f32 (local.get $data) (local.get $i)
-         (struct.get $float 0 (ref.cast $float (local.get 0))))
+         (struct.get $float 0 (ref.cast $float (local.get $v))))
       (return))
 
    (data $Bigarray_dim "Bigarray.dim")
@@ -369,7 +397,7 @@
       (local $dim (ref $int_array))
       (local $i i32)
       (local.set $dim
-         (struct.get $bigarray 2 (ref.cast $bigarray (local.get 0))))
+         (struct.get $bigarray $ba_dim (ref.cast $bigarray (local.get 0))))
       (local.set $i (i31.get_s (ref.cast i31 (local.get 1))))
       (if (i32.ge_u (local.get $i) (array.len (local.get $dim)))
          (then (call $caml_invalid_argument
@@ -377,8 +405,7 @@
                      (i32.const 0) (i32.const 12)))))
       (i31.new (array.get $int_array (local.get $dim) (local.get $i))))
 
-   (func (export "caml_ba_dim_1")
-      (param (ref eq)) (result (ref eq))
+   (func (export "caml_ba_dim_1") (param (ref eq)) (result (ref eq))
       (return_call $caml_ba_dim (local.get 0) (i31.new (i32.const 0))))
 
    (func (export "caml_ba_get_1")
@@ -387,7 +414,7 @@
       (local $i i32)
       (local.set $ba (ref.cast $bigarray (local.get 0)))
       (local.set $i (i31.get_u (ref.cast i31 (local.get 1))))
-      (if (struct.get $bigarray 5 (local.get $ba))
+      (if (struct.get $bigarray $ba_layout (local.get $ba))
          (then (local.set $i (i32.sub (local.get $i) (i32.const 1)))))
       (if (i32.ge_u (local.get $i)
              (array.get $int_array (struct.get $bigarray 2 (local.get $ba))
@@ -401,20 +428,219 @@
       (local $i i32)
       (local.set $ba (ref.cast $bigarray (local.get 0)))
       (local.set $i (i31.get_u (ref.cast i31 (local.get 1))))
-      (if (struct.get $bigarray 5 (local.get $ba))
+      (if (struct.get $bigarray $ba_layout (local.get $ba))
          (then (local.set $i (i32.sub (local.get $i) (i32.const 1)))))
       (if (i32.ge_u (local.get $i)
-             (array.get $int_array (struct.get $bigarray 2 (local.get $ba))
+             (array.get $int_array (struct.get $bigarray $ba_dim (local.get $ba))
                 (i32.const 0)))
          (call $caml_bound_error))
       (call $caml_ba_set_at_offset
          (local.get $ba) (local.get $i) (local.get $v))
       (i31.new (i32.const 0)))
 
+   (func (export "caml_ba_get_2")
+      (param $vba (ref eq)) (param $vi (ref eq)) (param $vj (ref eq))
+      (result (ref eq))
+      (local $ba (ref $bigarray))
+      (local $i i32)
+      (local $j i32)
+      (local $offset i32)
+      (local $dim (ref $int_array))
+      (local.set $ba (ref.cast $bigarray (local.get $vba)))
+      (local.set $i (i31.get_u (ref.cast i31 (local.get $vi))))
+      (local.set $j (i31.get_u (ref.cast i31 (local.get $vj))))
+      (local.set $dim (struct.get $bigarray $ba_dim (local.get $ba)))
+      (if (struct.get $bigarray $ba_layout (local.get $ba))
+         (then
+            (local.set $i (i32.sub (local.get $i) (i32.const 1)))
+            (local.set $j (i32.sub (local.get $j) (i32.const 1)))
+            (local.set $offset
+               (i32.add
+                  (i32.mul (local.get $j)
+                     (array.get $int_array (local.get $dim) (i32.const 0)))
+                  (local.get $i))))
+         (else
+            (local.set $offset
+               (i32.add
+                  (i32.mul (local.get $i)
+                     (array.get $int_array (local.get $dim) (i32.const 1)))
+                  (local.get $j)))))
+      (if (i32.or
+             (i32.ge_u (local.get $i)
+                (array.get $int_array (local.get $dim) (i32.const 0)))
+             (i32.ge_u (local.get $j)
+                (array.get $int_array (local.get $dim) (i32.const 1))))
+         (then
+            (call $caml_bound_error)))
+      (return_call $caml_ba_get_at_offset (local.get $ba) (local.get $offset)))
+
    (func (export "caml_ba_set_2")
-      (param (ref eq) (ref eq) (ref eq) (ref eq)) (result (ref eq))
+      (param $vba (ref eq)) (param $vi (ref eq)) (param $vj (ref eq))
+      (param $v (ref eq)) (result (ref eq))
+      (local $ba (ref $bigarray))
+      (local $i i32)
+      (local $j i32)
+      (local $offset i32)
+      (local $dim (ref $int_array))
+      (local.set $ba (ref.cast $bigarray (local.get $vba)))
+      (local.set $i (i31.get_u (ref.cast i31 (local.get $vi))))
+      (local.set $j (i31.get_u (ref.cast i31 (local.get $vj))))
+      (local.set $dim (struct.get $bigarray $ba_dim (local.get $ba)))
+      (if (struct.get $bigarray $ba_layout (local.get $ba))
+         (then
+            (local.set $i (i32.sub (local.get $i) (i32.const 1)))
+            (local.set $j (i32.sub (local.get $j) (i32.const 1)))
+            (local.set $offset
+               (i32.add
+                  (i32.mul (local.get $j)
+                     (array.get $int_array (local.get $dim) (i32.const 0)))
+                  (local.get $i))))
+         (else
+            (local.set $offset
+               (i32.add
+                  (i32.mul (local.get $i)
+                     (array.get $int_array (local.get $dim) (i32.const 1)))
+                  (local.get $j)))))
+      (if (i32.or
+             (i32.ge_u (local.get $i)
+                (array.get $int_array (local.get $dim) (i32.const 0)))
+             (i32.ge_u (local.get $j)
+                (array.get $int_array (local.get $dim) (i32.const 1))))
+         (then
+            (call $caml_bound_error)))
+      (call $caml_ba_set_at_offset
+         (local.get $ba) (local.get $offset) (local.get $v))
+      (i31.new (i32.const 0)))
+
+   (func (export "caml_ba_dim_2") (param (ref eq)) (result (ref eq))
+      (return_call $caml_ba_dim (local.get 0) (i31.new (i32.const 1))))
+
+   (func (export "caml_ba_get_3")
+      (param $vba (ref eq)) (param $vi (ref eq)) (param $vj (ref eq))
+      (param $vk (ref eq))
+      (result (ref eq))
+      (local $ba (ref $bigarray))
+      (local $i i32)
+      (local $j i32)
+      (local $k i32)
+      (local $offset i32)
+      (local $dim (ref $int_array))
+      (local.set $ba (ref.cast $bigarray (local.get $vba)))
+      (local.set $i (i31.get_u (ref.cast i31 (local.get $vi))))
+      (local.set $j (i31.get_u (ref.cast i31 (local.get $vj))))
+      (local.set $k (i31.get_u (ref.cast i31 (local.get $vk))))
+      (local.set $dim (struct.get $bigarray $ba_dim (local.get $ba)))
+      (if (struct.get $bigarray $ba_layout (local.get $ba))
+         (then
+            (local.set $i (i32.sub (local.get $i) (i32.const 1)))
+            (local.set $j (i32.sub (local.get $j) (i32.const 1)))
+            (local.set $k (i32.sub (local.get $k) (i32.const 1)))
+            (local.set $offset
+               (i32.add
+                  (i32.mul
+                     (i32.add
+                        (i32.mul
+                           (local.get $k)
+                           (array.get $int_array (local.get $dim) (i32.const 1)))
+                        (local.get $j))
+                     (array.get $int_array (local.get $dim) (i32.const 0)))
+                  (local.get $i))))
+         (else
+            (local.set $offset
+               (i32.add
+                  (i32.mul
+                     (i32.add
+                        (i32.mul
+                           (local.get $i)
+                           (array.get $int_array (local.get $dim) (i32.const 1)))
+                     (local.get $j))
+                     (array.get $int_array (local.get $dim) (i32.const 2)))
+                  (local.get $k)))))
+      (if (i32.or
+             (i32.ge_u (local.get $i)
+                (array.get $int_array (local.get $dim) (i32.const 0)))
+             (i32.or
+                (i32.ge_u (local.get $j)
+                   (array.get $int_array (local.get $dim) (i32.const 1)))
+                (i32.ge_u (local.get $j)
+                   (array.get $int_array (local.get $dim) (i32.const 2)))))
+         (then
+            (call $caml_bound_error)))
+      (return_call $caml_ba_get_at_offset (local.get $ba) (local.get $offset)))
+
+   (func (export "caml_ba_set_3")
+      (param $vba (ref eq)) (param $vi (ref eq)) (param $vj (ref eq))
+      (param $vk (ref eq)) (param $v (ref eq))
+      (result (ref eq))
+      (local $ba (ref $bigarray))
+      (local $i i32)
+      (local $j i32)
+      (local $k i32)
+      (local $offset i32)
+      (local $dim (ref $int_array))
+      (local.set $ba (ref.cast $bigarray (local.get $vba)))
+      (local.set $i (i31.get_u (ref.cast i31 (local.get $vi))))
+      (local.set $j (i31.get_u (ref.cast i31 (local.get $vj))))
+      (local.set $k (i31.get_u (ref.cast i31 (local.get $vk))))
+      (local.set $dim (struct.get $bigarray $ba_dim (local.get $ba)))
+      (if (struct.get $bigarray $ba_layout (local.get $ba))
+         (then
+            (local.set $i (i32.sub (local.get $i) (i32.const 1)))
+            (local.set $j (i32.sub (local.get $j) (i32.const 1)))
+            (local.set $k (i32.sub (local.get $k) (i32.const 1)))
+            (local.set $offset
+               (i32.add
+                  (i32.mul
+                     (i32.add
+                        (i32.mul
+                           (local.get $k)
+                           (array.get $int_array (local.get $dim) (i32.const 1)))
+                        (local.get $j))
+                     (array.get $int_array (local.get $dim) (i32.const 0)))
+                  (local.get $i))))
+         (else
+            (local.set $offset
+               (i32.add
+                  (i32.mul
+                     (i32.add
+                        (i32.mul
+                           (local.get $i)
+                           (array.get $int_array (local.get $dim) (i32.const 1)))
+                     (local.get $j))
+                     (array.get $int_array (local.get $dim) (i32.const 2)))
+                  (local.get $k)))))
+      (if (i32.or
+             (i32.ge_u (local.get $i)
+                (array.get $int_array (local.get $dim) (i32.const 0)))
+             (i32.or
+                (i32.ge_u (local.get $j)
+                   (array.get $int_array (local.get $dim) (i32.const 1)))
+                (i32.ge_u (local.get $j)
+                   (array.get $int_array (local.get $dim) (i32.const 2)))))
+         (then
+            (call $caml_bound_error)))
+      (call $caml_ba_set_at_offset
+         (local.get $ba) (local.get $offset) (local.get $v))
+      (i31.new (i32.const 0)))
+
+   (func (export "caml_ba_dim_3") (param (ref eq)) (result (ref eq))
+      (return_call $caml_ba_dim (local.get 0) (i31.new (i32.const 2))))
+
+   (func (export "caml_ba_get_generic")
+      (param (ref eq) (ref eq)) (result (ref eq))
       ;; ZZZ
-      (call $log_js (string.const "caml_ba_set_2"))
+      (call $log_js (string.const "caml_ba_get_generic"))
+      (i31.new (i32.const 0)))
+
+   (func (export "caml_ba_set_generic")
+      (param (ref eq) (ref eq) (ref eq)) (result (ref eq))
+      ;; ZZZ
+      (call $log_js (string.const "caml_ba_set_generic"))
+      (i31.new (i32.const 0)))
+
+   (func (export "caml_ba_slice") (param (ref eq) (ref eq)) (result (ref eq))
+      ;; ZZZ
+      (call $log_js (string.const "caml_ba_slice"))
       (i31.new (i32.const 0)))
 
    (func (export "caml_ba_sub")
@@ -423,10 +649,38 @@
       (call $log_js (string.const "caml_ba_sub"))
       (local.get $0))
 
-   (func (export "caml_ba_fill") (param (ref eq) (ref eq)) (result (ref eq))
-      ;; ZZZ
-      (call $log_js (string.const "caml_ba_fill"))
-      (i31.new (i32.const 0)))
+   (func (export "caml_ba_fill")
+      (param $vba (ref eq)) (param $v (ref eq)) (result (ref eq))
+      (local $ba (ref $bigarray))
+      (local $data (ref extern))
+      (local.set $ba (ref.cast $bigarray (local.get $vba)))
+      (local.set $data (struct.get $bigarray $ba_data (local.get $ba)))
+      (block $float
+       (block $int
+        (block $int32
+         (block $int64
+          (block $complex
+           (br_table $float $float $int $int $int $int $int32 $int64 $int
+              $int32 $complex $complex $int
+              (struct.get $bigarray $ba_kind (local.get $ba))))
+           ;; complex
+           ;; ZZZ
+           (return (i31.new (i32.const 0))))
+          ;; int64
+          ;; ZZZ
+          (return (i31.new (i32.const 0))))
+         ;; int32
+         (call $ta_fill_int (local.get $data)
+            (struct.get $int32 1 (ref.cast $int32 (local.get $v))))
+         (return (i31.new (i32.const 0))))
+        ;; int
+        (call $ta_fill_int (local.get $data)
+           (i31.get_s (ref.cast i31 (local.get $v))))
+        (return (i31.new (i32.const 0))))
+       ;; float
+       (call $ta_fill_float (local.get $data)
+          (struct.get $float 0 (ref.cast $float (local.get $v))))
+       (return (i31.new (i32.const 0))))
 
    (func (export "caml_ba_blit") (param (ref eq) (ref eq)) (result (ref eq))
       ;; ZZZ
@@ -445,9 +699,216 @@
       (local.get 0))
 
    (func (export "caml_ba_num_dims") (param (ref eq)) (result (ref eq))
-      ;; ZZZ
-      (call $log_js (string.const "caml_ba_num_dims"))
-      (local.get 0))
+      (i31.new
+         (struct.get $bigarray $ba_num_dims (ref.cast $bigarray (local.get 0)))))
+
+   (func (export "caml_ba_kind") (param (ref eq)) (result (ref eq))
+      (i31.new
+         (struct.get $bigarray $ba_kind (ref.cast $bigarray (local.get 0)))))
+
+   (func (export "caml_ba_layout") (param (ref eq)) (result (ref eq))
+      (i31.new
+         (struct.get $bigarray $ba_layout (ref.cast $bigarray (local.get 0)))))
+
+   (func (export "caml_ba_uint8_get16")
+      (param $vba (ref eq)) (param $i (ref eq)) (result (ref eq))
+      (local $ba (ref $bigarray))
+      (local $data (ref extern))
+      (local $p i32)
+      (local.set $ba (ref.cast $bigarray (local.get $vba)))
+      (local.set $data (struct.get $bigarray $ba_data (local.get $ba)))
+      (local.set $p (i31.get_s (ref.cast i31 (local.get $i))))
+      (if (i32.lt_s (local.get $p) (i32.const 0))
+         (then (call $caml_bound_error)))
+      (if (i32.ge_u (i32.add (local.get $p) (i32.const 1))
+             (array.get $int_array
+                (struct.get $bigarray $ba_dim (local.get $ba))
+                (i32.const 0)))
+         (then (call $caml_bound_error)))
+      (i31.new (i32.or
+                  (call $ta_get_ui8 (local.get $data) (local.get $p))
+                  (i32.shl (call $ta_get_ui8 (local.get $data)
+                              (i32.add (local.get $p) (i32.const 1)))
+                           (i32.const 8)))))
+
+   (func (export "caml_ba_uint8_get32")
+      (param $vba (ref eq)) (param $i (ref eq)) (result (ref eq))
+      (local $ba (ref $bigarray))
+      (local $data (ref extern))
+      (local $p i32)
+      (local.set $ba (ref.cast $bigarray (local.get $vba)))
+      (local.set $data (struct.get $bigarray $ba_data (local.get $ba)))
+      (local.set $p (i31.get_s (ref.cast i31 (local.get $i))))
+      (if (i32.lt_s (local.get $p) (i32.const 0))
+         (then (call $caml_bound_error)))
+      (if (i32.ge_u (i32.add (local.get $p) (i32.const 3))
+             (array.get $int_array
+                (struct.get $bigarray $ba_dim (local.get $ba))
+                (i32.const 0)))
+         (then (call $caml_bound_error)))
+      (return_call $caml_copy_int32
+         (i32.or
+            (i32.or
+               (call $ta_get_ui8 (local.get $data) (local.get $p))
+               (i32.shl (call $ta_get_ui8 (local.get $data)
+                           (i32.add (local.get $p) (i32.const 1)))
+                        (i32.const 8)))
+            (i32.or
+               (i32.shl (call $ta_get_ui8 (local.get $data)
+                           (i32.add (local.get $p) (i32.const 2)))
+                        (i32.const 16))
+               (i32.shl (call $ta_get_ui8 (local.get $data)
+                           (i32.add (local.get $p) (i32.const 3)))
+                        (i32.const 24))))))
+
+   (func (export "caml_ba_uint8_get64")
+      (param $vba (ref eq)) (param $i (ref eq)) (result (ref eq))
+      (local $ba (ref $bigarray))
+      (local $data (ref extern))
+      (local $p i32)
+      (local.set $ba (ref.cast $bigarray (local.get $vba)))
+      (local.set $data (struct.get $bigarray $ba_data (local.get $ba)))
+      (local.set $p (i31.get_s (ref.cast i31 (local.get $i))))
+      (if (i32.lt_s (local.get $p) (i32.const 0))
+         (then (call $caml_bound_error)))
+      (if (i32.ge_u (i32.add (local.get $p) (i32.const 7))
+             (array.get $int_array
+                (struct.get $bigarray $ba_dim (local.get $ba))
+                (i32.const 0)))
+         (then (call $caml_bound_error)))
+      (return_call $caml_copy_int64
+         (i64.or
+            (i64.or
+               (i64.or
+                  (i64.extend_i32_u
+                     (call $ta_get_ui8 (local.get $data) (local.get $p)))
+                  (i64.shl (i64.extend_i32_u
+                              (call $ta_get_ui8 (local.get $data)
+                                 (i32.add (local.get $p) (i32.const 1))))
+                           (i64.const 8)))
+               (i64.or
+                  (i64.shl (i64.extend_i32_u
+                              (call $ta_get_ui8 (local.get $data)
+                                 (i32.add (local.get $p) (i32.const 2))))
+                           (i64.const 16))
+                  (i64.shl (i64.extend_i32_u
+                              (call $ta_get_ui8 (local.get $data)
+                                 (i32.add (local.get $p) (i32.const 3))))
+                           (i64.const 24))))
+            (i64.or
+               (i64.or
+                  (i64.shl (i64.extend_i32_u
+                              (call $ta_get_ui8 (local.get $data)
+                                 (i32.add (local.get $p) (i32.const 4))))
+                           (i64.const 32))
+                  (i64.shl (i64.extend_i32_u
+                              (call $ta_get_ui8 (local.get $data)
+                                 (i32.add (local.get $p) (i32.const 5))))
+                           (i64.const 40)))
+               (i64.or
+                  (i64.shl (i64.extend_i32_u
+                              (call $ta_get_ui8 (local.get $data)
+                                 (i32.add (local.get $p) (i32.const 6))))
+                           (i64.const 48))
+                  (i64.shl (i64.extend_i32_u
+                              (call $ta_get_ui8 (local.get $data)
+                                 (i32.add (local.get $p) (i32.const 7))))
+                           (i64.const 56)))))))
+
+   (func (export "caml_ba_uint8_set16")
+      (param $vba (ref eq)) (param $i (ref eq)) (param $v (ref eq))
+      (result (ref eq))
+      (local $ba (ref $bigarray))
+      (local $data (ref extern))
+      (local $p i32) (local $d (ref i31))
+      (local.set $ba (ref.cast $bigarray (local.get $vba)))
+      (local.set $data (struct.get $bigarray $ba_data (local.get $ba)))
+      (local.set $p (i31.get_s (ref.cast i31 (local.get $i))))
+      (local.set $d (ref.cast i31 (local.get $v)))
+      (if (i32.lt_s (local.get $p) (i32.const 0))
+         (then (call $caml_bound_error)))
+      (if (i32.ge_u (i32.add (local.get $p) (i32.const 1))
+             (array.get $int_array
+                (struct.get $bigarray $ba_dim (local.get $ba))
+                (i32.const 0)))
+         (then (call $caml_bound_error)))
+      (call $ta_set_ui8 (local.get $data) (local.get $p) (local.get $d))
+      (call $ta_set_ui8 (local.get $data)
+         (i32.add (local.get $p) (i32.const 1))
+         (i31.new (i32.shr_u (i31.get_s (local.get $d)) (i32.const 8))))
+      (i31.new (i32.const 0)))
+
+   (func (export "caml_ba_uint8_set32")
+      (param $vba (ref eq)) (param $i (ref eq)) (param $v (ref eq))
+      (result (ref eq))
+      (local $ba (ref $bigarray))
+      (local $data (ref extern))
+      (local $p i32) (local $d i32)
+      (local.set $ba (ref.cast $bigarray (local.get $vba)))
+      (local.set $data (struct.get $bigarray $ba_data (local.get $ba)))
+      (local.set $p (i31.get_s (ref.cast i31 (local.get $i))))
+      (local.set $d (struct.get $int32 1 (ref.cast $int32 (local.get $v))))
+      (if (i32.lt_s (local.get $p) (i32.const 0))
+         (then (call $caml_bound_error)))
+      (if (i32.ge_u (i32.add (local.get $p) (i32.const 3))
+             (array.get $int_array
+                (struct.get $bigarray $ba_dim (local.get $ba))
+                (i32.const 0)))
+         (then (call $caml_bound_error)))
+      (call $ta_set_ui8 (local.get $data) (local.get $p)
+         (i31.new (local.get $d)))
+      (call $ta_set_ui8 (local.get $data)
+         (i32.add (local.get $p) (i32.const 1))
+         (i31.new (i32.shr_u (local.get $d) (i32.const 8))))
+      (call $ta_set_ui8 (local.get $data)
+         (i32.add (local.get $p) (i32.const 2))
+         (i31.new (i32.shr_u (local.get $d) (i32.const 16))))
+      (call $ta_set_ui8 (local.get $data)
+         (i32.add (local.get $p) (i32.const 3))
+         (i31.new (i32.shr_u (local.get $d) (i32.const 24))))
+      (i31.new (i32.const 0)))
+
+   (func (export "caml_ba_uint8_set64")
+      (param $vba (ref eq)) (param $i (ref eq)) (param $v (ref eq))
+      (result (ref eq))
+      (local $ba (ref $bigarray))
+      (local $data (ref extern))
+      (local $p i32) (local $d i64)
+      (local.set $ba (ref.cast $bigarray (local.get $vba)))
+      (local.set $data (struct.get $bigarray $ba_data (local.get $ba)))
+      (local.set $p (i31.get_s (ref.cast i31 (local.get $i))))
+      (local.set $d (struct.get $int64 1 (ref.cast $int64 (local.get $v))))
+      (if (i32.lt_s (local.get $p) (i32.const 0))
+         (then (call $caml_bound_error)))
+      (if (i32.ge_u (i32.add (local.get $p) (i32.const 7))
+             (array.get $int_array
+                (struct.get $bigarray $ba_dim (local.get $ba))
+                (i32.const 0)))
+         (then (call $caml_bound_error)))
+      (call $ta_set_ui8 (local.get $data) (local.get $p)
+         (i31.new (i32.wrap_i64 (local.get $d))))
+      (call $ta_set_ui8 (local.get $data)
+         (i32.add (local.get $p) (i32.const 1))
+         (i31.new (i32.wrap_i64 (i64.shr_u (local.get $d) (i64.const 8)))))
+      (call $ta_set_ui8 (local.get $data)
+         (i32.add (local.get $p) (i32.const 2))
+         (i31.new (i32.wrap_i64 (i64.shr_u (local.get $d) (i64.const 16)))))
+      (call $ta_set_ui8 (local.get $data)
+         (i32.add (local.get $p) (i32.const 3))
+         (i31.new (i32.wrap_i64 (i64.shr_u (local.get $d) (i64.const 24)))))
+      (call $ta_set_ui8 (local.get $data)
+         (i32.add (local.get $p) (i32.const 4))
+         (i31.new (i32.wrap_i64 (i64.shr_u (local.get $d) (i64.const 32)))))
+      (call $ta_set_ui8 (local.get $data)
+         (i32.add (local.get $p) (i32.const 5))
+         (i31.new (i32.wrap_i64 (i64.shr_u (local.get $d) (i64.const 40)))))
+      (call $ta_set_ui8 (local.get $data)
+         (i32.add (local.get $p) (i32.const 6))
+         (i31.new (i32.wrap_i64 (i64.shr_u (local.get $d) (i64.const 48)))))
+      (call $ta_set_ui8 (local.get $data)
+         (i32.add (local.get $p) (i32.const 7))
+         (i31.new (i32.wrap_i64 (i64.shr_u (local.get $d) (i64.const 56)))))
+      (i31.new (i32.const 0)))
 
    (func (export "caml_string_of_array") (param (ref eq)) (result (ref eq))
       ;; used to convert a typed array to a string
