@@ -24,7 +24,7 @@
       (sub $custom
          (struct
             (field (ref $custom_operations))
-            (field (ref extern)) ;; data
+            (field (mut (ref extern))) ;; data
             (field (ref $int_array)) ;; size in each dimension
             (field i8) ;; number of dimensions
             (field i8) ;; kind
