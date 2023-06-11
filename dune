@@ -19,9 +19,7 @@
   (ocamlc_flags
    (:standard \ -g))
   (link_flags
-   (:standard \ -g)))
- (_
-  (binaries compiler/tests-num/nodexx)))
+   (:standard \ -g))))
 
 (rule
  (targets version.ml.in)
