@@ -272,6 +272,8 @@
    (export "core_array_unsafe_int_blit" (func $caml_array_blit))
    (export "core_array_unsafe_float_blit" (func $caml_array_blit))
 
+   (import "jslib" "caml_js_global"
+      (func $caml_js_global (param (ref eq)) (result (ref eq))))
    (import "jslib" "caml_js_get"
       (func $caml_js_get (param (ref eq)) (param (ref eq)) (result (ref eq))))
    (import "jslib" "caml_js_new"
@@ -297,8 +299,7 @@
       (local.set $d
          (call $caml_js_new
             (call $caml_js_get
-               (call $caml_pure_js_expr
-                  (call $wrap (string.const "globalThis")))
+               (call $caml_js_global (i31.new (i32.const 0)))
                (call $wrap (string.const "Date")))
             (call $caml_js_from_array
                (array.new_fixed $block (i31.new (i32.const 0))
@@ -311,8 +312,7 @@
       (return_call $caml_string_of_jsstring
          (call $caml_js_fun_call
             (call $caml_js_get
-               (call $caml_pure_js_expr
-                  (call $wrap (string.const "globalThis")))
+               (call $caml_js_global (i31.new (i32.const 0)))
                (call $wrap (string.const "strftime")))
             (call $caml_js_from_array
                (array.new_fixed $block (i31.new (i32.const 0))

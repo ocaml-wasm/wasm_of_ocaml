@@ -40,7 +40,10 @@
     }
 
     let bindings =
-        {identity:(x)=>x,
+        {jstag:
+         WebAssembly.JSTag||
+         new WebAssembly.Tag({parameters:['externref'],results:[]}),
+         identity:(x)=>x,
          from_bool:(x)=>!!x,
          get:(x,y)=>x[y],
          set:(x,y,z)=>x[y]=z,
@@ -55,6 +58,7 @@
          new_array:(n)=>new Array(n),
          new_obj:()=>({}),
          new:(c,args)=>new c(...args),
+         global_this:globalThis,
          iter_props:(o,f)=>{for (var nm in o) if(o.hasOwnsProperty(nm)) f(nm)},
          array_length:(a)=>a.length,
          array_get:(a,i)=>a[i],

@@ -1,11 +1,13 @@
 (module
    (import "stdlib" "caml_global_data"
       (global $caml_global_data (mut (ref $block))))
+   (import "bindings" "jstag" (tag $javascript_exception (param externref)))
 
    (type $block (array (mut (ref eq))))
    (type $string (array (mut i8)))
 
    (tag $ocaml_exception (export "ocaml_exception") (param (ref eq)))
+   (export "javascript_exception" (tag $javascript_exception))
 
    (func $caml_raise_constant (export "caml_raise_constant") (param (ref eq))
       (throw $ocaml_exception (local.get 0)))
