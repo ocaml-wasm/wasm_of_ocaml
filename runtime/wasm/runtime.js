@@ -10,6 +10,8 @@
     const isNode = globalThis?.process?.versions?.node;
     const code = isNode?loadRelative(src):fetch(src);
 
+    var caml_callback, caml_alloc_tm;
+
     let math =
         {cos:Math.cos, sin:Math.sin, tan:Math.tan,
          acos:Math.acos, asin:Math.asin, atan:Math.atan,
@@ -94,7 +96,7 @@
          ta_set_ui8:(a,i,v)=>a[i]=v,
          ta_new:(len)=> new Uint8Array(len),
          ta_copy:(ta,t,s,n)=>ta.copyWithin(t,s,n),
-         wrap_callback:(callback, f)=>function (){
+         wrap_callback:(f)=>function (){
              var n = arguments.length;
              if(n > 0) {
                  var args = new Array(n);
@@ -102,53 +104,53 @@
              } else {
                  args = [undefined];
              }
-             return callback(f, args.length, args, 1);
+             return caml_callback(f, args.length, args, 1);
          },
-         wrap_callback_args:(callback, f)=>function (){
+         wrap_callback_args:(f)=>function (){
              var n = arguments.length;
              var args = new Array(n);
              for (var i = 0; i < n; i++) args[i] = arguments[i];
-             return callback(f, 1, [args], 0);
+             return caml_callback(f, 1, [args], 0);
          },
-         wrap_callback_strict:(callback,arity,f)=>function (){
+         wrap_callback_strict:(arity,f)=>function (){
              var n = arguments.length;
              var args = new Array(arity);
              var len = Math.min(arguments.length, arity)
              for (var i = 0; i < len; i++) args[i] = arguments[i];
-             return callback(f, arity, args, 0);
+             return caml_callback(f, arity, args, 0);
          },
-         wrap_callback_unsafe:(callback, f)=>function (){
+         wrap_callback_unsafe:(f)=>function (){
              var n = arguments.length;
              var args = new Array(n);
              for (var i = 0; i < n; i++) args[i] = arguments[i];
-             return callback(f, args.length, args, 2);
+             return caml_callback(f, args.length, args, 2);
          },
-         wrap_meth_callback:(callback, f)=>function (){
+         wrap_meth_callback:(f)=>function (){
              var n = arguments.length;
              var args = new Array(n+1);
              args[0] = this;
              for (var i = 0; i < n; i++) args[i+1] = arguments[i];
-             return callback(f, args.length, args, 1);
+             return caml_callback(f, args.length, args, 1);
          },
-         wrap_meth_callback_args:(callback,f)=>function (){
+         wrap_meth_callback_args:(f)=>function (){
              var n = arguments.length;
              var args = new Array(n);
              for (var i = 0; i < n; i++) args[i] = arguments[i];
-             return callback(f, 2, [this, args], 0);
+             return caml_callback(f, 2, [this, args], 0);
          },
-         wrap_meth_callback_strict:(callback,arity,f)=>function (){
+         wrap_meth_callback_strict:(arity,f)=>function (){
              var args = new Array(arity + 1);
              var len = Math.min(arguments.length, arity)
              args[0] = this;
              for (var i = 0; i < len; i++) args[i+1] = arguments[i];
-             return callback(f, args.length, args, 0);
+             return caml_callback(f, args.length, args, 0);
          },
-         wrap_meth_callback_unsafe:(callback,f)=>function (){
+         wrap_meth_callback_unsafe:(f)=>function (){
              var n = arguments.length;
              var args = new Array(n+1);
              args[0] = this;
              for (var i = 0; i < n; i++) args[i+1] = arguments[i];
-             return callback(f, args.length, args, 2);
+             return caml_callback(f, args.length, args, 2);
          },
          wrap_fun_arguments:(f)=>function(){return f(arguments)},
          format_float:(prec, conversion, x)=>{
@@ -209,18 +211,18 @@
            return s
          },
          gettimeofday:()=>(new Date()).getTime() / 1000,
-         gmtime:(alloc,t)=>{
+         gmtime:(t)=>{
            var d = new Date (t * 1000);
            var d_num = d.getTime();
            var januaryfirst =
              (new Date(Date.UTC(d.getUTCFullYear(), 0, 1))).getTime();
            var doy = Math.floor((d_num - januaryfirst) / 86400000);
-           return alloc(d.getUTCSeconds(), d.getUTCMinutes(),
-                        d.getUTCHours(), d.getUTCDate(),
-                        d.getUTCMonth(), d.getUTCFullYear() - 1900,
-                        d.getUTCDay(), doy, false)
+           return caml_alloc_tm(d.getUTCSeconds(), d.getUTCMinutes(),
+                                d.getUTCHours(), d.getUTCDate(),
+                                d.getUTCMonth(), d.getUTCFullYear() - 1900,
+                                d.getUTCDay(), doy, false)
          },
-         localtime:(alloc, t)=>{
+         localtime:(t)=>{
            var d = new Date (t * 1000);
            var d_num = d.getTime();
            var januaryfirst = (new Date(d.getFullYear(), 0, 1)).getTime();
@@ -229,11 +231,11 @@
            var jul = new Date(d.getFullYear(), 6, 1);
            var stdTimezoneOffset =
                Math.max(jan.getTimezoneOffset(), jul.getTimezoneOffset());
-           return alloc(d.getSeconds(), d.getMinutes(), d.getHours(),
-                        d.getDate(), d.getMonth(),
-                        d.getFullYear() - 1900,
-                        d.getDay(), doy,
-                        (d.getTimezoneOffset() < stdTimezoneOffset))
+           return caml_alloc_tm(d.getSeconds(), d.getMinutes(), d.getHours(),
+                                d.getDate(), d.getMonth(),
+                                d.getFullYear() - 1900,
+                                d.getDay(), doy,
+                                (d.getTimezoneOffset() < stdTimezoneOffset))
          },
          mktime:(year,month,day,h,m,s)=>new Date(year,month,day,h,m,s).getTime(),
          random_seed:()=>crypto.getRandomValues(new Int32Array(12)),
@@ -259,6 +261,9 @@
     const wasmModule =
           isNode?await WebAssembly.instantiate(await code, imports)
                 :await WebAssembly.instantiateStreaming(code,imports)
+
+    caml_callback = wasmModule.instance.exports.caml_callback;
+    caml_alloc_tm = wasmModule.instance.exports.caml_alloc_tm;
 
     start_fiber = wrap_fun(
         {parameters: ['eqref'], results: ['externref']},

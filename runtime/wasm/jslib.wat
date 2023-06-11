@@ -39,28 +39,22 @@
    (import "bindings" "array_set"
       (func $array_set (param (ref extern)) (param i32) (param anyref)))
    (import "bindings" "wrap_callback"
-      (func $wrap_callback (param (ref func)) (param (ref eq)) (result anyref)))
+      (func $wrap_callback (param (ref eq)) (result anyref)))
    (import "bindings" "wrap_callback_args"
-      (func $wrap_callback_args
-         (param (ref func)) (param (ref eq)) (result anyref)))
+      (func $wrap_callback_args (param (ref eq)) (result anyref)))
    (import "bindings" "wrap_callback_strict"
-      (func $wrap_callback_strict
-         (param (ref func)) (param i32) (param (ref eq)) (result anyref)))
+      (func $wrap_callback_strict (param i32) (param (ref eq)) (result anyref)))
    (import "bindings" "wrap_callback_unsafe"
-      (func $wrap_callback_unsafe
-         (param (ref func)) (param (ref eq)) (result anyref)))
+      (func $wrap_callback_unsafe (param (ref eq)) (result anyref)))
    (import "bindings" "wrap_meth_callback"
-      (func $wrap_meth_callback
-         (param (ref func)) (param (ref eq)) (result anyref)))
+      (func $wrap_meth_callback (param (ref eq)) (result anyref)))
    (import "bindings" "wrap_meth_callback_args"
-      (func $wrap_meth_callback_args
-         (param (ref func)) (param (ref eq)) (result anyref)))
+      (func $wrap_meth_callback_args (param (ref eq)) (result anyref)))
    (import "bindings" "wrap_meth_callback_strict"
       (func $wrap_meth_callback_strict
-         (param (ref func)) (param i32) (param (ref eq)) (result anyref)))
+         (param i32) (param (ref eq)) (result anyref)))
    (import "bindings" "wrap_meth_callback_unsafe"
-      (func $wrap_meth_callback_unsafe
-         (param (ref func)) (param (ref eq)) (result anyref)))
+      (func $wrap_meth_callback_unsafe (param (ref eq)) (result anyref)))
    (import "bindings" "wrap_fun_arguments"
       (func $wrap_fun_arguments (param anyref) (result anyref)))
    (import "fail" "caml_failwith_tag"
@@ -279,56 +273,47 @@
 
    (func $caml_js_wrap_callback (export "caml_js_wrap_callback")
       (param (ref eq)) (result (ref eq))
-      (return_call $wrap
-         (call $wrap_callback (ref.func $caml_callback) (local.get 0))))
+      (return_call $wrap (call $wrap_callback (local.get 0))))
 
    (func (export "caml_js_wrap_callback_arguments")
       (param (ref eq)) (result (ref eq))
-      (return_call $wrap
-         (call $wrap_callback_args (ref.func $caml_callback) (local.get 0))))
+      (return_call $wrap (call $wrap_callback_args (local.get 0))))
 
    (func (export "caml_js_wrap_callback_strict")
       (param (ref eq)) (param (ref eq)) (result (ref eq))
       (return_call $wrap
-         (call $wrap_callback_strict (ref.func $caml_callback)
+         (call $wrap_callback_strict
             (i31.get_u (ref.cast i31 (local.get 0))) (local.get 1))))
 
    (func (export "caml_js_wrap_callback_unsafe")
       (param (ref eq)) (result (ref eq))
-      (return_call $wrap
-         (call $wrap_callback_unsafe (ref.func $caml_callback) (local.get 0))))
+      (return_call $wrap (call $wrap_callback_unsafe (local.get 0))))
 
    (func (export "caml_js_wrap_meth_callback")
       (param (ref eq)) (result (ref eq))
-      (return_call $wrap
-         (call $wrap_meth_callback (ref.func $caml_callback) (local.get 0))))
+      (return_call $wrap (call $wrap_meth_callback (local.get 0))))
 
    (func (export "caml_js_wrap_meth_callback_arguments")
       (param (ref eq)) (result (ref eq))
-      (return_call $wrap
-         (call $wrap_meth_callback_args (ref.func $caml_callback)
-            (local.get 0))))
+      (return_call $wrap (call $wrap_meth_callback_args (local.get 0))))
 
    (func (export "caml_js_wrap_meth_callback_strict")
       (param (ref eq)) (param (ref eq)) (result (ref eq))
       (return_call $wrap
-         (call $wrap_meth_callback_strict (ref.func $caml_callback)
+         (call $wrap_meth_callback_strict
             (i31.get_u (ref.cast i31 (local.get 0))) (local.get 1))))
 
    (func (export "caml_js_wrap_meth_callback_unsafe")
       (param (ref eq)) (result (ref eq))
-      (return_call $wrap
-         (call $wrap_meth_callback_unsafe (ref.func $caml_callback)
-            (local.get 0))))
+      (return_call $wrap (call $wrap_meth_callback_unsafe (local.get 0))))
 
    (func (export "caml_ojs_wrap_fun_arguments")
       (param (ref eq)) (result (ref eq))
       (return_call $wrap
          (call $wrap_fun_arguments
-            (call $wrap_callback_strict
-               (ref.func $caml_callback) (i32.const 1) (local.get 0)))))
+            (call $wrap_callback_strict (i32.const 1) (local.get 0)))))
 
-   (func $caml_callback (export "caml_callback")
+   (func (export "caml_callback")
       (param $f (ref eq)) (param $count i32) (param $args (ref extern))
       (param $kind i32) ;; 0 ==> strict / 2 ==> unsafe
       (result anyref)

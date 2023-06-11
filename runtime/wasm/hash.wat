@@ -1,6 +1,8 @@
 (module
    (import "obj" "object_tag" (global $object_tag i32))
    (import "obj" "forward_tag" (global $forward_tag i32))
+   (import "jslib" "caml_string_of_jsstring"
+      (func $caml_string_of_jsstring (param (ref eq)) (result (ref eq))))
 
    (type $block (array (mut (ref eq))))
    (type $string (array (mut i8)))
@@ -109,6 +111,11 @@
                (array.get_u $string (local.get $s) (local.get $i))))
          (local.set $h (call $caml_hash_mix_int (local.get $h) (local.get $w))))
       (i32.xor (local.get $h) (local.get $len)))
+
+   (func $caml_hash_mix_jsstring
+      (param $h i32) (param $s (ref eq)) (result i32)
+      (return_call $caml_hash_mix_string (local.get $h)
+         (ref.cast $string (call $caml_string_of_jsstring (local.get $s)))))
 
    (global $HASH_QUEUE_SIZE i32 (i32.const 256))
    (global $MAX_FORWARD_DEREFERENCE i32 (i32.const 1000))
