@@ -1,12 +1,17 @@
 (module
    (import "obj" "object_tag" (global $object_tag i32))
    (import "obj" "forward_tag" (global $forward_tag i32))
+   (import "bindings" "is_string"
+      (func $ref_test_string (param anyref) (result i32)))
+   (import "bindings" "identity"
+      (func $ref_cast_string (param anyref) (result (ref string))))
    (import "jslib" "caml_string_of_jsstring"
       (func $caml_string_of_jsstring (param (ref eq)) (result (ref eq))))
 
    (type $block (array (mut (ref eq))))
    (type $string (array (mut i8)))
    (type $float (struct (field f64)))
+   (type $js (struct (field anyref)))
    (type $value->value->int->int
       (func (param (ref eq)) (param (ref eq)) (param i32) (result i32)))
    (type $value->int
@@ -134,6 +139,7 @@
       (local $i i32)
       (local $len i32)
       (local $tag i32)
+      (local $str anyref)
       (local.set $sz (i31.get_u (ref.cast i31 (local.get $limit))))
       (if (i32.gt_u (local.get $sz) (global.get $HASH_QUEUE_SIZE))
          (then (local.set $sz (global.get $HASH_QUEUE_SIZE))))
@@ -248,8 +254,20 @@
                                           (local.get $v))))))))
                      (local.set $num (i32.sub (local.get $num) (i32.const 1)))
                      (br $loop)))
-                  ;; closures are ignored
-                  ;; ZZZ javascript values
+                  (drop (block $not_js (result (ref eq))
+                     (local.set $str
+                        (struct.get $js 0
+                           (br_on_cast_fail $not_js $js (local.get $v))))
+                     ;; ZZZ use ref.test / ref.cast
+                     (if (call $ref_test_string (local.get $str))
+                        (then
+                           (local.set $h
+                              (call $caml_hash_mix_int (local.get $h)
+                                 (string.hash
+                                    (call $ref_cast_string
+                                       (local.get $str)))))))
+                     (i31.new (i32.const 0))))
+                  ;; closures and continuations and other js values are ignored
                   (br $loop)))))
       ;; clear the queue to avoid a memory leak
       (array.fill $block (global.get $caml_hash_queue)

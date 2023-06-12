@@ -329,15 +329,10 @@ Optimizations
 
 TODO
 
-- caml_compare
-  => continuations
-
 - dune support
   ==> link (wasm_runtime) wat/wast/wasm files
   ==> wasm_files
   ==> node options ===> (node_flags ...)
-
-- Should be able to compare/hash JavaScript strings (string refs)
 
 - we should link-in javascript files that are not divided into fragments
 

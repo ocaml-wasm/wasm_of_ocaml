@@ -1,7 +1,7 @@
 (module
    (import "bindings" "log" (func $log (param i32)))
    (import "bindings" "is_string"
-      (func $is_string (param anyref) (result i32)))
+      (func $ref_test_string (param anyref) (result i32)))
    (import "bindings" "identity"
       (func $ref_cast_string (param anyref) (result (ref string))))
    (import "obj" "forward_tag" (global $forward_tag i32))
@@ -452,8 +452,8 @@
                      (struct.get $js 0
                         (br_on_cast_fail $heterogeneous $js (local.get $v2))))
                   ;; ZZZ use ref.test / ref.cast
-                  (if (i32.and (call $is_string (local.get $jstr1))
-                               (call $is_string (local.get $jstr2)))
+                  (if (i32.and (call $ref_test_string (local.get $jstr1))
+                               (call $ref_test_string (local.get $jstr2)))
                      (then
                         (local.set $res
                            (string.compare
