@@ -39,6 +39,11 @@
          ;; ZZZ
       ))
    (type $custom (struct (field (ref $custom_operations))))
+   (type $custom_with_id
+      (sub $custom
+         (struct
+            (field (ref $custom_operations))
+            (field $id i64))))
    (type $int64
       (sub $custom (struct (field (ref $custom_operations)) (field i64))))
    (type $int32
@@ -576,13 +581,16 @@
    (import "env" "fd_offsets" (global $fd_offsets (mut (ref $offset_array))))
 
    (type $channel
-      (struct
-         (field $fd (mut i32))
-         (field $buffer (mut (ref extern)))
-         (field $curr (mut i32))
-         (field $max (mut i32))
-         (field $size (mut i32))
-         (field $flags (mut i32)))) ;; flags
+      (sub $custom_with_id
+         (struct
+            (field (ref $custom_operations))
+            (field i64)
+            (field $fd (mut i32))
+            (field $buffer (mut (ref extern)))
+            (field $curr (mut i32))
+            (field $max (mut i32))
+            (field $size (mut i32))
+            (field $flags (mut i32))))) ;; flags
 
    (global $saved_stdout (mut i32) (i32.const 0))
    (global $saved_stderr (mut i32) (i32.const 0))
