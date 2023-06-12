@@ -20,7 +20,6 @@
          ;; ZZZ
       ))
    (type $custom (struct (field (ref $custom_operations))))
-   (type $js (struct (field anyref)))
    (type $function_1 (func (param (ref eq) (ref eq)) (result (ref eq))))
    (type $closure (struct (;(field i32);) (field (ref $function_1))))
    (type $closure_last_arg
