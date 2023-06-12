@@ -330,6 +330,7 @@ Optimizations
 TODO
 
 - caml_compare
+  => continuations
 
 - dune support
   ==> link (wasm_runtime) wat/wast/wasm files
@@ -405,12 +406,21 @@ We might be able to make this easier to think about by providing examples of low
 ================
 
 Flamba2
+
+Pierre Chambard is probably better positioned than we are to work on a Flamba2 backend.
+JavaScript linking and minimization ?
+What about deadcode elimination ? Is it something that you care about ?
+
+
+Not make any decision that would make it harder to start from flamba2.
+
+
 ==> Pierre Chambard is probably the right person to work on this
 ==> generating Wasm code from flambda2 not a huge effort
 ==> do we need to keep anything from js_of_ocaml? many optimizations
 already dones by flambda2. dead code elimination?
 ==> with Pierre, we agree on the representation of OCaml values,
-    so we can have share a common runtime
+    so we can share a common runtime
 ==> not sure about how to represent unboxed types in Wasm
     gc friendly => array of values
     no-gc
