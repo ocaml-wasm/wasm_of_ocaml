@@ -261,6 +261,7 @@ TODO:
 
 Implement runtime code
 - file system access
+  ==> channels should be custom objects
 - marshalling
 - lexing/parsing
 - weak pointer api
@@ -340,10 +341,6 @@ TODO
 - Should be able to compare/hash JavaScript strings (string refs)
 
 - we should link-in javascript files that are not divided into fragments
-
-===
-
-exception: flush channels (do at exit) before printing it
 
 =================================
 
@@ -433,3 +430,9 @@ Flambda2 backend
 ==> same APIs
 ==> get some idea from the js_of_ocaml implementation
     (like how to recover a structered control flow)
+
+I'm wondering what are the gains in adapting js_of_ocaml to use the Flambda2 IR compared to writing a Wasm backend for the OCaml compiler.
+
+In any case, I think there is a lot we can reuse from this work. I discussed with Pierre Chambart, and we agree on the representation of OCaml values. So I believe we can share a common runtime.
+
+We will also gain some insights into how to compile smoothly OCaml programs to WebAssembly. In particular, we will have the very same issues regarding supporting existing js_of_ocaml bindings with an flambda2 backend.

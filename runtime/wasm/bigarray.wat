@@ -54,19 +54,21 @@
    (import "int64" "caml_copy_int64"
       (func $caml_copy_int64 (param i64) (result (ref eq))))
    (import "obj" "double_array_tag" (global $double_array_tag i32))
+   (import "compare" "unordered" (global $unordered i32))
 
    (type $block (array (mut (ref eq))))
    (type $string (array (mut i8)))
    (type $float (struct (field f64)))
-   (type $value->value->int
-      (func (param (ref eq)) (param (ref eq)) (result i32)))
+   (type $value->value->int->int
+      (func (param (ref eq)) (param (ref eq)) (param i32) (result i32)))
    (type $value->int
       (func (param (ref eq)) (result i32)))
    (type $custom_operations
       (struct
-         (field (ref $string)) ;; identifier
-         (field (ref $value->value->int)) ;; compare
-         (field (ref null $value->int)) ;; hash
+         (field $cust_id (ref $string))
+         (field $cust_compare (ref null $value->value->int->int))
+         (field $cust_compare_ext (ref null $value->value->int->int))
+         (field $cust_hash (ref null $value->int))
          ;; ZZZ
       ))
    (type $custom (struct (field (ref $custom_operations))))
@@ -83,7 +85,9 @@
             (i32.const 95) (i32.const 98) (i32.const 105) (i32.const 103)
             (i32.const 97) (i32.const 114) (i32.const 114) (i32.const 48)
             (i32.const 50))
-         (ref.func $caml_ba_compare) (ref.func $bigarray_hash)))
+         (ref.func $caml_ba_compare)
+         (ref.null $value->value->int->int)
+         (ref.func $bigarray_hash)))
 
    (type $bigarray
       (sub $custom
@@ -738,7 +742,7 @@
          (struct.get $bigarray $ba_layout (ref.cast $bigarray (local.get 0)))))
 
    (func $caml_ba_compare
-      (param $v1 (ref eq)) (param $v2 (ref eq)) (result i32)
+      (param $v1 (ref eq)) (param $v2 (ref eq)) (param $total i32) (result i32)
       (local $b1 (ref $bigarray)) (local $b2 (ref $bigarray))
       (local $i1 i32) (local $i2 i32) (local $i i32) (local $len i32)
       (local $f1 f64) (local $f2 f64)
@@ -911,7 +915,8 @@
                    (then (return (i32.const 1))))
                 (if (f64.ne (local.get $f1) (local.get $f2))
                    (then
-                      ;; ZZZ Caml_state->compare_unordered = 1; \
+                      (if (local.get $total)
+                         (then (return (global.get $unordered))))
                       (if (f64.eq (local.get $f1) (local.get $f1))
                          (then (return (i32.const 1))))
                       (if (f64.eq (local.get $f2) (local.get $f2))
@@ -933,7 +938,8 @@
                   (then (return (i32.const 1))))
                (if (f64.ne (local.get $f1) (local.get $f2))
                   (then
-                     ;; ZZZ Caml_state->compare_unordered = 1; \
+                     (if (local.get $total)
+                        (then (return (global.get $unordered))))
                      (if (f64.eq (local.get $f1) (local.get $f1))
                         (then (return (i32.const 1))))
                      (if (f64.eq (local.get $f2) (local.get $f2))

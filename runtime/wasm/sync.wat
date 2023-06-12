@@ -2,15 +2,16 @@
    (import "fail" "caml_failwith" (func $caml_failwith (param (ref eq))))
 
    (type $string (array (mut i8)))
-   (type $value->value->int
-      (func (param (ref eq)) (param (ref eq)) (result i32)))
+   (type $value->value->int->int
+      (func (param (ref eq)) (param (ref eq)) (param i32) (result i32)))
    (type $value->int
       (func (param (ref eq)) (result i32)))
    (type $custom_operations
       (struct
-         (field (ref $string)) ;; identifier
-         (field (ref $value->value->int)) ;; compare
-         (field (ref null $value->int)) ;; hash
+         (field $cust_id (ref $string))
+         (field $cust_compare (ref null $value->value->int->int))
+         (field $cust_compare_ext (ref null $value->value->int->int))
+         (field $cust_hash (ref null $value->int))
          ;; ZZZ
       ))
    (type $custom (struct (field (ref $custom_operations))))
@@ -21,6 +22,7 @@
             (i32.const 95) (i32.const 109) (i32.const 117) (i32.const 116)
             (i32.const 101) (i32.const 120))
          (ref.func $mutex_cmp)
+         (ref.null $value->value->int->int)
          (ref.func $mutex_hash)))
 
    (type $mutex
@@ -28,7 +30,7 @@
          (struct
             (field (ref $custom_operations)) (field i32) (field (mut i32)))))
 
-   (func $mutex_cmp (param (ref eq)) (param (ref eq)) (result i32)
+   (func $mutex_cmp (param (ref eq)) (param (ref eq)) (param i32) (result i32)
       (local $i1 i32) (local $i2 i32)
       (local.set $i1 (struct.get $mutex 1 (ref.cast $mutex (local.get 0))))
       (local.set $i2 (struct.get $mutex 1 (ref.cast $mutex (local.get 1))))

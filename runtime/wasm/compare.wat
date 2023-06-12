@@ -2,6 +2,8 @@
    (import "bindings" "log" (func $log (param i32)))
    (import "obj" "forward_tag" (global $forward_tag i32))
    (import "obj" "double_array_tag" (global $double_array_tag i32))
+   (import "fail" "caml_invalid_argument"
+      (func $caml_invalid_argument (param (ref eq))))
 
    (type $block (array (mut (ref eq))))
    (type $string (array (mut i8)))
@@ -14,15 +16,16 @@
               (field (ref $block_array)) ;; first value
               (field (ref $block_array)) ;; second value
               (field (ref $int_array)))) ;; position in value
-   (type $value->value->int
-      (func (param (ref eq)) (param (ref eq)) (result i32)))
+   (type $value->value->int->int
+      (func (param (ref eq)) (param (ref eq)) (param i32) (result i32)))
    (type $value->int
       (func (param (ref eq)) (result i32)))
    (type $custom_operations
       (struct
-         (field (ref $string)) ;; identifier
-         (field (ref $value->value->int)) ;; compare
-         (field (ref null $value->int)) ;; hash
+         (field $cust_id (ref $string))
+         (field $cust_compare (ref null $value->value->int->int))
+         (field $cust_compare_ext (ref null $value->value->int->int))
+         (field $cust_hash (ref null $value->int))
          ;; ZZZ
       ))
    (type $custom (struct (field (ref $custom_operations))))
@@ -112,7 +115,7 @@
          (local.get $i) (local.get $p))
       (local.get $stack))
 
-   (global $unordered i32 (i32.const 0x80000000))
+   (global $unordered (export "unordered") i32 (i32.const 0x80000000))
 
    (func $compare_strings
       (param $s1 (ref $string)) (param $s2 (ref $string)) (result i32)
@@ -180,6 +183,8 @@
                      (br $loop))))
           ))
       (local.get $res))
+
+   (data $abstract_value "compare: abstract value")
 
    (func $do_compare_val
       (param $stack (ref $compare_stack))
@@ -364,15 +369,19 @@
                   (local.set $c2
                       (br_on_cast_fail $v2_not_custom $custom (local.get $v2)))
                   ;; ZZZ compare types
-                  ;; ZZZ abstract value?
-                  (local.set $res
-                     (call_ref $value->value->int
-                        (local.get $v1) (local.get $v2)
-                        (struct.get $custom_operations 1
-                           (struct.get $custom 0 (local.get $c1)))
-                        ))
-                  (br_if $next_item (i32.eqz (local.get $res)))
-                  (return (local.get $res))))
+                  (block $not_comparable
+                     (local.set $res
+                        (call_ref $value->value->int->int
+                           (local.get $v1) (local.get $v2) (local.get $total)
+                           (br_on_null $not_comparable
+                              (struct.get $custom_operations $cust_compare
+                              (struct.get $custom 0 (local.get $c1))))))
+                     (br_if $next_item (i32.eqz (local.get $res)))
+                     (return (local.get $res)))
+                  (call $caml_invalid_argument
+                     (array.new_data $string $abstract_value
+                        (i32.const 0) (i32.const 23)))
+                  (return (i32.const 0))))
                ;; ZZZ forward tag
                ;; ZZZ float array
       (call $log (i32.const 5))

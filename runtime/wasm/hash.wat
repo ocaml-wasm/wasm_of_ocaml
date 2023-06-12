@@ -7,15 +7,16 @@
    (type $block (array (mut (ref eq))))
    (type $string (array (mut i8)))
    (type $float (struct (field f64)))
-   (type $value->value->int
-      (func (param (ref eq)) (param (ref eq)) (result i32)))
+   (type $value->value->int->int
+      (func (param (ref eq)) (param (ref eq)) (param i32) (result i32)))
    (type $value->int
       (func (param (ref eq)) (result i32)))
    (type $custom_operations
       (struct
-         (field (ref $string)) ;; identifier
-         (field (ref $value->value->int)) ;; compare
-         (field (ref null $value->int)) ;; hash
+         (field $cust_id (ref $string))
+         (field $cust_compare (ref null $value->value->int->int))
+         (field $cust_compare_ext (ref null $value->value->int->int))
+         (field $cust_hash (ref null $value->int))
          ;; ZZZ
       ))
    (type $custom (struct (field (ref $custom_operations))))
@@ -240,8 +241,8 @@
                         (call $caml_hash_mix_int (local.get $h)
                            (call_ref $value->int
                               (local.get $v)
-                              (struct.get $custom_operations 2
-                                 (br_on_null $loop
+                              (br_on_null $loop
+                                 (struct.get $custom_operations $cust_hash
                                     (struct.get $custom 0
                                        (br_on_cast_fail $not_custom $custom
                                           (local.get $v))))))))
