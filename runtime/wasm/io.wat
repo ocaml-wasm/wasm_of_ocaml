@@ -19,10 +19,56 @@
       (func $ta_set_ui8 (param (ref extern)) (param i32) (param i32))) ;; ZZZ ??
    (import "bindings" "ta_get_ui8"
       (func $ta_get_ui8 (param (ref extern)) (param i32) (result i32)))
+   (import "custom" "custom_compare_id"
+      (func $custom_compare_id
+        (param (ref eq)) (param (ref eq)) (param i32) (result i32)))
+   (import "custom" "custom_hash_id"
+      (func $custom_hash_id (param (ref eq)) (result i32)))
+   (import "custom" "custom_next_id" (func $custom_next_id (result i64)))
 
    (type $block (array (mut (ref eq))))
    (type $string (array (mut i8)))
    (type $offset_array (array (mut i64)))
+
+   (type $value->value->int->int
+      (func (param (ref eq)) (param (ref eq)) (param i32) (result i32)))
+   (type $value->int
+      (func (param (ref eq)) (result i32)))
+   (type $custom_operations
+      (struct
+         (field $cust_id (ref $string))
+         (field $cust_compare (ref null $value->value->int->int))
+         (field $cust_compare_ext (ref null $value->value->int->int))
+         (field $cust_hash (ref null $value->int))
+         ;; ZZZ
+      ))
+   (type $custom (struct (field (ref $custom_operations))))
+   (type $custom_with_id
+      (sub $custom
+         (struct
+            (field (ref $custom_operations))
+            (field $id i64))))
+
+   (global $channel_ops (ref $custom_operations)
+      (struct.new $custom_operations
+         (array.new_fixed $string ;; "_chan"
+            (i32.const 95) (i32.const 99) (i32.const 104) (i32.const 97)
+            (i32.const 110))
+         (ref.func $custom_compare_id)
+         (ref.null $value->value->int->int)
+         (ref.func $custom_hash_id)))
+
+   (type $channel
+      (sub $custom_with_id
+         (struct
+            (field (ref $custom_operations))
+            (field i64)
+            (field $fd (mut i32))
+            (field $buffer (mut (ref extern)))
+            (field $curr (mut i32))
+            (field $max (mut i32))
+            (field $size (mut i32))
+            (field $flags (mut i32))))) ;; flags
 
    (global $fd_offsets (export "fd_offsets") (mut (ref $offset_array))
       (array.new $offset_array (i64.const 0) (i32.const 3)))
@@ -47,15 +93,6 @@
         (local.get $offset)))
 
    (global $IO_BUFFER_SIZE i32 (i32.const 65536))
-
-   (type $channel
-      (struct
-         (field $fd (mut i32))
-         (field $buffer (mut (ref extern)))
-         (field $curr (mut i32))
-         (field $max (mut i32))
-         (field $size (mut i32))
-         (field $flags (mut i32)))) ;; flags
 
    (type $open_flags (array i8))
    ;;  1 O_RDONLY
@@ -118,6 +155,8 @@
    (func (export "caml_ml_open_descriptor_in")
       (param $fd (ref eq)) (result (ref eq))
       (struct.new $channel
+         (global.get $channel_ops)
+         (call $custom_next_id)
          (i31.get_u (ref.cast i31 (local.get $fd)))
          (call $ta_new (global.get $IO_BUFFER_SIZE))
          (i32.const 0)
@@ -133,6 +172,8 @@
       (local $res (ref eq))
       (local.set $res
          (struct.new $channel
+            (global.get $channel_ops)
+            (call $custom_next_id)
             (i31.get_u (ref.cast i31 (local.get $fd)))
             (call $ta_new (global.get $IO_BUFFER_SIZE))
             (i32.const 0)

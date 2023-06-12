@@ -261,7 +261,6 @@ TODO:
 
 Implement runtime code
 - file system access
-  ==> channels should be custom objects
 - marshalling
 - lexing/parsing
 - weak pointer api
