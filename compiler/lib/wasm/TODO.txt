@@ -329,6 +329,8 @@ Optimizations
 
 TODO
 
+- fix: caml_copy_nativeint
+
 - dune support
   ==> link (wasm_runtime) wat/wast/wasm files
   ==> wasm_files
