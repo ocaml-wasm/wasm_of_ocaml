@@ -97,7 +97,7 @@
 
    (func (export "caml_nativeint_of_string")
       (param $v (ref eq)) (result (ref eq))
-      (return_call $caml_copy_int32
+      (return_call $caml_copy_nativeint
          (call $parse_int
             (local.get $v) (i32.const 32) (global.get $NATIVEINT_ERRMSG))))
 

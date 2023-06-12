@@ -1,5 +1,4 @@
 (module
-   (import "bindings" "log" (func $log (param i32)))
    (import "bindings" "is_string"
       (func $ref_test_string (param anyref) (result i32)))
    (import "bindings" "identity"
