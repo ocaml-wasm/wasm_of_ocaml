@@ -136,6 +136,10 @@ module Js = struct
     val option : 'a option -> 'a t
 
     val to_option : 'a t -> 'a option
+
+    external equals : _ t -> _ t -> bool = "caml_js_equals"
+
+    external strict_equals : _ t -> _ t -> bool = "caml_js_strict_equals"
   end
 
   module Opt : OPT with type 'a t = 'a opt = struct
@@ -163,6 +167,10 @@ module Js = struct
       | Some x -> return x
 
     let to_option x = case x (fun () -> None) (fun x -> Some x)
+
+    external equals : 'a -> 'b -> bool = "caml_js_equals"
+
+    external strict_equals : 'a -> 'b -> bool = "caml_js_strict_equals"
   end
 
   module Optdef : OPT with type 'a t = 'a optdef = struct
@@ -190,6 +198,10 @@ module Js = struct
       | Some x -> return x
 
     let to_option x = case x (fun () -> None) (fun x -> Some x)
+
+    external equals : 'a -> 'b -> bool = "caml_js_equals"
+
+    external strict_equals : 'a -> 'b -> bool = "caml_js_strict_equals"
   end
 
   (****)
@@ -800,7 +812,7 @@ let parseInt (s : js_string t) : int =
 
 let parseFloat (s : js_string t) : float t =
   let s = Unsafe.fun_call Unsafe.global##.parseFloat [| Unsafe.inject s |] in
-  if isNaN s then failwith "parseFloat T" else s
+  if isNaN s then failwith "parseFloat" else s
 
 let _ =
   Printexc.register_printer (function

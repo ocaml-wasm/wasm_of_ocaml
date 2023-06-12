@@ -294,11 +294,19 @@
             if (handle_uncaught_exception)
               wasmModule.instance.exports.caml_callback
                 (handle_uncaught_exception, 2, [exn, 0], 0)
-            else
-              console.error
-                ("Fatal error: exception " +
-                 wasmModule.instance.exports.caml_format_exception(exn) +
-                 "\n");
+            else {
+                var at_exit =
+                    wasmModule.instance.exports.caml_named_value
+                      ('Pervasives.do_at_exit');
+                if (at_exit)
+                    wasmModule.instance.exports.caml_callback
+                      (at_exit, 1, [0], 0);
+                console.error (
+                    "Fatal error: exception " +
+                        wasmModule.instance.exports.caml_format_exception(exn) +
+                        "\n"
+                )
+            }
             isNode && process.exit(2)
           }
         } else {

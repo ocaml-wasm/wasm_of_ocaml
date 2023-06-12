@@ -329,24 +329,6 @@ Optimizations
 
 TODO
 
-- fix:
-  caml_ml_mutex_unlock
-  primitive caml_sys_const_backend_type
-  exp2
-  caml_set_parser_trace not const
-
-- bindings: strict equals, global object
-
-- wrap exceptions
-
-- explicit float conversions
-
-- do not use %caml_format_int_special
-
-- bindings: effects, parsing
-
-==
-
 - caml_compare
 
 - dune support
@@ -357,6 +339,10 @@ TODO
 - Should be able to compare/hash JavaScript strings (string refs)
 
 - we should link-in javascript files that are not divided into fragments
+
+===
+
+exception: flush channels (do at exit) before printing it
 
 =================================
 

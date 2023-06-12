@@ -815,9 +815,9 @@
                          (call $ta_get_i32 (local.get $d1) (local.get $i)))
                       (local.set $i2
                          (call $ta_get_i32 (local.get $d2) (local.get $i)))
-                      (if (i32.lt_s (local.get $i1) (local.get $i2))
+                      (if (i32.lt_u (local.get $i1) (local.get $i2))
                          (then (return (i32.const -1))))
-                      (if (i32.gt_s (local.get $i1) (local.get $i2))
+                      (if (i32.gt_u (local.get $i1) (local.get $i2))
                          (then (return (i32.const 1))))
                       (local.set $i (i32.add (local.get $i) (i32.const 2)))
                       (br $loop))))
