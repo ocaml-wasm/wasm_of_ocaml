@@ -11,6 +11,8 @@
       (func $caml_jsstring_of_string (param (ref eq)) (result (ref eq))))
    (import "jslib" "caml_string_of_jsstring"
       (func $caml_string_of_jsstring (param (ref eq)) (result (ref eq))))
+   (import "jslib" "caml_js_to_string_array"
+      (func $caml_js_to_string_array (param $a (ref extern)) (result (ref eq))))
    (import "fail" "caml_raise_not_found" (func $caml_raise_not_found))
    (import "bindings" "argv" (func $argv (result (ref extern))))
    (import "bindings" "array_length"
@@ -38,25 +40,7 @@
 
    (func (export "caml_sys_argv") (param (ref eq)) (result (ref eq))
       ;; ZZZ
-      (local $a (ref extern)) (local $a' (ref $block))
-      (local $l i32) (local $i i32)
-      (local.set $a (call $argv))
-      (local.set $l (call $array_length (local.get $a)))
-      (local.set $a'
-         (array.new $block (i31.new (i32.const 0))
-            (i32.add (local.get $l) (i32.const 1))))
-      (local.set $i (i32.const 0))
-      (loop $loop
-         (if (i32.lt_u (local.get $i) (local.get $l))
-            (then
-               (array.set $block (local.get $a')
-                  (i32.add (local.get $i) (i32.const 1))
-                  (call $caml_string_of_jsstring
-                     (call $wrap
-                        (call $array_get (local.get $a) (local.get $i)))))
-               (local.set $i (i32.add (local.get $i) (i32.const 1)))
-               (br $loop))))
-      (local.get $a'))
+      (call $caml_js_to_string_array (call $argv)))
 
    (func (export "caml_sys_executable_name")
       (param (ref eq)) (result (ref eq))

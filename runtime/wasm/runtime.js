@@ -248,6 +248,8 @@
          write:(fd,b,o,l)=>fs.writeSync(fd,b,o,l),
          read:(fd,b,o,l)=>fs.readSync(fd,b,o,l),
          unlink:(p)=>fs.unlinkSync(p),
+         readdir:(p)=>fs.readdirSync(p),
+         file_exists:(p)=>+fs.existsSync(p),
          argv:()=>isNode?process.argv.slice(1):['a.out'],
          getcwd:()=>isNode?process.cwd():'/static',
          start_fiber:(x)=>start_fiber(x),
