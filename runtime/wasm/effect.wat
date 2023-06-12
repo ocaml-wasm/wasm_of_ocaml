@@ -365,6 +365,9 @@
       (param (ref eq)) (result (ref eq))
       (array.new_fixed $block (i31.new (i32.const 0))))
 
+   (func (export "caml_is_continuation") (param (ref eq)) (result i32)
+      (ref.test $continuation (local.get 0)))
+
    (func (export "caml_initialize_effects") (param $s externref)
       (global.set $current_suspender (local.get $s)))
 )
