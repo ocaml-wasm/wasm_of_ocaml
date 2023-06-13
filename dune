@@ -12,7 +12,8 @@
  (wasm
   (binaries (tools/node_wrapper.sh as node))
   (js_of_ocaml
-   (compilation_mode wasm)))
+   (compilation_mode wasm)
+   (node_flags --experimental-wasm-stringref --experimental-wasm-gc --experimental-wasm-stack-switching)))
  (bench_no_debug
   (flags
    (:standard \ -g))

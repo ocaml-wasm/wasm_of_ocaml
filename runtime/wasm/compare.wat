@@ -3,6 +3,8 @@
       (func $ref_test_string (param anyref) (result i32)))
    (import "bindings" "identity"
       (func $ref_cast_string (param anyref) (result (ref string))))
+   (import "bindings" "equals"
+      (func $equals (param anyref) (param anyref) (result i32)))
    (import "obj" "forward_tag" (global $forward_tag i32))
    (import "obj" "object_tag" (global $object_tag i32))
    (import "obj" "double_array_tag" (global $double_array_tag i32))
@@ -214,7 +216,7 @@
       (local $f1 f64) (local $f2 f64)
       (local $str1 (ref $string)) (local $str2 (ref $string))
       (local $c1 (ref $custom)) (local $c2 (ref $custom))
-      (local $jstr1 anyref) (local $jstr2 anyref)
+      (local $js1 anyref) (local $js2 anyref)
       (local $tuple ((ref eq) (ref eq)))
       (local $res i32)
       (loop $loop
@@ -444,22 +446,29 @@
                   (i31.new (i32.const 0))))
                ;; ZZZ float array (unboxed)
                (drop (block $v1_not_js (result (ref eq))
-                  (local.set $jstr1
+                  (local.set $js1
                      (struct.get $js 0
                         (br_on_cast_fail $v1_not_js $js (local.get $v1))))
-                  (local.set $jstr2
+                  (local.set $js2
                      (struct.get $js 0
                         (br_on_cast_fail $heterogeneous $js (local.get $v2))))
                   ;; ZZZ use ref.test / ref.cast
-                  (if (i32.and (call $ref_test_string (local.get $jstr1))
-                               (call $ref_test_string (local.get $jstr2)))
+                  (if (i32.and (call $ref_test_string (local.get $js1))
+                               (call $ref_test_string (local.get $js2)))
                      (then
                         (local.set $res
                            (string.compare
-                              (call $ref_cast_string (local.get $jstr1))
-                              (call $ref_cast_string (local.get $jstr2))))
+                              (call $ref_cast_string (local.get $js1))
+                              (call $ref_cast_string (local.get $js2))))
                         (br_if $next_item (i32.eqz (local.get $res)))
                         (return (local.get $res))))
+                  ;; We cannot order two JavaScript objects,
+                  ;; but we can tell whether they are equal or not
+                  (if (i32.eqz (local.get $total))
+                     (then
+                        (br_if $next_item
+                           (call $equals (local.get $js1) (local.get $js2)))
+                        (return (global.get $unordered))))
                   (br $heterogeneous (i31.new (i32.const 0)))))
                (if (ref.test $closure (local.get $v1))
                   (then
@@ -479,7 +488,7 @@
                         (array.new_data $string $continuation_value
                            (i32.const 0) (i32.const 27)))))
                (i31.new (i32.const 0)))) ;; fall through
-            ;; heterogenous comparison
+            ;; heterogeneous comparison
             (local.set $t1
                (i31.get_u (ref.cast i31 (call $caml_obj_tag (local.get $v1)))))
             (local.set $t2

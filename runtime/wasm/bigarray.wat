@@ -915,7 +915,7 @@
                    (then (return (i32.const 1))))
                 (if (f64.ne (local.get $f1) (local.get $f2))
                    (then
-                      (if (local.get $total)
+                      (if (i32.eqz (local.get $total))
                          (then (return (global.get $unordered))))
                       (if (f64.eq (local.get $f1) (local.get $f1))
                          (then (return (i32.const 1))))
@@ -938,7 +938,7 @@
                   (then (return (i32.const 1))))
                (if (f64.ne (local.get $f1) (local.get $f2))
                   (then
-                     (if (local.get $total)
+                     (if (i32.eqz (local.get $total))
                         (then (return (global.get $unordered))))
                      (if (f64.eq (local.get $f1) (local.get $f1))
                         (then (return (i32.const 1))))

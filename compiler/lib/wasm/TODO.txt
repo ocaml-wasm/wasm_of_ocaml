@@ -332,11 +332,22 @@ TODO
 - fix: caml_copy_nativeint
 
 - dune support
-  ==> link (wasm_runtime) wat/wast/wasm files
+  ==> link (wasm_runtime) wat/wast/w
+  -> dir:Path.Build.t
+  -> language:Foreign_language.t
+  -> string list Action_builder.t
+
+val foreign_flags :asm files
   ==> wasm_files
   ==> node options ===> (node_flags ...)
 
 - we should link-in javascript files that are not divided into fragments
+
+- documentation
+  ==> what tools (node/chrome/binaryen/dune) are needed/supported
+  ==> how do we run wasm_of_ocaml
+      output: foo.js / foo.wasm / foo.wat
+      wasm-opt -all -S -o - foo.wasm
 
 =================================
 
@@ -426,6 +437,8 @@ Flambda2 backend
 ==> same APIs
 ==> get some idea from the js_of_ocaml implementation
     (like how to recover a structered control flow)
+
+
 
 I'm wondering what are the gains in adapting js_of_ocaml to use the Flambda2 IR compared to writing a Wasm backend for the OCaml compiler.
 
