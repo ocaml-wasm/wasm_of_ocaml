@@ -5,8 +5,7 @@
       (func $ref_test_string (param anyref) (result i32)))
    (import "bindings" "identity"
       (func $ref_cast_string (param anyref) (result (ref string))))
-   (import "jslib" "caml_string_of_jsstring"
-      (func $caml_string_of_jsstring (param (ref eq)) (result (ref eq))))
+   (import "jslib" "unwrap" (func $unwrap (param (ref eq)) (result anyref)))
 
    (type $block (array (mut (ref eq))))
    (type $string (array (mut i8)))
@@ -120,8 +119,8 @@
 
    (func $caml_hash_mix_jsstring
       (param $h i32) (param $s (ref eq)) (result i32)
-      (return_call $caml_hash_mix_string (local.get $h)
-         (ref.cast $string (call $caml_string_of_jsstring (local.get $s)))))
+      (return_call $caml_hash_mix_int (local.get $h)
+         (string.hash (call $ref_cast_string (call $unwrap (local.get $s))))))
 
    (global $HASH_QUEUE_SIZE i32 (i32.const 256))
    (global $MAX_FORWARD_DEREFERENCE i32 (i32.const 1000))
