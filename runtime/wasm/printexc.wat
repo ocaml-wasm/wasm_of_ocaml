@@ -118,8 +118,8 @@
                     (if (i32.lt_u (local.get $i) (local.get $len))
                        (then
                           (call $add_char (local.get $buf)
-                             (i32.const 44)))) ;; ','
-                    (br $loop))
+                             (i32.const 44)) ;; ','
+                          (br $loop))))
                  (call $add_char (local.get $buf) (i32.const 41)))) ;; '\)'
            (string.new_wtf8_array replace
               (struct.get $buffer 1 (local.get $buf)) (i32.const 0)
