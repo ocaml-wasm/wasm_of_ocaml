@@ -1,7 +1,7 @@
 (module
-   (import "bindings" "log" (func $log_js (param anyref)))
    (import "fail" "caml_invalid_argument"
-      (func $caml_invalid_argument (param $arg (ref eq))))
+      (func $caml_invalid_argument (param (ref eq))))
+   (import "fail" "caml_failwith" (func $caml_failwith (param (ref eq))))
 
    (type $string (array (mut i8)))
    (type $block (array (mut (ref eq))))
@@ -138,7 +138,6 @@
                                 $CHECKPROGRESS
                                 (i32.and (local.get $instr) (i32.const 0xff))))
                             ;; CHAR
-;;                            (call $log_js (string.const "CHAR"))
                             (br_if $prefix_match
                                (i32.eq (local.get $pos) (local.get $len)))
                             (local.set $arg
@@ -151,7 +150,6 @@
                                (i32.add (local.get $pos) (i32.const 1)))
                             (br $continue))
                            ;; CHARNORM
-;;                           (call $log_js (string.const "CHARNORM"))
                            (br_if $prefix_match
                               (i32.eq (local.get $pos) (local.get $len)))
                            (local.set $arg
@@ -166,7 +164,6 @@
                               (i32.add (local.get $pos) (i32.const 1)))
                            (br $continue))
                           ;; STRING
-;;                          (call $log_js (string.const "STRING"))
                           (local.set $arg
                              (i32.shr_u (local.get $instr) (i32.const 8)))
                           (local.set $s'
@@ -194,7 +191,6 @@
                                    (br $loop))))
                           (br $continue))
                          ;; STRINGNORM
-;;                         (call $log_js (string.const "STRINGNORM"))
                          (local.set $arg
                             (i32.shr_u (local.get $instr) (i32.const 8)))
                          (local.set $s'
@@ -224,7 +220,6 @@
                                   (br $loop))))
                          (br $continue))
                         ;; CHARCLASS
-;;                        (call $log_js (string.const "CHARCLASS"))
                         (br_if $prefix_match
                            (i32.eq (local.get $pos) (local.get $len)))
                         (local.set $arg
@@ -242,7 +237,6 @@
                            (i32.add (local.get $pos) (i32.const 1)))
                         (br $continue))
                        ;; BOL
-;;                       (call $log_js (string.const "BOL"))
                        (br_if $continue (i32.eqz (local.get $pos)))
                        (br_if $continue
                           (i32.eq (i32.const 10) ;; '\n'
@@ -250,7 +244,6 @@
                                 (i32.sub (local.get $pos) (i32.const 1)))))
                        (br $backtrack))
                       ;; EOL
-;;                      (call $log_js (string.const "EOL"))
                       (br_if $continue
                          (i32.eq (local.get $pos) (local.get $len)))
                       (br_if $continue
@@ -259,7 +252,6 @@
                                (local.get $pos))))
                       (br $backtrack))
                      ;; WORDBOUNDARY
-;;                     (call $log_js (string.const "WORDBOUNDARY"))
                      (if (i32.eqz (local.get $pos))
                         (then
                            (br_if $prefix_match
@@ -290,7 +282,6 @@
                                              (local.get $pos)))))
                                  (br $backtrack))))))
                     ;; BEGGROUP
-;;                    (call $log_js (string.const "BEGGROUP"))
                     (local.set $arg
                        (i32.shr_u (local.get $instr) (i32.const 8)))
                     (local.set $stack
@@ -304,7 +295,6 @@
                        (local.get $arg) (local.get $pos))
                     (br $continue))
                    ;; ENDGROUP
-;;                   (call $log_js (string.const "ENDGROUP"))
                    (local.set $arg
                       (i32.shr_u (local.get $instr) (i32.const 8)))
                     (local.set $stack
@@ -318,7 +308,6 @@
                       (local.get $arg) (local.get $pos))
                    (br $continue))
                   ;; REFGROUP
-;;                  (call $log_js (string.const "REFGROUP"))
                   (local.set $arg
                      (i32.shr_u (local.get $instr) (i32.const 8)))
                   (local.set $i
@@ -348,7 +337,6 @@
                            (br $loop))))
                   (br $continue))
                  ;; SIMPLEOPT
-;;                 (call $log_js (string.const "SIMPLEOPT"))
                  (local.set $arg (i32.shr_u (local.get $instr) (i32.const 8)))
                  (if (i32.lt_u (local.get $pos) (local.get $len))
                     (then
@@ -363,7 +351,6 @@
                                 (i32.add (local.get $pos) (i32.const 1)))))))
                  (br $continue))
                 ;; SIMPLESTAR
-;;                (call $log_js (string.const "SIMPLESTAR"))
                 (local.set $arg (i32.shr_u (local.get $instr) (i32.const 8)))
                 (local.set $set
                    (ref.cast $string
@@ -381,7 +368,6 @@
                                (br $loop))))))
                 (br $continue))
                ;; SIMPLEPLUS
-;;               (call $log_js (string.const "SIMPLEPLUS"))
                (br_if $prefix_match (i32.eq (local.get $pos) (local.get $len)))
                (local.set $arg (i32.shr_u (local.get $instr) (i32.const 8)))
                (local.set $set
@@ -402,14 +388,12 @@
                                  (local.get $pos)))))))
                (br $continue))
               ;; GOTO
-;;              (call $log_js (string.const "GOTO"))
               (local.set $pc
                  (i32.add
                     (local.get $pc)
                     (i32.shr_s (local.get $instr) (i32.const 8))))
               (br $continue))
              ;; PUSHBACK
-;;             (call $log_js (string.const "PUSHBACK"))
              (local.set $stack
                 (struct.new $pos
                    (local.get $stack)
@@ -418,7 +402,6 @@
                    (local.get $pos)))
              (br $continue))
             ;; SETMARK
-;;            (call $log_js (string.const "SETMARK"))
             (local.set $arg (i32.shr_u (local.get $instr) (i32.const 8)))
             (local.set $stack
                (struct.new $undo
@@ -431,7 +414,6 @@
                (local.get $pos))
             (br $continue))
            ;; CHECKPROGRESS
-;;           (call $log_js (string.const "CHECKPROGRESS"))
            (local.set $arg (i32.shr_u (local.get $instr) (i32.const 8)))
            (br_if $backtrack
               (i32.eq (local.get $pos)
@@ -439,10 +421,8 @@
                     (local.get $arg))))
            (br $continue))
           ;; prefix_match
-;;          (call $log_js (string.const "prefix_match"))
           (br_if $ACCEPT (local.get $accept_partial_match)))
          ;; backtrack
-;;         (call $log_js (string.const "backtrack"))
          (loop $loop
             (local.set $u
                (ref.cast $undo
@@ -461,7 +441,6 @@
             (local.set $stack (struct.get $undo $undo_previous (local.get $u)))
             (br $loop))))
        ;; ACCEPT
-;;       (call $log_js (string.const "ACCEPT"))
        (array.set $int_array
           (local.get $group_end) (i32.const 0) (local.get $pos))
        (local.set $res
@@ -504,7 +483,6 @@
                 (br $loop))))
        (return (local.get $res)))
       ;; reject
-;;      (call $log_js (string.const "reject"))
       (i31.new (i32.const 0)))
 
    (data $search_forward "Str.search_forward")
@@ -613,52 +591,126 @@
             (return (local.get $res))))
       (array.new_fixed $block (i31.new (i32.const 0))))
 
+   (data $illegal_backslash "Str.replace: illegal backslash sequence")
+   (data $unmatched_group "Str.replace: reference to unmatched group")
+
    (func (export "re_replacement_text")
-      (param (ref eq)) (param (ref eq)) (param (ref eq)) (result (ref eq))
-      ;; ZZZ
-      (array.new_fixed $string))
-(;
-//Provides: re_replacement_text
-//Requires: caml_jsbytes_of_string, caml_string_of_jsbytes
-//Requires: caml_array_get
-//Requires: caml_failwith
-// external re_replacement_text: string -> int array -> string -> string
-function re_replacement_text(repl,groups,orig) {
-  var repl = caml_jsbytes_of_string(repl);
-  var len = repl.length;
-  var orig = caml_jsbytes_of_string(orig);
-  var res = ""; //result
-  var n = 0; // current position
-  var cur; //current char
-  var start, end, c;
-  while(n < len){
-    cur = repl.charAt(n++);
-    if(cur != '\\'){
-      res += cur;
-    }
-    else {
-      if(n == len) caml_failwith("Str.replace: illegal backslash sequence");
-      cur = repl.charAt(n++);
-      switch(cur){
-      case '\\':
-        res += cur;
-        break;
-      case '0': case '1': case '2': case '3': case '4':
-      case '5': case '6': case '7': case '8': case '9':
-        c = +cur;
-        if (c*2 >= groups.length - 1 )
-          caml_failwith("Str.replace: reference to unmatched group" );
-        start = caml_array_get(groups,c*2);
-        end = caml_array_get(groups, c*2 +1);
-        if (start == -1)
-          caml_failwith("Str.replace: reference to unmatched group");
-        res+=orig.slice(start,end);
-        break;
-      default:
-        res += ('\\'  + cur);
-      }
-    }
-  }
-  return caml_string_of_jsbytes(res); }
-;)
+      (param $vrepl (ref eq)) (param $vgroups (ref eq)) (param $vorig (ref eq))
+      (result (ref eq))
+      (local $repl (ref $string))
+      (local $groups (ref $block))
+      (local $orig (ref $string))
+      (local $res (ref $string))
+      (local $i i32) (local $j i32) (local $l i32) (local $len i32)
+      (local $c i32) (local $start i32) (local $end i32)
+      (local.set $repl (ref.cast $string (local.get $vrepl)))
+      (local.set $l (array.len (local.get $repl)))
+      (local.set $groups (ref.cast $block (local.get $vgroups)))
+      (local.set $orig (ref.cast $string (local.get $vorig)))
+      (loop $loop
+         (if (i32.lt_u (local.get $i) (local.get $l))
+            (then
+               (local.set $c
+                  (array.get_u $string (local.get $repl) (local.get $i)))
+               (local.set $i (i32.add (local.get $i) (i32.const 1)))
+               (if (i32.ne (local.get $c) (i32.const 92)) ;; '\\'
+                  (then
+                     (local.set $len (i32.add (local.get $len) (i32.const 1)))
+                     (br $loop)))
+               (if (i32.eq (local.get $i) (local.get $l))
+                  (then
+                     (call $caml_failwith
+                        (array.new_data $string $illegal_backslash
+                           (i32.const 0) (i32.const 39)))))
+               (local.set $c
+                  (array.get_u $string (local.get $repl) (local.get $i)))
+               (local.set $i (i32.add (local.get $i) (i32.const 1)))
+               (if (i32.eq (local.get $c) (i32.const 92)) ;; '\\'
+                  (then
+                     (local.set $len (i32.add (local.get $len) (i32.const 1)))
+                     (br $loop)))
+               (local.set $c (i32.sub (local.get $c) (i32.const 48))) ;; '0'
+               (if (i32.gt_u (local.get $c) (i32.const 9))
+                  (then
+                     (local.set $len (i32.add (local.get $len) (i32.const 2)))
+                     (br $loop)))
+               (local.set $c (i32.shl (local.get $c) (i32.const 1)))
+               (if (i32.gt_u (i32.add (local.get $c) (i32.const 1))
+                      (array.len (local.get $groups)))
+                  (then
+                     (call $caml_failwith
+                        (array.new_data $string $unmatched_group
+                           (i32.const 0) (i32.const 41)))))
+               (local.set $start
+                  (i31.get_s
+                     (ref.cast i31
+                        (array.get $block (local.get $groups)
+                           (i32.add (local.get $c) (i32.const 1))))))
+               (local.set $end
+                  (i31.get_s
+                     (ref.cast i31
+                        (array.get $block (local.get $groups)
+                           (i32.add (local.get $c) (i32.const 2))))))
+               (if (i32.eq (local.get $start) (i32.const -1))
+                  (then
+                     (call $caml_failwith
+                        (array.new_data $string $unmatched_group
+                           (i32.const 0) (i32.const 41)))))
+               (local.set $len
+                   (i32.add (local.get $len)
+                      (i32.sub (local.get $end) (local.get $start))))
+               (br $loop))))
+      (local.set $res (array.new $string (i32.const 0) (local.get $len)))
+      (local.set $i (i32.const 0))
+      (loop $loop
+         (if (i32.lt_u (local.get $i) (local.get $l))
+            (then
+               (local.set $c
+                  (array.get_u $string (local.get $repl) (local.get $i)))
+               (local.set $i (i32.add (local.get $i) (i32.const 1)))
+               (if (i32.ne (local.get $c) (i32.const 92)) ;; '\\'
+                  (then
+                     (array.set $string (local.get $res) (local.get $j)
+                        (local.get $c))
+                     (local.set $j (i32.add (local.get $j) (i32.const 1)))
+                     (br $loop)))
+               (local.set $c
+                  (array.get_u $string (local.get $repl) (local.get $i)))
+               (local.set $i (i32.add (local.get $i) (i32.const 1)))
+               (if (i32.eq (local.get $c) (i32.const 92)) ;; '\\'
+                  (then
+                     (array.set $string (local.get $res) (local.get $j)
+                        (local.get $c))
+                     (local.set $j (i32.add (local.get $j) (i32.const 1)))
+                     (br $loop)))
+               (local.set $c (i32.sub (local.get $c) (i32.const 48))) ;; '0'
+               (if (i32.gt_u (local.get $c) (i32.const 9))
+                  (then
+                     (local.set $j (i32.add (local.get $j) (i32.const 2)))
+                     (br $loop)))
+               (local.set $c (i32.shl (local.get $c) (i32.const 1)))
+               (if (i32.gt_u (i32.add (local.get $c) (i32.const 1))
+                      (array.len (local.get $groups)))
+                  (then
+                     (call $caml_failwith
+                        (array.new_data $string $unmatched_group
+                           (i32.const 0) (i32.const 41)))))
+               (local.set $start
+                  (i31.get_s
+                     (ref.cast i31
+                        (array.get $block (local.get $groups)
+                           (i32.add (local.get $c) (i32.const 1))))))
+               (local.set $end
+                  (i31.get_s
+                     (ref.cast i31
+                        (array.get $block (local.get $groups)
+                           (i32.add (local.get $c) (i32.const 2))))))
+               (local.set $len (i32.sub (local.get $end) (local.get $start)))
+               (array.copy $string $string
+                  (local.get $res) (local.get $j)
+                  (local.get $orig) (local.get $start)
+                  (local.get $len))
+               (local.set $j (i32.add (local.get $j) (local.get $len)))
+               (br $loop))))
+      (local.get $res))
 )
