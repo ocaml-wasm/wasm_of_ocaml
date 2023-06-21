@@ -686,6 +686,11 @@
                (local.set $c (i32.sub (local.get $c) (i32.const 48))) ;; '0'
                (if (i32.gt_u (local.get $c) (i32.const 9))
                   (then
+                     (array.set $string (local.get $res) (local.get $j)
+                        (i32.const 92))
+                     (array.set $string (local.get $res)
+                        (i32.add (local.get $j) (i32.const 1))
+                        (i32.add (local.get $c) (i32.const 48)))
                      (local.set $j (i32.add (local.get $j) (i32.const 2)))
                      (br $loop)))
                (local.set $c (i32.shl (local.get $c) (i32.const 1)))

@@ -75,10 +75,8 @@
          is_string:(v)=>+(typeof v==="string"),
          ta_create:(k,sz)=> new(typed_arrays[k])(sz),
          ta_normalize:(a)=>
-           a instanceof Uint8ClampedArray?
-             new Uint8Array(a.buffer,a.byteOffset,a.byteLength):
-             a instanceof Uint32Array?
-               new Int32Array(a.buffer,a.byteOffset,a.byteLength):a,
+           a instanceof Uint32Array?
+           new Int32Array(a.buffer,a.byteOffset,a.length):a,
          ta_kind:(a)=>typed_arrays.findIndex((c)=>a instanceof c),
          ta_length:(a)=>a.length,
          ta_get_f64:(a,i)=>a[i],
