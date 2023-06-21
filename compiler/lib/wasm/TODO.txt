@@ -217,17 +217,8 @@ Rethrow?
 
 Js_of_ocaml fixes:
 ==> bound check optimization for float arrays
-==> fix bound check for caml_bytes_getxx
 ==> strict equality
-==> clamped array buffers
-==> caml_unix_inet_addr_of_string
-==> sys_random_seed
-==> update to forcing
-==> gc stats / caml_gc_get
 ==> Condition.wait should throw (never makes sense)
-==> round
-==> hash nan
-==> caml_set_parser_trace is not const
 
 ===============================
 
