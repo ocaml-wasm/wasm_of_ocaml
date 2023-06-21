@@ -20,6 +20,8 @@
 open! Import
 open Js
 
+type int32 = float Js.t
+
 type uint32 = float Js.t
 
 class type arrayBuffer =
@@ -83,16 +85,33 @@ type float32Array = (float Js.t, Bigarray.float32_elt) typedArray
 
 type float64Array = (float Js.t, Bigarray.float64_elt) typedArray
 
-external kind : ('a, 'b) typedArray t -> ('a, 'b) Bigarray.kind
+type ('bigarray, 'typed_array, 'elt) correspondence =
+  | Char : (char, int, Bigarray.int8_unsigned_elt) correspondence
+  | Int8_signed : (int, int, Bigarray.int8_signed_elt) correspondence
+  | Int8_unsigned : (int, int, Bigarray.int8_unsigned_elt) correspondence
+  | Int16_signed : (int, int, Bigarray.int16_signed_elt) correspondence
+  | Int16_unsigned : (int, int, Bigarray.int16_unsigned_elt) correspondence
+  | Int32_signed : (Int32.t, int32, Bigarray.int32_elt) correspondence
+  | Int32_unsigned : (Int32.t, uint32, Bigarray.int32_elt) correspondence
+  | Float32 : (float, float Js.t, Bigarray.float32_elt) correspondence
+  | Float64 : (float, float Js.t, Bigarray.float64_elt) correspondence
+
+external kind_impl : ('typed_array, 'elt) typedArray t -> ('bigarray, 'elt) Bigarray.kind
   = "caml_ba_kind_of_typed_array"
 
-external from_genarray :
-  ('a, 'b, Bigarray.c_layout) Bigarray.Genarray.t -> ('a, 'b) typedArray t
-  = "caml_ba_to_typed_array"
+external from_genarray_impl :
+     ('bigarray, 'elt, Bigarray.c_layout) Bigarray.Genarray.t
+  -> ('typed_array, 'elt) typedArray t = "caml_ba_to_typed_array"
 
-external to_genarray :
-  ('a, 'b) typedArray t -> ('a, 'b, Bigarray.c_layout) Bigarray.Genarray.t
-  = "caml_ba_from_typed_array"
+external to_genarray_impl :
+     ('typed_array, 'elt) typedArray t
+  -> ('bigarray, 'elt, Bigarray.c_layout) Bigarray.Genarray.t = "caml_ba_from_typed_array"
+
+let kind _ t = kind_impl t
+
+let from_genarray _ a = from_genarray_impl a
+
+let to_genarray _ a = to_genarray_impl a
 
 let int8Array = Js.Unsafe.global##._Int8Array
 

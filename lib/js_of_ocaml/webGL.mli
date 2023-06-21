@@ -32,6 +32,8 @@ type intptr = int
 
 type uint = int
 
+type int32 = float t
+
 type clampf = float t
 
 type void
@@ -563,6 +565,8 @@ class type renderingContext =
 
     method uniform1i : int uniformLocation t -> int -> unit meth
 
+    method uniform1i_ : int uniformLocation t -> int32 -> unit meth
+
     method uniform1iv_typed :
       int uniformLocation t -> Typed_array.int32Array t -> unit meth
 
@@ -577,7 +581,11 @@ class type renderingContext =
 
     method uniform2i : [ `ivec2 ] uniformLocation t -> int -> int -> unit meth
 
+    method uniform2i_ : [ `ivec2 ] uniformLocation t -> int32 -> int32 -> unit meth
+
     method uniform2iv : [ `ivec2 ] uniformLocation t -> int js_array t -> unit meth
+
+    method uniform2iv_ : [ `ivec2 ] uniformLocation t -> int32 js_array t -> unit meth
 
     method uniform2iv_typed :
       [ `ivec2 ] uniformLocation t -> Typed_array.int32Array t -> unit meth
@@ -592,7 +600,12 @@ class type renderingContext =
 
     method uniform3i : [ `ivec3 ] uniformLocation t -> int -> int -> int -> unit meth
 
+    method uniform3i_ :
+      [ `ivec3 ] uniformLocation t -> int32 -> int32 -> int32 -> unit meth
+
     method uniform3iv : [ `ivec3 ] uniformLocation t -> int js_array t -> unit meth
+
+    method uniform3iv_ : [ `ivec3 ] uniformLocation t -> int32 js_array t -> unit meth
 
     method uniform3iv_typed :
       [ `ivec3 ] uniformLocation t -> Typed_array.int32Array t -> unit meth
@@ -608,7 +621,12 @@ class type renderingContext =
     method uniform4i :
       [ `ivec4 ] uniformLocation t -> int -> int -> int -> int -> unit meth
 
+    method uniform4i_ :
+      [ `ivec4 ] uniformLocation t -> int32 -> int32 -> int32 -> int32 -> unit meth
+
     method uniform4iv : [ `ivec4 ] uniformLocation t -> int js_array t -> unit meth
+
+    method uniform4iv_ : [ `ivec4 ] uniformLocation t -> int32 js_array t -> unit meth
 
     method uniform4iv_typed :
       [ `ivec4 ] uniformLocation t -> Typed_array.int32Array t -> unit meth

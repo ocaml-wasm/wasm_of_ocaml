@@ -22,6 +22,8 @@
 
 open Js
 
+type int32 = float Js.t
+
 type uint32 = float Js.t
 
 class type arrayBuffer =
@@ -77,18 +79,37 @@ type uint16Array = (int, Bigarray.int16_unsigned_elt) typedArray
 
 type int32Array = (int32, Bigarray.int32_elt) typedArray
 
-type uint32Array = (int32, Bigarray.int32_elt) typedArray
+type uint32Array = (uint32, Bigarray.int32_elt) typedArray
 
 type float32Array = (float Js.t, Bigarray.float32_elt) typedArray
 
 type float64Array = (float Js.t, Bigarray.float64_elt) typedArray
 
-val kind : ('a, 'b) typedArray t -> ('a, 'b) Bigarray.kind
+type ('bigarray, 'typed_array, 'elt) correspondence =
+  | Char : (char, int, Bigarray.int8_unsigned_elt) correspondence
+  | Int8_signed : (int, int, Bigarray.int8_signed_elt) correspondence
+  | Int8_unsigned : (int, int, Bigarray.int8_unsigned_elt) correspondence
+  | Int16_signed : (int, int, Bigarray.int16_signed_elt) correspondence
+  | Int16_unsigned : (int, int, Bigarray.int16_unsigned_elt) correspondence
+  | Int32_signed : (Int32.t, int32, Bigarray.int32_elt) correspondence
+  | Int32_unsigned : (Int32.t, uint32, Bigarray.int32_elt) correspondence
+  | Float32 : (float, float Js.t, Bigarray.float32_elt) correspondence
+  | Float64 : (float, float Js.t, Bigarray.float64_elt) correspondence
+
+val kind :
+     ('bigarray, 'typed_array, 'elt) correspondence
+  -> ('typed_array, 'elt) typedArray t
+  -> ('bigarray, 'elt) Bigarray.kind
 
 val from_genarray :
-  ('a, 'b, Bigarray.c_layout) Bigarray.Genarray.t -> ('a, 'b) typedArray t
+     ('bigarray, 'typed_array, 'elt) correspondence
+  -> ('bigarray, 'elt, Bigarray.c_layout) Bigarray.Genarray.t
+  -> ('typed_array, 'elt) typedArray t
 
-val to_genarray : ('a, 'b) typedArray t -> ('a, 'b, Bigarray.c_layout) Bigarray.Genarray.t
+val to_genarray :
+     ('bigarray, 'typed_array, 'elt) correspondence
+  -> ('typed_array, 'elt) typedArray t
+  -> ('bigarray, 'elt, Bigarray.c_layout) Bigarray.Genarray.t
 
 val int8Array : (int -> int8Array t) constr
 
