@@ -679,16 +679,77 @@
                      (br $loop))))))
       (local.get $offset))
 
+   (func $caml_ba_offset'
+      (param $b (ref $bigarray)) (param $index (ref $block)) (result i32)
+      (local $dim (ref $int_array))
+      (local $num_dims i32) (local $idx i32)
+      (local $offset i32) (local $i i32) (local $l i32)
+      (local.set $dim (struct.get $bigarray $ba_dim (local.get $b)))
+      (if (struct.get $bigarray $ba_layout (local.get $b))
+         (then
+            (local.set $i
+               (i32.sub (struct.get $bigarray $ba_num_dims (local.get $b))
+                  (i32.const 1)))
+            (loop $loop
+               (if (i32.ge_s (local.get $i) (i32.const 0))
+                  (then
+                     (local.set $idx
+                        (i32.sub
+                           (i31.get_s
+                              (ref.cast i31
+                                 (array.get $block (local.get $index)
+                                    (i32.add (local.get $i) (i32.const 1)))))
+                           (i32.const 1)))
+                     (local.set $l
+                        (array.get $int_array (local.get $dim) (local.get $i)))
+                     (if (i32.ge_u (local.get $idx) (local.get $l))
+                        (then
+                           (call $caml_bound_error)))
+                     (local.set $offset
+                        (i32.add (i32.mul (local.get $offset) (local.get $l))
+                           (local.get $idx)))
+                     (local.set $i (i32.sub (local.get $i) (i32.const 1)))
+                     (br $loop)))))
+         (else
+            (local.set $num_dims
+               (struct.get $bigarray $ba_num_dims (local.get $b)))
+            (loop $loop
+               (if (i32.lt_s (local.get $i) (local.get $num_dims))
+                  (then
+                     (local.set $idx
+                        (i31.get_s
+                           (ref.cast i31
+                              (array.get $block (local.get $index)
+                                 (i32.add (local.get $i) (i32.const 1))))))
+                     (local.set $l
+                        (array.get $int_array (local.get $dim) (local.get $i)))
+                     (if (i32.ge_u (local.get $idx) (local.get $l))
+                        (then
+                           (call $caml_bound_error)))
+                     (local.set $offset
+                        (i32.add (i32.mul (local.get $offset) (local.get $l))
+                           (local.get $idx)))
+                     (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                     (br $loop))))))
+      (local.get $offset))
+
    (func (export "caml_ba_get_generic")
-      (param (ref eq) (ref eq)) (result (ref eq))
-      ;; ZZZ
-      (call $log_js (string.const "caml_ba_get_generic"))
-      (i31.new (i32.const 0)))
+      (param $vba (ref eq)) (param $index (ref eq)) (result (ref eq))
+      (local $ba (ref $bigarray))
+      (local.set $ba (ref.cast $bigarray (local.get $vba)))
+      (return_call $caml_ba_get_at_offset (local.get $ba)
+         (call $caml_ba_offset' (local.get $ba)
+            (ref.cast $block (local.get $index)))))
 
    (func (export "caml_ba_set_generic")
-      (param (ref eq) (ref eq) (ref eq)) (result (ref eq))
-      ;; ZZZ
-      (call $log_js (string.const "caml_ba_set_generic"))
+      (param $vba (ref eq)) (param $index (ref eq)) (param $v (ref eq))
+      (result (ref eq))
+      (local $ba (ref $bigarray))
+      (local.set $ba (ref.cast $bigarray (local.get $vba)))
+      (call $caml_ba_set_at_offset (local.get $ba)
+         (call $caml_ba_offset' (local.get $ba)
+            (ref.cast $block (local.get $index)))
+         (local.get $v))
       (i31.new (i32.const 0)))
 
    (data $too_many_indices "Bigarray.slice: too many indices")
