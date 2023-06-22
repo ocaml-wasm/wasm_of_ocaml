@@ -95,6 +95,8 @@
          ta_set_ui8:(a,i,v)=>a[i]=v,
          ta_fill:(a,v)=>a.fill(v),
          ta_blit:(s,d)=>d.set(s),
+         ta_subarray:(a,i,j)=>a.subarray(i,j),
+         ta_set:(a,b,i)=>a.set(b,i),
          ta_new:(len)=>new Uint8Array(len),
          ta_copy:(ta,t,s,n)=>ta.copyWithin(t,s,n),
          wrap_callback:(f)=>function (){
