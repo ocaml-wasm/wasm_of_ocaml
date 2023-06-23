@@ -46,6 +46,7 @@
       (func $ta_subarray
          (param (ref extern)) (param i32) (param i32) (result (ref extern))))
    (import "fail" "caml_bound_error" (func $caml_bound_error))
+   (import "fail" "caml_raise_out_of_memory" (func $caml_raise_out_of_memory))
    (import "fail" "caml_invalid_argument"
       (func $caml_invalid_argument (param (ref eq))))
    (import "jslib" "wrap" (func $wrap (param anyref) (result (ref eq))))
@@ -108,21 +109,24 @@
       (i32.const 1))
 
    (func $caml_ba_get_size (param $dim (ref $int_array)) (result i32)
-      (local $i i32) (local $n i32) (local $sz i32)
+      (local $i i32) (local $n i32) (local $sz i64)
       (local.set $n (array.len (local.get $dim)))
       (local.set $i (i32.const 0))
-      (local.set $sz (i32.const 1))
+      (local.set $sz (i64.const 1))
       (loop $loop
          (if (i32.lt_u (local.get $i) (local.get $n))
             (then
-               ;; ZZZ Check for overflow
                (local.set $sz
-                   (i32.mul (local.get $sz)
-                      (array.get $int_array
-                         (local.get $dim) (local.get $i))))
+                   (i64.mul (local.get $sz)
+                      (i64.extend_i32_s
+                         (array.get $int_array
+                            (local.get $dim) (local.get $i)))))
+               (if (i64.ne (local.get $sz)
+                      (i64.extend_i32_s (i32.wrap_i64 (local.get $sz))))
+                  (then (call $caml_raise_out_of_memory)))
                (local.set $i (i32.add (local.get $i) (i32.const 1)))
                (br $loop))))
-      (local.get $sz))
+      (i32.wrap_i64 (local.get $sz)))
 
   (func $caml_ba_size_per_element (param $kind i32) (result i32)
      (select (i32.const 2) (i32.const 1)
@@ -132,10 +136,14 @@
 
   (func $caml_ba_create_buffer
      (param $kind i32) (param $sz i32) (result (ref extern))
-     (return_call $ta_create (local.get $kind)
-        ;; ZZZ Check for overflow
-        (i32.mul (local.get $sz)
-           (call $caml_ba_size_per_element (local.get $kind)))))
+     (local $l i64)
+     (local.set $l
+        (i64.mul (i64.extend_i32_s (local.get $sz))
+           (i64.extend_i32_s
+              (call $caml_ba_size_per_element (local.get $kind)))))
+     (if (i64.ne (local.get $l) (i64.extend_i32_s (i32.wrap_i64 (local.get $l))))
+        (then (call $caml_raise_out_of_memory)))
+     (return_call $ta_create (local.get $kind) (i32.wrap_i64 (local.get $l))))
 
    (global $CAML_BA_MAX_NUM_DIMS i32 (i32.const 16))
 
@@ -988,7 +996,7 @@
    (func (export "caml_ba_reshape")
       (param $vb (ref eq)) (param $vd (ref eq)) (result (ref eq))
       (local $vdim (ref $block))
-      (local $num_dims i32) (local $num_elts i32) (local $i i32) (local $d i32)
+      (local $num_dims i32) (local $num_elts i64) (local $i i32) (local $d i32)
       (local $b (ref $bigarray))
       (local $dim (ref $int_array))
       (local.set $vdim (ref.cast $block (local.get $vd)))
@@ -999,7 +1007,7 @@
             (call $caml_invalid_argument
                (array.new_data $string $bad_number_dim
                   (i32.const 0) (i32.const 42)))))
-      (local.set $num_elts (i32.const 1))
+      (local.set $num_elts (i64.const 1))
       (local.set $dim (array.new $int_array (i32.const 0) (local.get $num_dims)))
       (loop $loop
          (if (i32.lt_u (local.get $i) (local.get $num_dims))
@@ -1016,12 +1024,15 @@
                            (i32.const 0) (i32.const 36)))))
                (array.set $int_array (local.get $dim) (local.get $i)
                   (local.get $d))
-               ;; ZZZ Overflow
                (local.set $num_elts
-                  (i32.mul (local.get $num_elts) (local.get $d)))
+                  (i64.mul (local.get $num_elts)
+                     (i64.extend_i32_s (local.get $d))))
+               (if (i64.ne (local.get $num_elts)
+                      (i64.extend_i32_s (i32.wrap_i64 (local.get $num_elts))))
+                  (then (call $caml_raise_out_of_memory)))
                (local.set $i (i32.add (local.get $i) (i32.const 1)))
                (br $loop))))
-      (if (i32.ne (local.get $num_elts)
+      (if (i32.ne (i32.wrap_i64 (local.get $num_elts))
              (call $caml_ba_get_size
                 (struct.get $bigarray $ba_dim (local.get $b))))
          (then
