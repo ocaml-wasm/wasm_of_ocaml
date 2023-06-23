@@ -12,19 +12,20 @@
    (func $caml_make_vect (export "caml_make_vect")
       (param $n (ref eq)) (param $v (ref eq)) (result (ref eq))
       (local $sz i32) (local $b (ref $block))
-      (local.set $sz (i32.add (i31.get_s (ref.cast i31 (local.get $n)))
-                              (i32.const 1)))
-      (if (i32.lt_s (local.get $sz) (i32.const 1))
+      (local.set $sz (i31.get_s (ref.cast i31 (local.get $n))))
+      (if (i32.lt_s (local.get $sz) (i32.const 0))
          (then
             (call $caml_invalid_argument
                (array.new_data $string $Array_make
                                (i32.const 0) (i32.const 10)))))
-      (local.set $b (array.new $block (local.get $v) (local.get $sz)))
+      (local.set $b
+         (array.new $block (local.get $v)
+            (i32.add (local.get $sz) (i32.const 1))))
       ;; ZZZ float array
       (array.set $block (local.get $b) (i32.const 0)
          (i31.new
             (select (global.get $double_array_tag) (i32.const 0)
-               (ref.test $float (local.get $v)))))
+               (i32.and (local.get $sz) (ref.test $float (local.get $v))))))
       (local.get $b))
 
    (export "caml_make_float_vect" (func $caml_floatarray_create))
