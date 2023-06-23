@@ -925,21 +925,82 @@
       (param $vba (ref eq)) (param $v (ref eq)) (result (ref eq))
       (local $ba (ref $bigarray))
       (local $data (ref extern))
+      (local $l i64)
+      (local $i i32) (local $len i32) (local $i1 i32) (local $i2 i32)
+      (local $f1 f64) (local $f2 f64)
+      (local $b (ref $block))
       (local.set $ba (ref.cast $bigarray (local.get $vba)))
       (local.set $data (struct.get $bigarray $ba_data (local.get $ba)))
       (block $float
        (block $int
         (block $int32
          (block $int64
-          (block $complex
-           (br_table $float $float $int $int $int $int $int32 $int64 $int
-              $int32 $complex $complex $int
-              (struct.get $bigarray $ba_kind (local.get $ba))))
-           ;; complex
-           ;; ZZZ
+          (block $complex32
+           (block $complex64
+            (br_table $float $float $int $int $int $int $int32 $int64 $int
+               $int32 $complex32 $complex64 $int
+               (struct.get $bigarray $ba_kind (local.get $ba))))
+            ;; complex64
+            (local.set $len (call $ta_length (local.get $data)))
+            (local.set $b (ref.cast $block (local.get $v)))
+            (local.set $f1
+               (struct.get $float 0
+                  (ref.cast $float
+                     (array.get $block (local.get $b) (i32.const 1)))))
+            (local.set $f2
+               (struct.get $float 0
+                  (ref.cast $float
+                     (array.get $block (local.get $b) (i32.const 2)))))
+            (loop $loop
+               (if (i32.lt_u (local.get $i) (local.get $len))
+                  (then
+                     (call $ta_set_f64 (local.get $data) (local.get $i)
+                        (local.get $f1))
+                     (call $ta_set_f64 (local.get $data)
+                        (i32.add (local.get $i) (i32.const 1))
+                        (local.get $f2))
+                     (local.set $i (i32.add (local.get $i) (i32.const 2)))
+                     (br $loop))))
+            (return (i31.new (i32.const 0))))
+           ;; complex32
+           (local.set $len (call $ta_length (local.get $data)))
+           (local.set $b (ref.cast $block (local.get $v)))
+           (local.set $f1
+              (struct.get $float 0
+                 (ref.cast $float
+                    (array.get $block (local.get $b) (i32.const 1)))))
+           (local.set $f2
+              (struct.get $float 0
+                 (ref.cast $float
+                    (array.get $block (local.get $b) (i32.const 2)))))
+           (loop $loop
+              (if (i32.lt_u (local.get $i) (local.get $len))
+                 (then
+                    (call $ta_set_f32 (local.get $data) (local.get $i)
+                       (local.get $f1))
+                    (call $ta_set_f32 (local.get $data)
+                       (i32.add (local.get $i) (i32.const 1))
+                       (local.get $f2))
+                    (local.set $i (i32.add (local.get $i) (i32.const 2)))
+                    (br $loop))))
            (return (i31.new (i32.const 0))))
           ;; int64
-          ;; ZZZ
+          (local.set $len (call $ta_length (local.get $data)))
+          (local.set $l
+             (struct.get $int64 1 (ref.cast $int64 (local.get $v))))
+          (local.set $i1 (i32.wrap_i64 (local.get $l)))
+          (local.set $i2
+             (i32.wrap_i64 (i64.shr_u (local.get $l) (i64.const 32))))
+          (loop $loop
+             (if (i32.lt_u (local.get $i) (local.get $len))
+                (then
+                   (call $ta_set_i32 (local.get $data) (local.get $i)
+                      (local.get $i1))
+                   (call $ta_set_i32 (local.get $data)
+                      (i32.add (local.get $i) (i32.const 1))
+                      (local.get $i2))
+                   (local.set $i (i32.add (local.get $i) (i32.const 2)))
+                   (br $loop))))
           (return (i31.new (i32.const 0))))
          ;; int32
          (call $ta_fill_int (local.get $data)
