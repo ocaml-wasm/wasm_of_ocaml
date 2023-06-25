@@ -59,6 +59,14 @@
       (func $caml_copy_int64 (param i64) (result (ref eq))))
    (import "obj" "double_array_tag" (global $double_array_tag i32))
    (import "compare" "unordered" (global $unordered i32))
+   (import "hash" "caml_hash_mix_int"
+      (func $caml_hash_mix_int (param i32) (param i32) (result i32)))
+   (import "hash" "caml_hash_mix_int64"
+      (func $caml_hash_mix_int64 (param i32) (param i64) (result i32)))
+   (import "hash" "caml_hash_mix_float"
+      (func $caml_hash_mix_float (param i32) (param f64) (result i32)))
+   (import "hash" "caml_hash_mix_float32"
+      (func $caml_hash_mix_float32 (param i32) (param f32) (result i32)))
 
    (type $block (array (mut (ref eq))))
    (type $string (array (mut i8)))
@@ -104,9 +112,220 @@
             (field $ba_layout i8)))) ;; layout
 
    (func $bigarray_hash (param (ref eq)) (result i32)
-      ;; ZZZ
-      (call $log_js (string.const "bigarray_hash"))
-      (i32.const 1))
+      (local $b (ref $bigarray))
+      (local $h i32) (local $len i32) (local $i i32) (local $w i32)
+      (local $data (ref extern))
+      (local.set $b (ref.cast $bigarray (local.get 0)))
+      (local.set $data (struct.get $bigarray $ba_data (local.get $b)))
+      (local.set $len (call $ta_length (local.get $data)))
+      (block $float32
+       (block $float64
+        (block $int8
+         (block $uint8
+          (block $int16
+           (block $uint16
+            (block $int32
+             (block $int64
+              (br_table $float32 $float64 $int8 $uint8 $int16 $uint16
+                        $int32 $int64 $int32 $int32
+                        $float32 $float64 $uint8
+                 (struct.get $bigarray $ba_kind (local.get $b))))
+             ;; int64
+             (if (i32.gt_u (local.get $len) (i32.const 32))
+                (then (local.set $len (i32.const 32))))
+             (loop $loop
+                (if (i32.lt_u (local.get $i) (local.get $len))
+                   (then
+                      (local.set $h
+                         (call $caml_hash_mix_int64 (local.get $h)
+                            (i64.or
+                               (i64.extend_i32_u
+                                  (call $ta_get_i32 (local.get $data)
+                                     (local.get $i)))
+                               (i64.shl
+                                  (i64.extend_i32_u
+                                     (call $ta_get_i32 (local.get $data)
+                                        (i32.add (local.get $i) (i32.const 1))))
+                                  (i64.const 32)))))
+                      (local.set $i (i32.add (local.get $i) (i32.const 2)))
+                      (br $loop))))
+             (return (local.get $h)))
+            ;; int32
+            (if (i32.gt_u (local.get $len) (i32.const 64))
+               (then (local.set $len (i32.const 64))))
+            (loop $loop
+               (if (i32.lt_u (local.get $i) (local.get $len))
+                  (then
+                     (local.set $h
+                        (call $caml_hash_mix_int (local.get $h)
+                           (call $ta_get_i32 (local.get $data) (local.get $i))))
+                     (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                     (br $loop))))
+            (return (local.get $h)))
+           ;; uint16
+           (if (i32.gt_u (local.get $len) (i32.const 128))
+              (then (local.set $len (i32.const 182))))
+           (loop $loop
+              (if (i32.le_u (i32.add (local.get $i) (i32.const 2))
+                     (local.get $len))
+                 (then
+                    (local.set $h
+                       (call $caml_hash_mix_int
+                          (local.get $h)
+                          (i32.or
+                             (call $ta_get_ui16 (local.get $data) (local.get $i))
+                             (i32.shl (call $ta_get_ui16 (local.get $data)
+                                         (i32.add (local.get $i) (i32.const 1)))
+                                      (i32.const 16)))))
+                    (local.set $i (i32.add (local.get $i) (i32.const 2)))
+                    (br $loop))))
+           (if (i32.and (local.get $len) (i32.const 1))
+              (then
+                 (local.set $h
+                    (call $caml_hash_mix_int (local.get $h)
+                       (call $ta_get_ui16 (local.get $data) (local.get $i))))))
+           (return (local.get $h)))
+          ;; int16
+          (if (i32.gt_u (local.get $len) (i32.const 128))
+             (then (local.set $len (i32.const 182))))
+          (loop $loop
+             (if (i32.le_u (i32.add (local.get $i) (i32.const 2))
+                    (local.get $len))
+                (then
+                   (local.set $h
+                      (call $caml_hash_mix_int
+                         (local.get $h)
+                         (i32.or
+                            (call $ta_get_i16 (local.get $data) (local.get $i))
+                            (i32.shl (call $ta_get_i16 (local.get $data)
+                                        (i32.add (local.get $i) (i32.const 1)))
+                                     (i32.const 16)))))
+                   (local.set $i (i32.add (local.get $i) (i32.const 2)))
+                   (br $loop))))
+          (if (i32.and (local.get $len) (i32.const 1))
+             (then
+                (local.set $h
+                   (call $caml_hash_mix_int (local.get $h)
+                      (call $ta_get_i16 (local.get $data) (local.get $i))))))
+          (return (local.get $h)))
+         ;; uint8
+         (if (i32.gt_u (local.get $len) (i32.const 256))
+            (then (local.set $len (i32.const 256))))
+         (loop $loop
+            (if (i32.le_u (i32.add (local.get $i) (i32.const 4))
+                   (local.get $len))
+               (then
+                  (local.set $h
+                     (call $caml_hash_mix_int
+                        (local.get $h)
+                        (i32.or
+                           (i32.or
+                              (call $ta_get_ui8 (local.get $data) (local.get $i))
+                              (i32.shl (call $ta_get_ui8 (local.get $data)
+                                          (i32.add (local.get $i) (i32.const 1)))
+                                       (i32.const 8)))
+                           (i32.or
+                              (i32.shl (call $ta_get_ui8 (local.get $data)
+                                          (i32.add (local.get $i) (i32.const 2)))
+                                       (i32.const 16))
+                              (i32.shl (call $ta_get_ui8 (local.get $data)
+                                          (i32.add (local.get $i) (i32.const 3)))
+                                       (i32.const 24))))))
+                  (local.set $i (i32.add (local.get $i) (i32.const 4)))
+                  (br $loop))))
+         (local.set $w (i32.const 0))
+         (block $0_bytes
+            (block $1_byte
+               (block $2_bytes
+                  (block $3_bytes
+                     (br_table $0_bytes $1_byte $2_bytes $3_bytes
+                        (i32.and (local.get $len) (i32.const 3))))
+                  (local.set $w
+                     (i32.shl (call $ta_get_ui8 (local.get $data)
+                                 (i32.add (local.get $i) (i32.const 2)))
+                              (i32.const 16))))
+               (local.set $w
+                  (i32.or (local.get $w)
+                     (i32.shl (call $ta_get_ui8 (local.get $data)
+                                 (i32.add (local.get $i) (i32.const 1)))
+                              (i32.const 8)))))
+            (local.set $w
+               (i32.or (local.get $w)
+                  (call $ta_get_ui8 (local.get $data) (local.get $i))))
+            (local.set $h
+               (call $caml_hash_mix_int (local.get $h) (local.get $w))))
+         (return (local.get $h)))
+        ;; int8
+        (if (i32.gt_u (local.get $len) (i32.const 256))
+           (then (local.set $len (i32.const 256))))
+        (loop $loop
+           (if (i32.le_u (i32.add (local.get $i) (i32.const 4)) (local.get $len))
+              (then
+                 (local.set $h
+                    (call $caml_hash_mix_int
+                       (local.get $h)
+                       (i32.or
+                          (i32.or
+                             (call $ta_get_i8 (local.get $data) (local.get $i))
+                             (i32.shl (call $ta_get_i8 (local.get $data)
+                                         (i32.add (local.get $i) (i32.const 1)))
+                                      (i32.const 8)))
+                          (i32.or
+                             (i32.shl (call $ta_get_i8 (local.get $data)
+                                         (i32.add (local.get $i) (i32.const 2)))
+                                      (i32.const 16))
+                             (i32.shl (call $ta_get_i8 (local.get $data)
+                                         (i32.add (local.get $i) (i32.const 3)))
+                                      (i32.const 24))))))
+                 (local.set $i (i32.add (local.get $i) (i32.const 4)))
+                 (br $loop))))
+        (local.set $w (i32.const 0))
+        (block $0_bytes
+           (block $1_byte
+              (block $2_bytes
+                 (block $3_bytes
+                    (br_table $0_bytes $1_byte $2_bytes $3_bytes
+                       (i32.and (local.get $len) (i32.const 3))))
+                 (local.set $w
+                    (i32.shl (call $ta_get_i8 (local.get $data)
+                                (i32.add (local.get $i) (i32.const 2)))
+                             (i32.const 16))))
+              (local.set $w
+                 (i32.or (local.get $w)
+                    (i32.shl (call $ta_get_i8 (local.get $data)
+                                (i32.add (local.get $i) (i32.const 1)))
+                             (i32.const 8)))))
+           (local.set $w
+              (i32.or (local.get $w)
+                 (call $ta_get_i8 (local.get $data) (local.get $i))))
+           (local.set $h
+              (call $caml_hash_mix_int (local.get $h) (local.get $w))))
+        (return (local.get $h)))
+       ;; float32
+       (if (i32.gt_u (local.get $len) (i32.const 64))
+          (then (local.set $len (i32.const 64))))
+       (loop $loop
+          (if (i32.lt_u (local.get $i) (local.get $len))
+             (then
+                (local.set $h
+                   (call $caml_hash_mix_float32 (local.get $h)
+                      (f32.demote_f64
+                         (call $ta_get_f32 (local.get $data) (local.get $i)))))
+                (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                (br $loop))))
+       (return (local.get $h)))
+      ;; float64
+      (if (i32.gt_u (local.get $len) (i32.const 32))
+         (then (local.set $len (i32.const 32))))
+      (loop $loop
+         (if (i32.lt_u (local.get $i) (local.get $len))
+            (then
+               (local.set $h
+                  (call $caml_hash_mix_float (local.get $h)
+                     (call $ta_get_f64 (local.get $data) (local.get $i))))
+               (local.set $i (i32.add (local.get $i) (i32.const 1)))
+               (br $loop))))
+      (return (local.get $h)))
 
    (func $caml_ba_get_size (param $dim (ref $int_array)) (result i32)
       (local $i i32) (local $n i32) (local $sz i64)
