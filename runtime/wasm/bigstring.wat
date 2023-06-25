@@ -18,6 +18,10 @@
          (param (ref extern)) (param i32) (param i32) (result (ref extern))))
    (import "bindings" "ta_set"
       (func $ta_set (param (ref extern)) (param (ref extern)) (param i32)))
+   (import "bindings" "ta_len"
+      (func $ta_len (param (ref extern)) (result i32)))
+   (import "hash" "caml_hash_mix_int"
+      (func $caml_hash_mix_int (param i32) (param i32) (result i32)))
 
    (type $string (array (mut i8)))
    (type $value->value->int->int
@@ -45,10 +49,55 @@
             (field $ba_layout i8)))) ;; layout
 
    (func (export "caml_hash_mix_bigstring")
-      (param i32) (param (ref $bigarray)) (result i32)
-      ;; ZZZ
-      (call $log_js (string.const "caml_hash_mix_bigstring"))
-      (i32.const 0))
+      (param $h i32) (param $vb (ref $bigarray)) (result i32)
+      (local $b (ref $bigarray))
+      (local $data (ref extern))
+      (local $len i32) (local $i i32) (local $w i32)
+      (local.set $b (ref.cast $bigarray (local.get $vb)))
+      (local.set $data (struct.get $bigarray $ba_data (local.get $b)))
+      (local.set $len (call $ta_len (local.get $data)))
+      (loop $loop
+         (if (i32.le_u (i32.add (local.get $i) (i32.const 4)) (local.get $len))
+            (then
+               (local.set $h
+                  (call $caml_hash_mix_int
+                     (local.get $h)
+                     (i32.or
+                        (i32.or
+                           (call $ta_get_ui8 (local.get $data) (local.get $i))
+                           (i32.shl (call $ta_get_ui8 (local.get $data)
+                                       (i32.add (local.get $i) (i32.const 1)))
+                                    (i32.const 8)))
+                        (i32.or
+                           (i32.shl (call $ta_get_ui8 (local.get $data)
+                                       (i32.add (local.get $i) (i32.const 2)))
+                                    (i32.const 16))
+                           (i32.shl (call $ta_get_ui8 (local.get $data)
+                                       (i32.add (local.get $i) (i32.const 3)))
+                                    (i32.const 24))))))
+               (local.set $i (i32.add (local.get $i) (i32.const 4)))
+               (br $loop))))
+      (local.set $w (i32.const 0))
+      (block $0_bytes
+         (block $1_byte
+            (block $2_bytes
+               (block $3_bytes
+                  (br_table $0_bytes $1_byte $2_bytes $3_bytes
+                     (i32.and (local.get $len) (i32.const 3))))
+               (local.set $w
+                  (i32.shl (call $ta_get_ui8 (local.get $data)
+                              (i32.add (local.get $i) (i32.const 2)))
+                           (i32.const 16))))
+            (local.set $w
+               (i32.or (local.get $w)
+                  (i32.shl (call $ta_get_ui8 (local.get $data)
+                              (i32.add (local.get $i) (i32.const 1)))
+                           (i32.const 8)))))
+         (local.set $w
+            (i32.or (local.get $w)
+               (call $ta_get_ui8 (local.get $data) (local.get $i))))
+         (local.set $h (call $caml_hash_mix_int (local.get $h) (local.get $w))))
+      (i32.xor (local.get $h) (local.get $len)))
 
    (func (export "bigstring_to_array_buffer")
       (param $bs (ref eq)) (result (ref eq))
