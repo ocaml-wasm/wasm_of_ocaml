@@ -253,17 +253,11 @@ TODO:
 Implement runtime code
 - file system access
 - marshalling
-- lexing/parsing
 - weak pointer api
   ==> Use Javascript weak pointer implementation
-- bigarrays
 ...
 
-Test suite
-
 Separate compilation (use wasm-merge for linking?)
-
-Dune support
 
 Optimizations
 - more efficient JavaScript bindings
@@ -276,37 +270,29 @@ Optimizations
 
 =================
 
-* array
-* backtrace (stubs)
-  bigarray
-  bigstring
-  compare (mostly done)
-* domain (stubs)
+Remaining runtime code:
+- printing errors (needs basic implementation of stderr on browsers)
+- weak / ephemeron
+- marshaling
+- filesystem / IOs
+- dynlink / toplevel / separate compilation
+- jslib_js_of_ocaml
+
+Less important:
+- graphics
+- nat
+
+Files:
   dynlink
-* effects (with limitations)
-* format
   fs
-* gc (stubs)
   graphics
-* hash
-* ieee_754
-* int64
-* int
   io
-* jslib
   jslib_js_of_ocaml
-* lexing
   marshal
   md5 (not channel)
-* mlBytes
   nat
-* obj
-* parsing
-* prng
   runtime_events
   stdlib
-  str
-* sync (stubs)
   sys
   toplevel
   unix (gettimeofday / time / gmtime)
@@ -320,15 +306,8 @@ Optimizations
 
 TODO
 
-- fix: caml_copy_nativeint
-
 - dune support
-  ==> link (wasm_runtime) wat/wast/w
-  -> dir:Path.Build.t
-  -> language:Foreign_language.t
-  -> string list Action_builder.t
-
-val foreign_flags :asm files
+  ==> link (wasm_runtime) wat/wast/wasm files
   ==> wasm_files
   ==> node options ===> (node_flags ...)
 
