@@ -1,7 +1,7 @@
 [
   {
     "name": "root",
-    "reaches": ["init", "exn", "exit", "named_values", "format_exn", "callback","effects"],
+    "reaches": ["init", "exn", "exit", "named_values", "format_exn", "callback","effects", "finalization_new"],
     "root": true
   },
   {
@@ -85,5 +85,14 @@
     "name": "localtime",
     "import": ["bindings", "localtime"],
     "reaches": ["alloc_tm"]
+  },
+  {
+    "name": "ephe_unset_data",
+    "export": "caml_ephe_unset_data"
+  },
+  {
+    "name": "finalization_new",
+    "import": ["bindings", "finalization_new"],
+    "reaches": ["ephe_unset_data"]
   },
 ]

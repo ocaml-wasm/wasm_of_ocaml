@@ -3,59 +3,174 @@
    (import "obj" "abstract_tag" (global $abstract_tag i32))
    (import "fail" "caml_invalid_argument"
       (func $caml_invalid_argument (param $arg (ref eq))))
-
+   (import "bindings" "weak_new"
+      (func $weak_new (param (ref eq)) (result anyref)))
+   (import "bindings" "weak_deref"
+      (func $weak_deref (param anyref) (result eqref)))
+   (import "bindings" "weak_map_new" (func $weak_map_new (result (ref any))))
+   (import "bindings" "weak_map_get"
+      (func $weak_map_get (param (ref any)) (param (ref eq)) (result anyref)))
+   (import "bindings" "weak_map_set"
+      (func $weak_map_set (param (ref any)) (param (ref eq)) (param (ref any))))
+   (import "bindings" "weak_map_delete"
+      (func $weak_map_delete (param (ref any)) (param (ref eq))))
+   (import "jslib" "unwrap" (func $unwrap (param (ref eq)) (result anyref)))
+   (import "jslib" "wrap" (func $wrap (param anyref) (result (ref eq))))
    (type $block (array (mut (ref eq))))
    (type $string (array (mut i8)))
 
-   (func (export "caml_ephe_create")
-      (param (ref eq)) (result (ref eq))
-      ;;ZZZ
-      (call $log_js (string.const "caml_ephe_create"))
-      (array.new $block (i31.new (i32.const 0))
-         (i32.add (i31.get_u (ref.cast i31 (local.get 0))) (i32.const 3))))
+   ;; A weak array is a an abstract value composed of possibly some
+   ;; data and an array of keys.
+   ;; Keys are either caml_ephe_none (unset), a 31-bit integer, or a
+   ;; weak reference.
+   ;; To access the data, we need to traverse a series of weak maps
+   ;; indexed by the keys (omitting integers).
 
-   (func (export "caml_ephe_get_data")
-      (param (ref eq)) (result (ref eq))
-      ;;ZZZ
-      (call $log_js (string.const "caml_ephe_get_data"))
-      (i31.new (i32.const 0)))
-
-   (func (export "caml_ephe_set_data")
-      (param (ref eq) (ref eq)) (result (ref eq))
-      ;;ZZZ
-      (call $log_js (string.const "caml_ephe_set_data"))
-      (i31.new (i32.const 0)))
-
-   (func (export "caml_ephe_get_key")
-      (param (ref eq) (ref eq)) (result (ref eq))
-      ;;ZZZ
-      (call $log_js (string.const "caml_ephe_get_key"))
-      (i31.new (i32.const 0)))
-
-   (func (export "caml_ephe_check_key")
-      (param (ref eq) (ref eq)) (result (ref eq))
-      ;;ZZZ
-      (call $log_js (string.const "caml_ephe_check_key"))
-      (i31.new (i32.const 0)))
-
-   (func (export "caml_ephe_set_key")
-      (param (ref eq) (ref eq) (ref eq)) (result (ref eq))
-      ;;ZZZ
-      (call $log_js (string.const "caml_ephe_set_key"))
-      (i31.new (i32.const 0)))
-
-   (func (export "caml_ephe_unset_key")
-      (param (ref eq) (ref eq)) (result (ref eq))
-      ;;ZZZ
-      (call $log_js (string.const "caml_ephe_unset_key"))
-      (i31.new (i32.const 0)))
+   (global $caml_ephe_data_offset i32 (i32.const 2))
+   (global $caml_ephe_key_offset i32 (i32.const 3))
 
    (global $caml_ephe_none (ref eq)
       (array.new_fixed $block (i31.new (global.get $abstract_tag))))
 
+   (func (export "caml_ephe_get_data")
+      (param $vx (ref eq)) (result (ref eq))
+      (local $x (ref $block))
+      (local $d (ref eq)) (local $v (ref eq))
+      (local $m (ref any))
+      (local $i i32) (local $len i32)
+      (local.set $x (ref.cast $block (local.get $vx)))
+      (local.set $d
+         (array.get $block (local.get $x) (global.get $caml_ephe_data_offset)))
+      (block $no_data
+         (block $released
+            (br_if $no_data
+               (ref.eq (local.get $d) (global.get $caml_ephe_none)))
+            (local.set $i (global.get $caml_ephe_key_offset))
+            (local.set $len (array.len (local.get $x)))
+            (local.set $m (local.get $d))
+            (loop $loop
+               (if (i32.lt_u (local.get $i) (local.get $len))
+                  (then
+                     (local.set $v
+                        (array.get $block (local.get $x) (local.get $i)))
+                     (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                     (br_if $loop
+                        (ref.eq (local.get $v) (global.get $caml_ephe_none)))
+                     (br_if $loop (ref.test i31 (local.get $v)))
+                     (local.set $v
+                        (br_on_null $released
+                           (call $weak_deref (call $unwrap (local.get $v)))))
+                     (local.set $m
+                        (br_on_null $released
+                           (call $weak_map_get (local.get $m) (local.get $v))))
+                     (br $loop))))
+            (return
+              (array.new_fixed $block (i31.new (i32.const 0))
+                 (ref.cast eq (local.get $m)))))
+         (array.set $block (local.get $x) (global.get $caml_ephe_data_offset)
+            (global.get $caml_ephe_none)))
+      (i31.new (i32.const 0)))
+
+   (func (export "caml_ephe_set_data")
+      (param $vx (ref eq)) (param $data (ref eq)) (result (ref eq))
+      (local $x (ref $block))
+      (local.set $x (ref.cast $block (local.get $vx)))
+      ;; ZZZ if no data, build data following keys
+      ;; if some data, traverse the exiting maps
+;;      (array.set $block (local.get $x) (global.get $caml_ephe_data_offset)
+;;         (local.get $data))
+      (i31.new (i32.const 0)))
+
+   (export "caml_weak_get" (func $caml_ephe_get_key))
+   (func $caml_ephe_get_key (export "caml_ephe_get_key")
+      (param $vx (ref eq)) (param $vi (ref eq)) (result (ref eq))
+      (local $x (ref $block))
+      (local $i i32)
+      (local $v (ref eq))
+      (local.set $x (ref.cast $block (local.get $vx)))
+      (local.set $i
+         (i32.add (global.get $caml_ephe_key_offset)
+            (i31.get_s (ref.cast i31 (local.get $vi)))))
+      (local.set $v (array.get $block (local.get $x) (local.get $i)))
+      (block $value
+         (block $no_value
+            (br_if $no_value
+               (ref.eq (local.get $v) (global.get $caml_ephe_none)))
+            (br_if $value (ref.test i31 (local.get $v)))
+            (block $released
+               (local.set $v
+                  (br_on_null $released
+                     (call $weak_deref (call $unwrap (local.get $v)))))
+               (br $value))
+            (array.set $block (local.get $x) (local.get $i)
+               (global.get $caml_ephe_none))
+            (array.set $block (local.get $x) (global.get $caml_ephe_data_offset)
+               (global.get $caml_ephe_none)))
+         (return (i31.new (i32.const 0))))
+      (array.new_fixed $block (i31.new (i32.const 0)) (local.get $v)))
+
+   (export "caml_weak_check" (func $caml_ephe_check_key))
+   (func $caml_ephe_check_key (export "caml_ephe_check_key")
+      (param $vx (ref eq)) (param $vi (ref eq)) (result (ref eq))
+      (local $x (ref $block))
+      (local $i i32)
+      (local $v (ref eq))
+      (local.set $x (ref.cast $block (local.get $vx)))
+      (local.set $i
+        (i32.add (i31.get_s (ref.cast i31 (local.get $vi)))
+           (global.get $caml_ephe_key_offset)))
+      (local.set $v (array.get $block (local.get $x) (local.get $i)))
+      (block $value
+         (block $no_value
+            (br_if $no_value
+               (ref.eq (local.get $v) (global.get $caml_ephe_none)))
+            (br_if $value (ref.test i31 (local.get $v)))
+            (br_if $value
+               (i32.eqz
+                  (ref.is_null
+                     (call $weak_deref (call $unwrap (local.get $v))))))
+            (array.set $block (local.get $x) (local.get $i)
+               (global.get $caml_ephe_none))
+            (array.set $block (local.get $x) (global.get $caml_ephe_data_offset)
+               (global.get $caml_ephe_none)))
+         (return (i31.new (i32.const 0))))
+      (i31.new (i32.const 1)))
+
+   (func $caml_ephe_set_key (export "caml_ephe_set_key")
+      (param $vx (ref eq)) (param $vi (ref eq)) (param $v (ref eq))
+      (result (ref eq))
+      (local $x (ref $block))
+      (local $i i32)
+      (local.set $x (ref.cast $block (local.get $vx)))
+      (local.set $i
+         (i32.add (i31.get_s (ref.cast i31 (local.get $vi)))
+            (global.get $caml_ephe_key_offset)))
+      ;; ZZZ patch weak map
+      (if (ref.test i31 (local.get $v))
+         (then
+            (array.set $block (local.get $x) (local.get $i) (local.get $v)))
+         (else
+            (array.set $block (local.get $x) (local.get $i)
+               (call $wrap (call $weak_new (local.get $v))))))
+      (i31.new (i32.const 0)))
+
+   (func $caml_ephe_unset_key (export "caml_ephe_unset_key")
+      (param $vx (ref eq)) (param $vi (ref eq)) (result (ref eq))
+      (local $x (ref $block))
+      (local $i i32)
+      (local.set $x (ref.cast $block (local.get $vx)))
+      (local.set $i
+         (i32.add (i31.get_s (ref.cast i31 (local.get $vi)))
+            (global.get $caml_ephe_key_offset)))
+      (array.set $block (local.get $x) (local.get $i)
+         (global.get $caml_ephe_none))
+      ;; ZZZ patch weak map
+      (i31.new (i32.const 0)))
+
    (data $Weak_create "Weak.create")
 
-   (func (export "caml_weak_create")
+   (export "caml_weak_create" (func $caml_ephe_create))
+   (func $caml_ephe_create (export "caml_ephe_create")
       (param $vlen (ref eq)) (result (ref eq))
       (local $len i32)
       (local $res (ref $block))
@@ -67,11 +182,9 @@
                   (i32.const 0) (i32.const 11)))))
       (local.set $res
          (array.new $block (global.get $caml_ephe_none)
-            (i32.add (local.get $len) (i32.const 3))))
+            (i32.add (local.get $len) (global.get $caml_ephe_key_offset))))
       (array.set $block (local.get $res) (i32.const 0)
          (i31.new (global.get $abstract_tag)))
-      ;;ZZZ
-      (call $log_js (string.const "caml_weak_create"))
       (local.get $res))
 
    (func (export "caml_weak_blit")
@@ -80,21 +193,26 @@
       (call $log_js (string.const "caml_weak_blit"))
       (i31.new (i32.const 0)))
 
-   (func (export "caml_weak_check")
+   (export "caml_weak_get_copy" (func $caml_ephe_get_key_copy))
+   (func $caml_ephe_get_key_copy (export "caml_ephe_get_key_copy")
       (param (ref eq) (ref eq)) (result (ref eq))
       ;;ZZZ
-      (call $log_js (string.const "caml_weak_check"))
+      (call $log_js (string.const "caml_ephe_get_key_copy"))
       (i31.new (i32.const 0)))
 
-   (func (export "caml_weak_get")
+   (func (export "caml_ephe_get_data_copy")
       (param (ref eq) (ref eq)) (result (ref eq))
       ;;ZZZ
-      (call $log_js (string.const "caml_weak_get"))
+      (call $log_js (string.const "caml_ephe_get_data_copy"))
       (i31.new (i32.const 0)))
 
-   (func (export "caml_weak_get_copy")
-      (param (ref eq) (ref eq)) (result (ref eq))
-      ;;ZZZ
-      (call $log_js (string.const "caml_weak_get_copy"))
-      (i31.new (i32.const 0)))
+   (func (export "caml_weak_set")
+      (param $x (ref eq)) (param $i (ref eq)) (param $v (ref eq))
+      (result (ref eq))
+      (drop (block $unset (result (ref eq))
+         (return_call $caml_ephe_set_key
+            (local.get $x) (local.get $i)
+            (array.get $block
+               (br_on_cast_fail $unset $block (local.get $v)) (i32.const 1)))))
+      (return_call $caml_ephe_unset_key (local.get $x) (local.get $i)))
 )

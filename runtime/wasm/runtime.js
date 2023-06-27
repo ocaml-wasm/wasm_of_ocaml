@@ -10,7 +10,7 @@
     const isNode = globalThis?.process?.versions?.node;
     const code = isNode?loadRelative(src):fetch(src);
 
-    var caml_callback, caml_alloc_tm;
+    var caml_callback, caml_alloc_tm, caml_ephe_unset_data;
 
     let math =
         {cos:Math.cos, sin:Math.sin, tan:Math.tan,
@@ -260,6 +260,12 @@
              ((f, env)=>new Promise((k)=> f(k, env))),
              {suspending:"first"}),
          resume_fiber:(k,v)=>k(v),
+         weak_new:(v)=>new WeakRef(v),
+         weak_deref:(w)=>{var v = w.deref(); return v==undefined?null:v},
+         weak_map_new:()=>new WeakMap,
+         weak_map_get:(m,x)=>m.get(x),
+         weak_map_set:(m,x,v)=>m.set(x,v),
+         weak_map_delete:(m,x)=>m.delete(x),
          log:(x)=>console.log('ZZZZZ', x)
         }
     const imports = {Math:math,bindings:bindings}
@@ -269,6 +275,7 @@
 
     caml_callback = wasmModule.instance.exports.caml_callback;
     caml_alloc_tm = wasmModule.instance.exports.caml_alloc_tm;
+    caml_ephe_unset_data = wasmModule.instance.exports.caml_ephe_unset_data;
 
     start_fiber = wrap_fun(
         {parameters: ['eqref'], results: ['externref']},

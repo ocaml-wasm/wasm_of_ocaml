@@ -415,3 +415,89 @@ I'm wondering what are the gains in adapting js_of_ocaml to use the Flambda2 IR 
 In any case, I think there is a lot we can reuse from this work. I discussed with Pierre Chambart, and we agree on the representation of OCaml values. So I believe we can share a common runtime.
 
 We will also gain some insights into how to compile smoothly OCaml programs to WebAssembly. In particular, we will have the very same issues regarding supporting existing js_of_ocaml bindings with an flambda2 backend.
+
+=======================================
+
+ 50399 ./zarith_stubs_js.v0.15.0/biginteger.js
+ 28943 ./zarith_stubs_js.v0.15.0/runtime.js
+  5806 ./base.v0.16.0/src/runtime.js
+  3306 ./core.v0.16.0/core/src/runtime.js
+  2976 ./bin_prot.v0.16.0/src/runtime.js
+  2958 ./base_bigstring.v0.16.0/src/runtime.js
+  2026 ./string_dict.v0.15.0/src/string_dict.js
+  1518 ./incr_dom.v0.15.1/javascript_profiling/runtime.js
+  1253 ./ppx_expect.v0.16.0/collector/runtime.js
+   889 ./core_kernel.v0.15.0/version_util/src/version_util.js
+   703 ./base.v0.16.0/hash_types/src/runtime.js
+   456 ./timezone.v0.15.0/src/runtime.js
+   435 ./time_now.v0.16.0/src/runtime.js
+   120 ./core.v0.16.0/heap_block/runtime.js
+    77 ./ppx_inline_test.v0.16.0/runner/lib/runtime.js
+
+* core/src/runtime.js
+* core/heap_block/runtime.js
+* core_kernel/version_util/src/version_util.js
+* zarith_stubs_js/src/biginteger.js
+* zarith_stubs_js/src/runtime.js
+* string_dict/src/string_dict.js
+* time_now/src/runtime.js
+* incr_dom/javascript_profiling/src/runtime.js
+* ppx_inline_test/runner/lib/runtime.js
+* ppx_expect/collector/runtime.js
+* bin_prot/src/runtime.js
+* base/hash_types/src/runtime.js
+* base_bigstring/src/runtime.js
+* base/src/runtime.js
+
+cstruct/src/cstruct.js
+bigstringaf/lib/runtime.js
+alcotest/src/alcotest/runtime.js
+
+??? time_stamp_counter, bigstring_marshal_kernel, async_js_test
+
+====================
+
+Explain set-up
+- binaryen (https://github.com/vouillon/binaryen/tree/wasm-merge)
+- chrome dev
+- node nightly
+
+How to compile
+- wasm_of_ocaml --pretty  --opt 3 ~/CAMLBOY/_build/default/bin/web/bench.bc-for-jsoo
+
+Fix opam installation (dependency on Js_of_ocaml)
+
+TODO:
+- linking WebAssembly files
+- dune support
+
+============================
+
+WeakMap
+Registery
+
+register
+==> if already in map, just increment counter
+unregister
+==> decr from map; if reach 0, really unregister
+
+if (m.delete(x)) r.unregister(x);
+
+===
+
+If we /observe/ a release, we must remove the data
+
+v is dead
+replaced by v'
+get data
+data is later released ==> WRONG (all current keys are still live)
+==> we must look at keys before overriding them
+    (dead ==> remove data, else unregister key)
+
+
+observe that a key is dead (from somewhere else)
+set data
+data should not disappear
+
+ephemeron == weakmap
+update key ==> get corresponding map and update it
