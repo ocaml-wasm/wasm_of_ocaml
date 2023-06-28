@@ -10,7 +10,7 @@
     const isNode = globalThis?.process?.versions?.node;
     const code = isNode?loadRelative(src):fetch(src);
 
-    var caml_callback, caml_alloc_tm, caml_ephe_unset_data;
+    var caml_callback, caml_alloc_tm;
 
     let math =
         {cos:Math.cos, sin:Math.sin, tan:Math.tan,
@@ -275,7 +275,6 @@
 
     caml_callback = wasmModule.instance.exports.caml_callback;
     caml_alloc_tm = wasmModule.instance.exports.caml_alloc_tm;
-    caml_ephe_unset_data = wasmModule.instance.exports.caml_ephe_unset_data;
 
     start_fiber = wrap_fun(
         {parameters: ['eqref'], results: ['externref']},
