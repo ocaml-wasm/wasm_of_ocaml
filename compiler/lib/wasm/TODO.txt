@@ -459,8 +459,8 @@ alcotest/src/alcotest/runtime.js
 
 Explain set-up
 - binaryen (https://github.com/vouillon/binaryen/tree/wasm-merge)
-- chrome dev
-- node nightly
+- chrome dev (+ chrome://flags/)
+- node nightly (+flags)
 
 How to compile
 - wasm_of_ocaml --pretty  --opt 3 ~/CAMLBOY/_build/default/bin/web/bench.bc-for-jsoo
@@ -470,34 +470,3 @@ Fix opam installation (dependency on Js_of_ocaml)
 TODO:
 - linking WebAssembly files
 - dune support
-
-============================
-
-WeakMap
-Registery
-
-register
-==> if already in map, just increment counter
-unregister
-==> decr from map; if reach 0, really unregister
-
-if (m.delete(x)) r.unregister(x);
-
-===
-
-If we /observe/ a release, we must remove the data
-
-v is dead
-replaced by v'
-get data
-data is later released ==> WRONG (all current keys are still live)
-==> we must look at keys before overriding them
-    (dead ==> remove data, else unregister key)
-
-
-observe that a key is dead (from somewhere else)
-set data
-data should not disappear
-
-ephemeron == weakmap
-update key ==> get corresponding map and update it
