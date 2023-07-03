@@ -109,6 +109,7 @@ let optimize in_file out_file =
     @ [ (*"--traps-never-happen"
           ;*)
         "-O3"
+      ; "--remove-unused-brs"
       ; (*"--gufa"; "-O3";*)
         Filename.quote in_file
       ; "-o"
