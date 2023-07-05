@@ -21,6 +21,12 @@
       (param (ref eq)) (result (ref eq))
       (return_call $caml_string_of_jsstring (call $wrap (call $getcwd))))
 
+   (func (export "caml_sys_chdir")
+      (param (ref eq)) (result (ref eq))
+      ;; ZZZ
+      (call $log_js (string.const "caml_sys_chdir"))
+      (i31.new (i32.const 0)))
+
    (func (export "caml_sys_mkdir")
       (param (ref eq)) (param (ref eq)) (result (ref eq))
       ;; ZZZ

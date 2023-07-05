@@ -307,8 +307,8 @@ Files:
 TODO
 
 - dune support
-  ==> link (wasm_runtime) wat/wast/wasm files
-  ==> wasm_files
+  ==> link (wasm_runtime) wat/wast/wasm files  (jsoo_runtime)
+  ==> wasm_files (javascript_files)
   ==> node options ===> (node_flags ...)
 
 - we should link-in javascript files that are not divided into fragments
@@ -340,19 +340,6 @@ wasm-opt -g only if --pretty
 
 NativeString ==> string.const
 
-=====================================
-
-wasm_of_ocaml
-- easy to use (do not need to reinstall many libraries specifically for wasm)
-
-flambda-to-wasmgc
-- behaves as a cross-compiler
-- more optimizations: flambda (2) optimizations, unboxing, ...
-
-We can cooperate:
-- common runtime
-- common interface with JavaScript / C
-
 =============================
 
 * incr_mod
@@ -379,45 +366,6 @@ We might be able to make this easier to think about by providing examples of low
 
 ================
 
-Flamba2
-
-Pierre Chambard is probably better positioned than we are to work on a Flamba2 backend.
-JavaScript linking and minimization ?
-What about deadcode elimination ? Is it something that you care about ?
-
-
-Not make any decision that would make it harder to start from flamba2.
-
-
-==> Pierre Chambard is probably the right person to work on this
-==> generating Wasm code from flambda2 not a huge effort
-==> do we need to keep anything from js_of_ocaml? many optimizations
-already dones by flambda2. dead code elimination?
-==> with Pierre, we agree on the representation of OCaml values,
-    so we can share a common runtime
-==> not sure about how to represent unboxed types in Wasm
-    gc friendly => array of values
-    no-gc
-    => struct (but we need the whole struct information,
-               or at least a prefix to access a value)
-
-With wasm_of_ocaml, we implement a large part of what is needed to run OCaml on Webassembly.
-Flambda2 backend
-==> same runtime
-==> same APIs
-==> get some idea from the js_of_ocaml implementation
-    (like how to recover a structered control flow)
-
-
-
-I'm wondering what are the gains in adapting js_of_ocaml to use the Flambda2 IR compared to writing a Wasm backend for the OCaml compiler.
-
-In any case, I think there is a lot we can reuse from this work. I discussed with Pierre Chambart, and we agree on the representation of OCaml values. So I believe we can share a common runtime.
-
-We will also gain some insights into how to compile smoothly OCaml programs to WebAssembly. In particular, we will have the very same issues regarding supporting existing js_of_ocaml bindings with an flambda2 backend.
-
-=======================================
-
  50399 ./zarith_stubs_js.v0.15.0/biginteger.js
  28943 ./zarith_stubs_js.v0.15.0/runtime.js
   5806 ./base.v0.16.0/src/runtime.js
@@ -434,20 +382,19 @@ We will also gain some insights into how to compile smoothly OCaml programs to W
    120 ./core.v0.16.0/heap_block/runtime.js
     77 ./ppx_inline_test.v0.16.0/runner/lib/runtime.js
 
-* core/src/runtime.js
-* core/heap_block/runtime.js
-* core_kernel/version_util/src/version_util.js
-* zarith_stubs_js/src/biginteger.js
-* zarith_stubs_js/src/runtime.js
-* string_dict/src/string_dict.js
-* time_now/src/runtime.js
-* incr_dom/javascript_profiling/src/runtime.js
-* ppx_inline_test/runner/lib/runtime.js
-* ppx_expect/collector/runtime.js
+> * core/src/runtime.js
+> * core/heap_block/runtime.js
+> * time_now/src/runtime.js
+> * incr_dom/javascript_profiling/src/runtime.js
+> * ppx_inline_test/runner/lib/runtime.js
+> * ppx_expect/collector/runtime.js
+> * base/hash_types/src/runtime.js
+> * base/src/runtime.js
 * bin_prot/src/runtime.js
-* base/hash_types/src/runtime.js
 * base_bigstring/src/runtime.js
-* base/src/runtime.js
+* core_kernel/version_util/src/version_util.js
+* string_dict/src/string_dict.js
+* zarith_stubs_js/src/runtime.js
 
 cstruct/src/cstruct.js
 bigstringaf/lib/runtime.js
@@ -457,15 +404,9 @@ alcotest/src/alcotest/runtime.js
 
 ====================
 
-Explain set-up
-- binaryen (https://github.com/vouillon/binaryen/tree/wasm-merge)
-- chrome dev (+ chrome://flags/)
-- node nightly (+flags)
 
 How to compile
 - wasm_of_ocaml --pretty  --opt 3 ~/CAMLBOY/_build/default/bin/web/bench.bc-for-jsoo
-
-Fix opam installation (dependency on Js_of_ocaml)
 
 TODO:
 - linking WebAssembly files

@@ -430,4 +430,14 @@
       ;; ZZZ
       (call $log_js (string.const "caml_ml_channel_size"))
       (i31.new (i32.const 0)))
+
+   (func (export "caml_ml_get_channel_fd") (param (ref eq)) (result i32)
+      (struct.get $channel $fd (ref.cast $channel (local.get 0))))
+
+   (func (export "caml_ml_set_channel_fd") (param (ref eq)) (param i32)
+      (struct.set $channel $fd (ref.cast $channel (local.get 0)) (local.get 1)))
+
+   (func (export "caml_ml_get_channel_offset") (param (ref eq)) (result i64)
+      (array.get $offset_array (global.get $fd_offsets)
+         (struct.get $channel $fd (ref.cast $channel (local.get 0)))))
 )
