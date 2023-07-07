@@ -411,3 +411,26 @@ How to compile
 TODO:
 - linking WebAssembly files
 - dune support
+
+==============
+
+Changes to JavaScript bindings
+
+I have been thinking about generating WebAssembly code. To improve compatibility, I propose the following changes:
+- The OCaml comparison functions no longer coincide with JavaScript comparisons functions, so we should provide explicit bindings for this functions.
+- OCaml floats will no longer be implemented as JavaScript numbers, so explicit conversion functions should be available (and no longer deprecated).
+
+====
+
+int32 (uint32) conversions
+
+====
+
+README:
+- changes compared to js_of_ocaml
+- less options (no separate compilation for now)
+- status
+
+====
+
+Continue adapting Brr (Obj.magic)
