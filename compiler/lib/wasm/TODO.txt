@@ -422,15 +422,16 @@ I have been thinking about generating WebAssembly code. To improve compatibility
 
 ====
 
-int32 (uint32) conversions
-
-====
-
 README:
 - changes compared to js_of_ocaml
 - less options (no separate compilation for now)
 - status
+- point to node-canary
 
-====
+Typed arrays
 
-Continue adapting Brr (Obj.magic)
+Fix caml_wrap_exception
+
+Switch to latest binaryen binaries
+
+Support for additional runtime files
