@@ -104,13 +104,16 @@
       (func $caml_bigstring_blit_ba_to_bytes
          (param (ref eq)) (param (ref eq)) (param (ref eq)) (param (ref eq))
          (param (ref eq)) (result (ref eq))))
+   (import "env" "caml_ba_get_dim"
+      (func $caml_ba_get_dim (param (ref eq)) (result (ref $int_array))))
+
+   (type $int_array (array (mut i32)))
 
    (func (export "caml_check_bound_bigstring")
       (param $bigstring (ref eq)) (param $i (ref eq)) (result (ref eq))
       (if (i32.ge_u (i31.get_s (ref.cast i31 (local.get $i)))
              (array.get $int_array
-                (struct.get $bigarray $ba_dim
-                   (ref.cast $bigarray (local.get $bigstring)))
+                (call $caml_ba_get_dim (local.get $bigstring))
                 (i32.const 0)))
          (then (call $caml_array_bound_error)))
       (i31.new (i32.const 0)))
