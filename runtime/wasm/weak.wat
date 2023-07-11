@@ -82,9 +82,10 @@
          (return
             (array.new_fixed $block (i31.new (i32.const 0))
                (call $caml_obj_dup
-                  (br_on_cast_fail $no_copy $block
+                  (br_on_cast_fail $no_copy (ref eq) (ref $block)
                      (array.get $block
-                        (br_on_cast_fail $no_copy $block (local.get $r))
+                        (br_on_cast_fail $no_copy (ref eq) (ref $block)
+                           (local.get $r))
                         (i32.const 1))))))))
       (local.get $r))
 
@@ -142,7 +143,8 @@
       (drop (block $no_data (result (ref eq))
          (call $caml_ephe_set_data (local.get $x)
             (array.get $block
-               (br_on_cast_fail $no_data $block (local.get $opt_data))
+               (br_on_cast_fail $no_data (ref eq) (ref $block)
+                  (local.get $opt_data))
                (i32.const 1))))))
 
    (export "caml_weak_get" (func $caml_ephe_get_key))
@@ -182,9 +184,10 @@
          (return
             (array.new_fixed $block (i31.new (i32.const 0))
                (call $caml_obj_dup
-                  (br_on_cast_fail $no_copy $block
+                  (br_on_cast_fail $no_copy (ref eq) (ref $block)
                      (array.get $block
-                        (br_on_cast_fail $no_copy $block (local.get $r))
+                        (br_on_cast_fail $no_copy (ref eq) (ref $block)
+                           (local.get $r))
                         (i32.const 1))))))))
       (local.get $r))
 
@@ -308,6 +311,7 @@
          (return_call $caml_ephe_set_key
             (local.get $x) (local.get $i)
             (array.get $block
-               (br_on_cast_fail $unset $block (local.get $v)) (i32.const 1)))))
+               (br_on_cast_fail $unset (ref eq) (ref $block) (local.get $v))
+               (i32.const 1)))))
       (return_call $caml_ephe_unset_key (local.get $x) (local.get $i)))
 )

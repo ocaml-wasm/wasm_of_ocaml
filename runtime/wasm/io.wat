@@ -59,7 +59,7 @@
          (ref.func $custom_hash_id)))
 
    (type $channel
-      (sub $custom_with_id
+      (sub final $custom_with_id
          (struct
             (field (ref $custom_operations))
             (field i64)
@@ -112,7 +112,8 @@
       (local $cons (ref $block))
       (loop $loop
          (drop (block $done (result (ref eq))
-            (local.set $cons (br_on_cast_fail $done $block (local.get $vflags)))
+            (local.set $cons
+               (br_on_cast_fail $done (ref eq) (ref $block) (local.get $vflags)))
             (local.set $flags
                (i32.or (local.get $flags)
                   (array.get_u $open_flags (global.get $sys_open_flags)
