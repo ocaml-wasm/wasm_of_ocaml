@@ -56,7 +56,7 @@
          (call $unwrap (call $caml_jsstring_of_string (local.get 0)))))
 
    (func (export "caml_read_file_content")
-      (param (ref eq) (ref eq)) (result (ref eq))
+      (param (ref eq)) (result (ref eq))
       ;; ZZZ
       (call $log_js (string.const "caml_read_file_content"))
       (i31.new (i32.const 0)))

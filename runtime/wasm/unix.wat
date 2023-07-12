@@ -11,7 +11,8 @@
    (type $block (array (mut (ref eq))))
    (type $float (struct (field f64)))
 
-   (func (export "unix_gettimeofday")
+   (export "caml_unix_gettimeofday" (func $unix_gettimeofday))
+   (func $unix_gettimeofday (export "unix_gettimeofday")
       (param (ref eq)) (result (ref eq))
       (struct.new $float (call $gettimeofday)))
 
@@ -30,16 +31,21 @@
          (i31.new (local.get $yday))
          (i31.new (local.get $isdst))))
 
-   (func (export "unix_gmtime") (param (ref eq)) (result (ref eq))
+   (export "caml_unix_gmtime" (func $unix_gmtime))
+   (func $unix_gmtime (export "unix_gmtime") (param (ref eq)) (result (ref eq))
       (call $gmtime (struct.get $float 0 (ref.cast $float (local.get 0)))))
 
-   (func (export "unix_localtime") (param (ref eq)) (result (ref eq))
+   (export "caml_unix_localtime" (func $unix_localtime))
+   (func $unix_localtime (export "unix_localtime")
+      (param (ref eq)) (result (ref eq))
       (call $localtime (struct.get $float 0 (ref.cast $float (local.get 0)))))
 
-   (func (export "unix_time") (param (ref eq)) (result (ref eq))
+   (export "caml_unix_time" (func $unix_time))
+   (func $unix_time (export "unix_time") (param (ref eq)) (result (ref eq))
       (struct.new $float (f64.floor (call $gettimeofday))))
 
-   (func (export "unix_mktime") (param (ref eq)) (result (ref eq))
+   (export "caml_unix_mktime" (func $unix_mktime))
+   (func $unix_mktime (export "unix_mktime") (param (ref eq)) (result (ref eq))
       (local $tm (ref $block)) (local $t f64)
       (local.set $tm (ref.cast $block (local.get 0)))
       (local.set $t
