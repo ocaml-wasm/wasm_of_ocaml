@@ -5,102 +5,14 @@
    (type $string (array (mut i8)))
    (type $float (struct (field f64)))
 
-   ;;;;;; base_bigstring
-
-   (import "bigarray" "caml_ba_create"
-      (func $caml_ba_create
-         (param (ref eq)) (param (ref eq)) (param (ref eq)) (result (ref eq))))
-
-   (import "bigstring" "caml_bigstring_blit_ba_to_ba"
-      (func $bigstring_blit_stub
-         (param (ref eq)) (param (ref eq)) (param (ref eq)) (param (ref eq))
-         (param (ref eq)) (result (ref eq))))
-
-   (import "bigstring" "caml_bigstring_blit_bytes_to_ba"
-      (func $bigstring_blit_bytes_bigstring_stub
-         (param (ref eq)) (param (ref eq)) (param (ref eq)) (param (ref eq))
-         (param (ref eq)) (result (ref eq))))
-
-   (import "bigstring" "caml_bigstring_blit_string_to_ba"
-      (func $bigstring_blit_string_bigstring_stub
-         (param (ref eq)) (param (ref eq)) (param (ref eq)) (param (ref eq))
-         (param (ref eq)) (result (ref eq))))
-
-   (import "bigstring" "caml_bigstring_blit_ba_to_bytes"
-      (func $bigstring_blit_bigstring_bytes_stub
-         (param (ref eq)) (param (ref eq)) (param (ref eq)) (param (ref eq))
-         (param (ref eq)) (result (ref eq))))
-
-   (import "bigstring" "caml_bigstring_memcmp"
-      (func $bigstring_memcmp_stub
-         (param (ref eq)) (param (ref eq)) (param (ref eq)) (param (ref eq))
-         (param (ref eq)) (result (ref eq))))
-
-   (func (export "bigstring_alloc")
-       (param (ref eq)) (param $size (ref eq)) (result (ref eq))
-       (return_call $caml_ba_create
-          (i31.new (i32.const 12)) (i31.new (i32.const 0))
-          (array.new_fixed $block (i31.new (i32.const 0)) (local.get $size))))
-
-   (func (export "bigstring_is_mmapped_stub") (param (ref eq)) (result (ref eq))
-      (i31.new (i32.const 0)))
-
-   (export "bigstring_blit_stub" (func $bigstring_blit_stub))
-
-   (export "bigstring_blit_bytes_bigstring_stub"
-      (func $bigstring_blit_bytes_bigstring_stub))
-
-   (export "bigstring_blit_bigstring_bytes_stub"
-      (func $bigstring_blit_bigstring_bytes_stub))
-
-   (export "bigstring_blit_string_bigstring_stub"
-      (func $bigstring_blit_string_bigstring_stub))
-
-   (export "bigstring_memcmp_stub"
-      (func $bigstring_memcmp_stub))
-
-   (func (export "bigstring_memset_stub")
-      (param (ref eq)) (param (ref eq)) (param (ref eq)) (param (ref eq))
-      (result (ref eq))
-      ;; ZZZ
-      (call $log_js (string.const "bigstring_memset_stub"))
-      (i31.new (i32.const 0)))
-
-   (func (export "bigstring_memcmp_bytes_stub")
-      (param (ref eq)) (param (ref eq)) (param (ref eq)) (param (ref eq))
-      (param (ref eq)) (result (ref eq))
-      ;; ZZZ
-      (call $log_js (string.const "bigstring_memcmp_bytes_stub"))
-      (i31.new (i32.const 0)))
-
-   (func (export "internalhash_fold_bigstring")
-      (param (ref eq)) (param (ref eq)) (result (ref eq))
-      ;; ZZZ
-      (call $log_js (string.const "internalhash_fold_bigstring"))
-      (i31.new (i32.const 0)))
-
-   (func (export "bigstring_find")
-      (param (ref eq)) (param (ref eq)) (param (ref eq)) (param (ref eq))
-      (result (ref eq))
-      ;; ZZZ
-      (call $log_js (string.const "bigstring_find"))
-      (i31.new (i32.const 0)))
-
-   (func (export "bigstring_memmem_bytecode")
-      (param (ref eq)) (param (ref eq)) (param (ref eq)) (param (ref eq))
-      (param (ref eq)) (result (ref eq))
-      ;; ZZZ
-      (call $log_js (string.const "bigstring_memmem_bytecode"))
-      (i31.new (i32.const 0)))
-
    ;;;;;; bin_prot
 
    (import "fail" "caml_array_bound_error" (func $caml_array_bound_error))
-   (import "bigarray" "caml_bigstring_blit_string_to_ba"
+   (import "bigstring" "caml_bigstring_blit_string_to_ba"
       (func $caml_bigstring_blit_string_to_ba
          (param (ref eq)) (param (ref eq)) (param (ref eq)) (param (ref eq))
          (param (ref eq)) (result (ref eq))))
-   (import "bigarray" "caml_bigstring_blit_ba_to_bytes"
+   (import "bigstring" "caml_bigstring_blit_ba_to_bytes"
       (func $caml_bigstring_blit_ba_to_bytes
          (param (ref eq)) (param (ref eq)) (param (ref eq)) (param (ref eq))
          (param (ref eq)) (result (ref eq))))

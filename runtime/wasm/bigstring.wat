@@ -49,7 +49,7 @@
             (field $ba_layout i8)))) ;; layout
 
    (func (export "caml_hash_mix_bigstring")
-      (param $h i32) (param $vb (ref $bigarray)) (result i32)
+      (param $h i32) (param $vb (ref eq)) (result i32)
       (local $b (ref $bigarray))
       (local $data (ref extern))
       (local $len i32) (local $i i32) (local $w i32)

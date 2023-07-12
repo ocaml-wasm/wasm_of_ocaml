@@ -346,7 +346,7 @@ NativeString ==> string.const
 * base
 * core
   bin_prot
-  base_bigstring
+* base_bigstring
 
 ==============================
 
@@ -391,14 +391,14 @@ We might be able to make this easier to think about by providing examples of low
 > * base/hash_types/src/runtime.js
 > * base/src/runtime.js
 * bin_prot/src/runtime.js
-* base_bigstring/src/runtime.js
-* core_kernel/version_util/src/version_util.js
-* string_dict/src/string_dict.js
+> * base_bigstring/src/runtime.js
+> * core_kernel/version_util/src/version_util.js
+> * string_dict/src/string_dict.js
 * zarith_stubs_js/src/runtime.js
 
 cstruct/src/cstruct.js
 bigstringaf/lib/runtime.js
-alcotest/src/alcotest/runtime.js
+> alcotest/src/alcotest/runtime.js
 
 ??? time_stamp_counter, bigstring_marshal_kernel, async_js_test
 
@@ -426,12 +426,9 @@ README:
 - changes compared to js_of_ocaml
 - less options (no separate compilation for now)
 - status
-- point to node-canary
 
 Typed arrays
 
-Fix caml_wrap_exception
+=============
 
-Switch to latest binaryen binaries
-
-Support for additional runtime files
+LWT / PR raphael proust
