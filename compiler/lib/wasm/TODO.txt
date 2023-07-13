@@ -342,27 +342,7 @@ NativeString ==> string.const
 
 =============================
 
-* incr_mod
-* base
-* core
-  bin_prot
-* base_bigstring
-
-==============================
-
 marshaling: use JavaScript maps
-
-========================================
-
-Ty:
-Making libraries that depend on C stubs work in js_of_ocaml is already a lot of work.  If we now need to write wasm bindings, it'll take years before enough of janestreet's codebase is converted to be useful
-
-Ron:
-- But the "drop-in-replacement" argument is strongest if users can continue to use their existing js-of-ocaml bindings. Ty asked about that elsewhere, but I don't see a response. I think this is a big deal for us.
-
-This seems like an important point. @jerome@tarides.com , do you have more thoughts about the migration story for folk like us who are heavy users of jsoo, and who don't use Brr at all, and only make minor use of Gen_js_api?
-
-We might be able to make this easier to think about by providing examples of low-level code that we'd like to make sure works seamlessly.
 
 ================
 
