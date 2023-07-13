@@ -1,5 +1,4 @@
 (module
-   (import "bindings" "log" (func $log_js (param anyref)))
    (import "obj" "abstract_tag" (global $abstract_tag i32))
    (import "obj" "caml_obj_dup"
       (func $caml_obj_dup (param (ref eq)) (result (ref eq))))

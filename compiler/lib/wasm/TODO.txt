@@ -346,44 +346,13 @@ marshaling: use JavaScript maps
 
 ================
 
- 50399 ./zarith_stubs_js.v0.15.0/biginteger.js
- 28943 ./zarith_stubs_js.v0.15.0/runtime.js
-  5806 ./base.v0.16.0/src/runtime.js
-  3306 ./core.v0.16.0/core/src/runtime.js
-  2976 ./bin_prot.v0.16.0/src/runtime.js
-  2958 ./base_bigstring.v0.16.0/src/runtime.js
-  2026 ./string_dict.v0.15.0/src/string_dict.js
-  1518 ./incr_dom.v0.15.1/javascript_profiling/runtime.js
-  1253 ./ppx_expect.v0.16.0/collector/runtime.js
-   889 ./core_kernel.v0.15.0/version_util/src/version_util.js
-   703 ./base.v0.16.0/hash_types/src/runtime.js
-   456 ./timezone.v0.15.0/src/runtime.js
-   435 ./time_now.v0.16.0/src/runtime.js
-   120 ./core.v0.16.0/heap_block/runtime.js
-    77 ./ppx_inline_test.v0.16.0/runner/lib/runtime.js
 
-> * core/src/runtime.js
-> * core/heap_block/runtime.js
-> * time_now/src/runtime.js
-> * incr_dom/javascript_profiling/src/runtime.js
-> * ppx_inline_test/runner/lib/runtime.js
-> * ppx_expect/collector/runtime.js
-> * base/hash_types/src/runtime.js
-> * base/src/runtime.js
 * bin_prot/src/runtime.js
-> * base_bigstring/src/runtime.js
-> * core_kernel/version_util/src/version_util.js
-> * string_dict/src/string_dict.js
 * zarith_stubs_js/src/runtime.js
-
-> cstruct/src/cstruct.js
-> bigstringaf/lib/runtime.js
-> alcotest/src/alcotest/runtime.js
 
 ??? time_stamp_counter, bigstring_marshal_kernel, async_js_test
 
 ====================
-
 
 How to compile
 - wasm_of_ocaml --pretty  --opt 3 ~/CAMLBOY/_build/default/bin/web/bench.bc-for-jsoo
