@@ -187,17 +187,20 @@
       (i31.new (i32.const 0)))
 
    (func (export "caml_bigstring_memchr")
-      (param $s (ref eq)) (param $c (ref eq))
+      (param $s (ref eq)) (param $vc (ref eq))
       (param $vpos (ref eq)) (param $vlen (ref eq)) (result (ref eq))
-      (local $pos i32) (local $len i32)
+      (local $pos i32) (local $len i32) (local $c i32)
+      (local $d (ref extern))
+      (local.set $c (i31.get_s (ref.cast i31 (local.get $vc))))
       (local.set $pos (i31.get_s (ref.cast i31 (local.get $vpos))))
       (local.set $len (i31.get_s (ref.cast i31 (local.get $vlen))))
+      (local.set $d
+         (struct.get $bigarray $ba_data (ref.cast $bigarray (local.get $s))))
       (loop $loop
          (if (i32.gt_s (local.get $len) (i32.const 0))
             (then
-               (if (ref.eq (local.get $c)
-                      (call $caml_ba_get_1 (local.get $s)
-                         (i31.new (local.get $pos))))
+               (if (i32.eq (local.get $c)
+                      (call $ta_get_ui8 (local.get $d) (local.get $pos)))
                   (then
                      (return (i31.new (local.get $pos)))))
                (local.set $len (i32.sub (local.get $len) (i32.const 1)))
