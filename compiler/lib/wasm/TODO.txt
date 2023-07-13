@@ -376,8 +376,8 @@ marshaling: use JavaScript maps
 > * string_dict/src/string_dict.js
 * zarith_stubs_js/src/runtime.js
 
-cstruct/src/cstruct.js
-bigstringaf/lib/runtime.js
+> cstruct/src/cstruct.js
+> bigstringaf/lib/runtime.js
 > alcotest/src/alcotest/runtime.js
 
 ??? time_stamp_counter, bigstring_marshal_kernel, async_js_test
