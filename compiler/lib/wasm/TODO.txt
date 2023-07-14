@@ -349,8 +349,9 @@ marshaling: use JavaScript maps
 
 * bin_prot/src/runtime.js
 * zarith_stubs_js/src/runtime.js
+* async_js_test
 
-??? time_stamp_counter, bigstring_marshal_kernel, async_js_test
+??? time_stamp_counter, bigstring_marshal_kernel,
 
 ====================
 
@@ -360,6 +361,8 @@ How to compile
 TODO:
 - linking WebAssembly files
 - dune support
+
+fix caml_js_on_ie
 
 ==============
 
@@ -377,6 +380,9 @@ README:
 - status
 
 Typed arrays
+
+Sexplib issue?
+Command + redirections
 
 =============
 
