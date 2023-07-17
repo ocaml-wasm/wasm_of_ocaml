@@ -47,6 +47,8 @@
        }
     }
 
+    const joo_global_object = globalThis;
+
     let bindings =
         {jstag:WebAssembly.JSTag,
          identity:(x)=>x,
