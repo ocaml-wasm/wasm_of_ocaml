@@ -1,5 +1,5 @@
 #!/usr/bin/env -S node --experimental-wasm-stringref --experimental-wasm-gc
-(async function () {
+(async function (eval_function) {
     "use strict";
     const src = 'CODE';
     function loadRelative(src) {
@@ -47,8 +47,6 @@
        }
     }
 
-    const joo_global_object = globalThis;
-
     let bindings =
         {jstag:WebAssembly.JSTag,
          identity:(x)=>x,
@@ -58,7 +56,7 @@
          delete:(x,y)=>delete x[y],
          instanceof:(x,y)=>+(x instanceof y),
          typeof:(x)=>typeof x,
-         eval:(x)=>eval(x),
+         eval:eval_function,
          equals:(x,y)=>+(x==y),
          strict_equals:(x,y)=>+(x===y),
          fun_call:(f,o,args)=>f.apply(o,args),
@@ -320,4 +318,4 @@
             throw e;
         }
     }
-})()
+})(((joo_global_object,globalThis)=>(x)=>eval(x))(globalThis,globalThis));
