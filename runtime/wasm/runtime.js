@@ -242,7 +242,7 @@
            fs.openSync(p,open_flags.reduce((f,v,i)=>(flags&(1<<i))?(f|v):f,0),
                        perm),
          close:(fd)=>fs.closeSync(fd),
-         write:(fd,b,o,l)=>fs.writeSync(fd,b,o,l),
+         write:(fd,b,o,l)=>{console.log('WRITE', new TextDecoder().decode(b.slice(o,o+l))); return fs.writeSync(fd,b,o,l)},
          read:(fd,b,o,l)=>fs.readSync(fd,b,o,l),
          unlink:(p)=>fs.unlinkSync(p),
          readdir:(p)=>fs.readdirSync(p),
