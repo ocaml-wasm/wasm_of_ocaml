@@ -58,7 +58,7 @@
          delete:(x,y)=>delete x[y],
          instanceof:(x,y)=>+(x instanceof y),
          typeof:(x)=>typeof x,
-         eval:eval,
+         eval:(x)=>eval(x),
          equals:(x,y)=>+(x==y),
          strict_equals:(x,y)=>+(x===y),
          fun_call:(f,o,args)=>f.apply(o,args),
@@ -266,7 +266,7 @@
          weak_map_delete:(m,x)=>m.delete(x),
          log:(x)=>console.log('ZZZZZ', x)
         }
-    const imports = {Math:math,bindings:bindings}
+    const imports = {Math:math,bindings:bindings,env:{}}
     const wasmModule =
           isNode?await WebAssembly.instantiate(await code, imports)
                 :await WebAssembly.instantiateStreaming(code,imports)
