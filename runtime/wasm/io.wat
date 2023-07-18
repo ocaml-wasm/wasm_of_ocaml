@@ -283,9 +283,16 @@
       (i31.new (i32.const 0)))
 
    (func (export "caml_ml_seek_in")
-      (param (ref eq)) (param (ref eq)) (result (ref eq))
-      ;; ZZZ
+      (param $vch (ref eq)) (param $voffset (ref eq)) (result (ref eq))
+      (local $ch (ref $channel))
+      (local.set $ch (ref.cast $channel (local.get $vch)))
       (call $log_js (string.const "caml_ml_seek_in"))
+      (call $log_js (local.get $voffset))
+      (call $log_js (i31.new (struct.get $channel $curr (local.get $ch))))
+      (call $log_js (i31.new (struct.get $channel $max (local.get $ch))))
+      (call $log_js (i31.new (struct.get $channel $size (local.get $ch))))
+      (call $log_js (i31.new (i32.wrap_i64 (array.get $offset_array
+                           (global.get $fd_offsets) (struct.get $channel $fd (local.get $ch))))))
       (i31.new (i32.const 0)))
 
    (func (export "caml_ml_seek_in_64")
