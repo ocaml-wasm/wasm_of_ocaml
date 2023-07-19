@@ -243,7 +243,7 @@
                        perm),
          close:(fd)=>fs.closeSync(fd),
          write:(fd,b,o,l)=>{console.log('WRITE', new TextDecoder().decode(b.slice(o,o+l))); return fs.writeSync(fd,b,o,l)},
-         read:(fd,b,o,l)=>fs.readSync(fd,b,o,l),
+         read:(fd,b,o,l,p)=>fs.readSync(fd,b,o,l,p),
          unlink:(p)=>fs.unlinkSync(p),
          readdir:(p)=>fs.readdirSync(p),
          file_exists:(p)=>+fs.existsSync(p),

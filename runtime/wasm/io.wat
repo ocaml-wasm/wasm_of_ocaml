@@ -11,7 +11,8 @@
          (param i32) (param (ref extern)) (param i32) (param i32) (result i32)))
    (import "bindings" "read"
       (func $read
-         (param i32) (param (ref extern)) (param i32) (param i32) (result i32)))
+         (param i32) (param (ref extern)) (param i32) (param i32) (param i64)
+         (result i32)))
    (import "bindings" "ta_new" (func $ta_new (param i32) (result (ref extern))))
    (import "bindings" "ta_copy"
       (func $ta_copy (param (ref extern)) (param i32) (param i32) (param i32)))
@@ -209,6 +210,7 @@
       (local $i i32) (local $avail i32) (local $nread $i32)
       (local $fd i32)
       (local $buf (ref extern))
+      (local $offset i64)
       (local.set $ch (ref.cast $channel (local.get $vch)))
       (local.set $s (ref.cast $string (local.get $vs)))
       (local.set $pos (i31.get_u (ref.cast i31 (local.get $vpos))))
@@ -224,17 +226,19 @@
                   (local.set $len (local.get $avail)))
                (else
                   (local.set $fd (struct.get $channel $fd (local.get $ch)))
+                  (local.set $offset
+                     (array.get $offset_array (global.get $fd_offsets)
+                        (local.get $fd)))
                   (local.set $nread
                      (call $read
                         (local.get $fd)
                         (local.get $buf)
                         (i32.const 0)
-                        (struct.get $channel $size (local.get $ch))))
+                        (struct.get $channel $size (local.get $ch))
+                        (local.get $offset)))
                   (array.set $offset_array
                      (global.get $fd_offsets) (local.get $fd)
-                     (i64.add
-                        (array.get $offset_array
-                           (global.get $fd_offsets) (local.get $fd))
+                     (i64.add (local.get $offset)
                         (i64.extend_i32_u (local.get $nread))))
                   (struct.set $channel $max (local.get $ch) (local.get $nread))
                   (local.set $curr (i32.const 0))
@@ -290,9 +294,15 @@
       (call $log_js (local.get $voffset))
       (call $log_js (i31.new (struct.get $channel $curr (local.get $ch))))
       (call $log_js (i31.new (struct.get $channel $max (local.get $ch))))
-      (call $log_js (i31.new (struct.get $channel $size (local.get $ch))))
       (call $log_js (i31.new (i32.wrap_i64 (array.get $offset_array
                            (global.get $fd_offsets) (struct.get $channel $fd (local.get $ch))))))
+      ;; ZZZ Check for error
+      (array.set $offset_array
+         (global.get $fd_offsets)
+         (struct.get $channel $fd (local.get $ch))
+         (i64.extend_i32_s (i31.get_s (ref.cast i31 (local.get $voffset)))))
+      (struct.set $channel $curr (local.get $ch) (i32.const 0))
+      (struct.set $channel $max (local.get $ch) (i32.const 0))
       (i31.new (i32.const 0)))
 
    (func (export "caml_ml_seek_in_64")

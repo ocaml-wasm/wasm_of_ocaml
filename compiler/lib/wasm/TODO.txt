@@ -387,3 +387,9 @@ Command + redirections
 =============
 
 LWT / PR raphael proust
+
+=============
+
+read at current fd offset
+seek: adjusts the fd offset
+(after a seek, read from current offset)
