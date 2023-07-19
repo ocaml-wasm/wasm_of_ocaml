@@ -1,6 +1,7 @@
 (module
    (import "bindings" "log" (func $log_js (param anyref)))
    (import "bindings" "getcwd" (func $getcwd (result anyref)))
+   (import "bindings" "chdir" (func $chdir (param anyref)))
    (import "bindings" "unlink" (func $unlink (param anyref)))
    (import "bindings" "readdir"
       (func $readdir (param anyref) (result (ref extern))))
@@ -23,8 +24,7 @@
 
    (func (export "caml_sys_chdir")
       (param (ref eq)) (result (ref eq))
-      ;; ZZZ
-      (call $log_js (string.const "caml_sys_chdir"))
+      (call $chdir (call $unwrap (call $caml_jsstring_of_string (local.get 0))))
       (i31.new (i32.const 0)))
 
    (func (export "caml_sys_mkdir")

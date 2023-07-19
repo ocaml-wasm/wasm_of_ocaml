@@ -242,13 +242,14 @@
            fs.openSync(p,open_flags.reduce((f,v,i)=>(flags&(1<<i))?(f|v):f,0),
                        perm),
          close:(fd)=>fs.closeSync(fd),
-         write:(fd,b,o,l)=>{console.log('WRITE', new TextDecoder().decode(b.slice(o,o+l))); return fs.writeSync(fd,b,o,l)},
+         write:(fd,b,o,l)=>fs.writeSync(fd,b,o,l),
          read:(fd,b,o,l,p)=>fs.readSync(fd,b,o,l,p),
          unlink:(p)=>fs.unlinkSync(p),
          readdir:(p)=>fs.readdirSync(p),
          file_exists:(p)=>+fs.existsSync(p),
          argv:()=>isNode?process.argv.slice(1):['a.out'],
          getcwd:()=>isNode?process.cwd():'/static',
+         chdir:(x)=>process.chdir(x),
          start_fiber:(x)=>start_fiber(x),
          suspend_fiber:
          wrap_fun(
