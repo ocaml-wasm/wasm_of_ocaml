@@ -248,6 +248,10 @@
          readdir:(p)=>fs.readdirSync(p),
          file_exists:(p)=>+fs.existsSync(p),
          argv:()=>isNode?process.argv.slice(1):['a.out'],
+         system:(c)=>{
+           var res = require('child_process').spawnSync(c,{shell:true, stdio: 'inherit'});
+           return res.signal?128:status
+         },
          getcwd:()=>isNode?process.cwd():'/static',
          chdir:(x)=>process.chdir(x),
          start_fiber:(x)=>start_fiber(x),
@@ -268,7 +272,7 @@
     const imports = {Math:math,bindings:bindings,env:{}}
     const wasmModule =
           isNode?await WebAssembly.instantiate(await code, imports)
-                :await WebAssembly.instantiateStreaming(code,imports)
+          :await WebAssembly.instantiateStreaming(code,imports)
 
     caml_callback = wasmModule.instance.exports.caml_callback;
     caml_alloc_tm = wasmModule.instance.exports.caml_alloc_tm;

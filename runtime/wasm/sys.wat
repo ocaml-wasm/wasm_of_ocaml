@@ -15,6 +15,7 @@
       (func $caml_js_to_string_array (param $a (ref extern)) (result (ref eq))))
    (import "fail" "caml_raise_not_found" (func $caml_raise_not_found))
    (import "bindings" "argv" (func $argv (result (ref extern))))
+   (import "bindings" "system" (func $system (param anyref) (result (ref eq))))
    (import "bindings" "array_length"
       (func $array_length (param (ref extern)) (result i32)))
    (import "bindings" "array_get"
@@ -58,8 +59,8 @@
    (func (export "caml_sys_system_command")
       (param (ref eq)) (result (ref eq))
       ;; ZZZ
-      (call $log_js (string.const "caml_sys_system_command"))
-      (i31.new (i32.const 0)))
+      (return_call $system
+         (call $unwrap (call $caml_jsstring_of_string (local.get 0)))))
 
    (func (export "caml_sys_random_seed")
       (param (ref eq)) (result (ref eq))
