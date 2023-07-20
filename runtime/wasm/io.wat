@@ -13,6 +13,7 @@
       (func $read
          (param i32) (param (ref extern)) (param i32) (param i32) (param i64)
          (result i32)))
+   (import "bindings" "file_size" (func $file_size (param i32) (result i64)))
    (import "bindings" "ta_new" (func $ta_new (param i32) (result (ref extern))))
    (import "bindings" "ta_copy"
       (func $ta_copy (param (ref extern)) (param i32) (param i32) (param i32)))
@@ -439,11 +440,13 @@
       (i31.new (i32.const 0)))
 
    (func (export "caml_ml_channel_size") (param (ref eq)) (result (ref eq))
-      ;; ZZZ
-      (call $log_js (string.const "caml_ml_channel_size"))
-      (i31.new (i32.const 0)))
+      ;; ZZZ check for overflow
+      (i31.new
+         (i32.wrap_i64
+            (call $file_size (call $caml_ml_get_channel_fd (local.get 0))))))
 
-   (func (export "caml_ml_get_channel_fd") (param (ref eq)) (result i32)
+   (func $caml_ml_get_channel_fd (export "caml_ml_get_channel_fd")
+      (param (ref eq)) (result i32)
       (struct.get $channel $fd (ref.cast $channel (local.get 0))))
 
    (func (export "caml_ml_set_channel_fd") (param (ref eq)) (param i32)
