@@ -102,19 +102,16 @@
    (func (export "caml_sys_const_ostype_unix")
       (param (ref eq)) (result (ref eq))
       ;; ZZZ
-      (call $log_js (string.const "caml_sys_const_ostype_unix"))
       (i31.new (i32.const 1)))
 
    (func (export "caml_sys_const_ostype_win32")
       (param (ref eq)) (result (ref eq))
       ;; ZZZ
-      (call $log_js (string.const "caml_sys_const_ostype_win32"))
       (i31.new (i32.const 0)))
 
    (func (export "caml_sys_const_ostype_cygwin")
       (param (ref eq)) (result (ref eq))
       ;; ZZZ
-      (call $log_js (string.const "caml_sys_const_ostype_cygwin"))
       (i31.new (i32.const 0)))
 
    (data $Unix "Unix")
