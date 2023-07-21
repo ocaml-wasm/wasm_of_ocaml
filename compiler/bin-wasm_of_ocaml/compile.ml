@@ -106,9 +106,10 @@ let optimize in_file out_file =
     (("wasm-opt" :: common_binaryen_options)
     @ [ (*"--traps-never-happen"
           ;*)
-        "-O3"
-      ; "--remove-unused-brs"
-      ; (*"--gufa"; "-O3";*)
+        (* "-O3"
+           ; "--remove-unused-brs"
+           ;*)
+        (*"--gufa"; "-O3";*)
         Filename.quote in_file
       ; "-o"
       ; Filename.quote out_file
