@@ -824,14 +824,17 @@ let parseFloat (s : js_string t) : float t =
 
 let _ =
   Printexc.register_printer (function
-      | Js_error.Exn e -> Some (Js_error.to_string e)
+      | Js_error.Exn e ->
+          Some (Option.value ~default:(Js_error.to_string e) (Js_error.stack e))
       | _ -> None)
 
 let _ =
   Printexc.register_printer (fun e ->
       let e : < .. > t = Obj.magic e in
       if instanceof e error_constr
-      then Some (Js_error.to_string (Js_error.of_error e))
+      then
+        let e = Js_error.of_error e in
+        Some (Option.value ~default:(Js_error.to_string e) (Js_error.stack e))
       else None)
 
 let export_js (field : js_string t) x =
