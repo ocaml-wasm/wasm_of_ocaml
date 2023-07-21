@@ -45,9 +45,9 @@
 
    (func (export "caml_sys_executable_name")
       (param (ref eq)) (result (ref eq))
-      ;; ZZZ
-      (call $log_js (string.const "caml_sys_executable_name"))
-      (i31.new (i32.const 0)))
+      (array.get $block
+         (ref.cast $block (call $caml_js_to_string_array (call $argv)))
+         (i32.const 1)))
 
    (export "caml_sys_time_include_children" (func $caml_sys_time))
    (func $caml_sys_time (export "caml_sys_time")
