@@ -381,8 +381,7 @@ README:
 
 Typed arrays
 
-Sexplib issue?
-Command + redirections
+Performance (too many locals)
 
 =============
 
@@ -393,3 +392,11 @@ LWT / PR raphael proust
 read at current fd offset
 seek: adjusts the fd offset
 (after a seek, read from current offset)
+
+===
+
+caml_ldexp_float ????????
+
+ml_z_of_substring_base
+ml_z_init
+ml_z_format
