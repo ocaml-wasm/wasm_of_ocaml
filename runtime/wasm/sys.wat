@@ -16,6 +16,7 @@
    (import "fail" "caml_raise_not_found" (func $caml_raise_not_found))
    (import "bindings" "argv" (func $argv (result (ref extern))))
    (import "bindings" "system" (func $system (param anyref) (result (ref eq))))
+   (import "bindings" "getenv" (func $getenv (param anyref) (result anyref)))
    (import "bindings" "array_length"
       (func $array_length (param (ref extern)) (result i32)))
    (import "bindings" "array_get"
@@ -32,12 +33,14 @@
    (export "caml_sys_unsafe_getenv" (func $caml_sys_getenv))
    (func $caml_sys_getenv (export "caml_sys_getenv")
       (param (ref eq)) (result (ref eq))
-      ;; ZZZ
-      ;; (call $log_js (string.const "caml_sys_getenv"))
-      ;; (call $log_js
-      ;;   (call $unwrap (call $caml_jsstring_of_string (local.get 0))))
-      (call $caml_raise_not_found)
-      (i31.new (i32.const 0)))
+      (local $res anyref)
+      (local.set $res
+         (call $getenv
+            (call $unwrap (call $caml_jsstring_of_string (local.get 0)))))
+      (if (i32.eqz (ref.test string (local.get $res)))
+         (then
+            (call $caml_raise_not_found)))
+      (return_call $caml_string_of_jsstring (call $wrap (local.get $res))))
 
    (func (export "caml_sys_argv") (param (ref eq)) (result (ref eq))
       ;; ZZZ

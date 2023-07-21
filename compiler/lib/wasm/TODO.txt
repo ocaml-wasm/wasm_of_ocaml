@@ -395,19 +395,12 @@ seek: adjusts the fd offset
 
 ===
 
-caml_ldexp_float ????????
-
+zarith:
 ml_z_of_substring_base
 ml_z_init
 ml_z_format
 
 ===
-
-web_ui/query_box/test/test_bonsai_web_ui_query_box.ml
-TypeError: Cannot convert a Symbol value to a string
-
-web_ui/popover/test/dune
-illegal cast
 
 web_test/test_proc_bonsai.ml
 TEST_FILENAME

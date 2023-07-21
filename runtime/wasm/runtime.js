@@ -249,6 +249,7 @@
          readdir:(p)=>fs.readdirSync(p),
          file_exists:(p)=>+fs.existsSync(p),
          argv:()=>isNode?process.argv.slice(1):['a.out'],
+         getenv:(n)=>process.env[n],
          system:(c)=>{
            var res = require('child_process').spawnSync(c,{shell:true, stdio: 'inherit'});
            return res.signal?128:status
