@@ -22,7 +22,7 @@ open! Bigarray
 
 type ('a, 'b) ba = ('a, 'b, c_layout) Genarray.t
 
-type ('a, 'b) ta = ('a, 'b) typedArray
+type ('a, 'b, 'c) ta = ('a, 'b, 'c) typedArray
 
 module Setup = struct
   type (_, _, _) t =
@@ -30,12 +30,12 @@ module Setup = struct
     | Uint8 : (int, int, Bigarray.int8_unsigned_elt) t
     | Int16 : (int, int, Bigarray.int16_signed_elt) t
     | Uint16 : (int, int, Bigarray.int16_unsigned_elt) t
-    | Int32 : (Int32.t, float Js.t, Bigarray.int32_elt) t
-    | Float32 : (float, float Js.t, Bigarray.float32_elt) t
-    | Float64 : (float, float Js.t, Bigarray.float64_elt) t
+    | Int32 : (float Js.t, Int32.t, Bigarray.int32_elt) t
+    | Float32 : (float Js.t, float, Bigarray.float32_elt) t
+    | Float64 : (float Js.t, float, Bigarray.float64_elt) t
 end
 
-let kind_of_setup : type a b c. (a, b, c) Setup.t -> (a, c) kind = function
+let kind_of_setup : type a b c. (a, b, c) Setup.t -> (b, c) kind = function
   | Setup.Int8 -> Int8_signed
   | Setup.Uint8 -> Int8_unsigned
   | Setup.Int16 -> Int16_signed
@@ -44,7 +44,7 @@ let kind_of_setup : type a b c. (a, b, c) Setup.t -> (a, c) kind = function
   | Setup.Float32 -> Float32
   | Setup.Float64 -> Float64
 
-let convert : type a b c. (a, b, c) Setup.t -> b -> a = function
+let convert : type a b c. (a, b, c) Setup.t -> a -> b = function
   | Setup.Int8 -> Fun.id
   | Setup.Uint8 -> Fun.id
   | Setup.Int16 -> Fun.id
@@ -53,8 +53,7 @@ let convert : type a b c. (a, b, c) Setup.t -> b -> a = function
   | Setup.Float32 -> Js.to_float
   | Setup.Float64 -> Js.to_float
 
-let correspondence_of_setup : type a b c. (a, b, c) Setup.t -> (a, b, c) correspondence =
-  function
+let type_of_setup : type a b c. (a, b, c) Setup.t -> (a, b, c) type' = function
   | Setup.Int8 -> Int8_signed
   | Setup.Uint8 -> Int8_unsigned
   | Setup.Int16 -> Int16_signed
@@ -63,7 +62,7 @@ let correspondence_of_setup : type a b c. (a, b, c) Setup.t -> (a, b, c) corresp
   | Setup.Float32 -> Float32
   | Setup.Float64 -> Float64
 
-let ta_type_is_correct : type a b c. (a, b, c) Setup.t -> (b, c) ta Js.t -> bool =
+let ta_type_is_correct : type a b c. (a, b, c) Setup.t -> (a, b, c) ta Js.t -> bool =
  fun setup a ->
   let get_prop prop obj = Js.Unsafe.get obj (Js.string prop) in
   let name = a |> get_prop "constructor" |> get_prop "name" |> Js.to_string in
@@ -77,7 +76,7 @@ let ta_type_is_correct : type a b c. (a, b, c) Setup.t -> (b, c) ta Js.t -> bool
   | Setup.Int32, "Int32Array" -> true
   | _, _ -> false
 
-let kind_field_is_correct : type a b c. (a, b, c) Setup.t -> (a, c) ba -> bool =
+let kind_field_is_correct : type a b c. (a, b, c) Setup.t -> (b, c) ba -> bool =
  fun setup a ->
   (* To trigger a `false`, modify the `kind` integer hard coded in the
    * `caml_ba_kind_of_typed_array` stub
@@ -92,7 +91,7 @@ let kind_field_is_correct : type a b c. (a, b, c) Setup.t -> (a, c) ba -> bool =
   | Int32, Int32 -> true
   | _, _ -> false
 
-let ba_of_array : type a b c. (a, b, c) Setup.t -> a array -> (a, c) ba =
+let ba_of_array : type a b c. (a, b, c) Setup.t -> b array -> (b, c) ba =
  fun setup a -> Array1.of_array (kind_of_setup setup) c_layout a |> genarray_of_array1
 
 let array_of_ba : type a b. (a, b) ba -> a array =
@@ -104,7 +103,7 @@ let array_of_ba : type a b. (a, b) ba -> a array =
   in
   aux 0 |> Array.of_list
 
-let array_of_ta : type a b c. (a, b, c) Setup.t -> (b, c) ta Js.t -> a array =
+let array_of_ta : type a b c. (a, b, c) Setup.t -> (a, b, c) ta Js.t -> b array =
  fun setup a ->
   let len = a##.length in
   let rec aux i =
@@ -112,15 +111,15 @@ let array_of_ta : type a b c. (a, b, c) Setup.t -> (b, c) ta Js.t -> a array =
   in
   aux 0 |> Array.of_list
 
-let test : type a b c. (a, b, c) Setup.t -> a array -> unit =
+let test : type a b c. (a, b, c) Setup.t -> b array -> unit =
  fun setup a0 ->
   let a1 = ba_of_array setup a0 in
 
-  let a2 = from_genarray (correspondence_of_setup setup) a1 in
+  let a2 = from_genarray (type_of_setup setup) a1 in
   if not (array_of_ta setup a2 = a0) then print_endline "`a2` doesnt match `a0`";
   if not (ta_type_is_correct setup a2) then print_endline "corrupted typedArray type";
 
-  let a3 = to_genarray (correspondence_of_setup setup) a2 in
+  let a3 = to_genarray a2 in
   if not (array_of_ba a3 = a0) then print_endline "`a3` doesnt match `a0`";
   if not (kind_field_is_correct setup a3) then print_endline "corrupted `kind`";
   ()
