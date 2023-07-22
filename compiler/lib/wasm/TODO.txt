@@ -359,7 +359,6 @@ How to compile
 - wasm_of_ocaml --pretty  --opt 3 ~/CAMLBOY/_build/default/bin/web/bench.bc-for-jsoo
 
 TODO:
-- linking WebAssembly files
 - dune support
 
 fix caml_js_on_ie
@@ -378,6 +377,8 @@ README:
 - changes compared to js_of_ocaml
 - less options (no separate compilation for now)
 - status
+
+Basic output in browsers (stdout / stderr going to the console)
 
 Typed arrays
 
@@ -399,8 +400,3 @@ zarith:
 ml_z_of_substring_base
 ml_z_init
 ml_z_format
-
-===
-
-web_test/test_proc_bonsai.ml
-TEST_FILENAME

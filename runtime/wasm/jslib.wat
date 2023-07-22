@@ -556,7 +556,7 @@
       (local.set $i (i32.const 0))
       (local.set $l (i31.new (i32.const 0)))
       (loop $loop
-         (if (i32.le_u (local.get $i) (local.get $len))
+         (if (i32.lt_u (local.get $i) (local.get $len))
             (then
                (local.set $l
                   (array.new_fixed $block (i31.new (i32.const 0))

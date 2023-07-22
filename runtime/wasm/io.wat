@@ -1,8 +1,11 @@
 (module
    (import "bindings" "log" (func $log_js (param anyref)))
+   (import "jslib" "wrap" (func $wrap (param anyref) (result (ref eq))))
    (import "jslib" "unwrap" (func $unwrap (param (ref eq)) (result anyref)))
    (import "jslib" "caml_jsstring_of_string"
       (func $caml_jsstring_of_string (param (ref eq)) (result (ref eq))))
+   (import "jslib" "caml_list_of_js_array"
+      (func $caml_list_of_js_array (param (ref eq)) (result (ref eq))))
    (import "bindings" "open"
       (func $open (param anyref) (param i32) (param i32) (result i32)))
    (import "bindings" "close" (func $close (param i32)))
@@ -14,6 +17,11 @@
          (param i32) (param (ref extern)) (param i32) (param i32) (param i64)
          (result i32)))
    (import "bindings" "file_size" (func $file_size (param i32) (result i64)))
+   (import "bindings" "register_channel"
+      (func $register_channel (param (ref eq))))
+   (import "bindings" "unregister_channel"
+      (func $unregister_channel (param (ref eq))))
+   (import "bindings" "channel_list" (func $channel_list (result anyref)))
    (import "bindings" "ta_new" (func $ta_new (param i32) (result (ref extern))))
    (import "bindings" "ta_copy"
       (func $ta_copy (param (ref extern)) (param i32) (param i32) (param i32)))
@@ -151,9 +159,7 @@
 
    (func (export "caml_ml_out_channels_list")
       (param (ref eq)) (result (ref eq))
-      ;; ZZZ
-      ;; (call $log_js (string.const "caml_ml_out_channels_list"))
-      (i31.new (i32.const 0)))
+      (return_call $caml_list_of_js_array (call $wrap (call $channel_list))))
 
    (func (export "caml_ml_open_descriptor_in")
       (param $fd (ref eq)) (result (ref eq))
@@ -183,6 +189,7 @@
             (i32.const -1)
             (global.get $IO_BUFFER_SIZE)
             (i32.const 0)))
+      (call $register_channel (local.get $res))
       (if (ref.eq (local.get $fd) (i31.new (i32.const 2)))
          (then
             (global.set $caml_stderr (local.get $res))))
@@ -200,6 +207,7 @@
       (if (i32.ne (local.get $fd) (i32.const -1))
          (then
             (struct.set $channel $fd (local.get $ch) (i32.const -1))
+            (call $unregister_channel (local.get $ch))
             (call $close (local.get $fd))))
       (i31.new (i32.const 0)))
 
@@ -398,7 +406,6 @@
                (local.set $pos (i32.add (local.get $pos) (local.get $written)))
                (local.set $len (i32.sub (local.get $len) (local.get $written)))
                (br $loop))))
-      (drop (call $caml_ml_flush (local.get 0))) ;; ZZZ
       (i31.new (i32.const 0)))
 
    (func (export "caml_ml_output_char")
