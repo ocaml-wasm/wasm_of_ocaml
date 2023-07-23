@@ -530,6 +530,15 @@ let make_globals size constants primitives =
   ; primitives
   }
 
+let get_globals g =
+  let s = ref Code.Var.Set.empty in
+  for i = 0 to Array.length g.vars - 1 do
+    match g.vars.(i) with
+    | Some x -> s := Code.Var.Set.add x !s
+    | None -> ()
+  done;
+  !s
+
 let resize_array a len def =
   let b = Array.make len def in
   Array.blit ~src:a ~src_pos:0 ~dst:b ~dst_pos:0 ~len:(Array.length a);
@@ -2412,6 +2421,7 @@ type one =
   { code : Code.program
   ; cmis : StringSet.t
   ; debug : Debug.t
+  ; globals : Code.Var.Set.t
   }
 
 let parse_bytecode code globals debug_data =
@@ -2720,7 +2730,7 @@ let from_exe
   in
   let code = prepend p body in
   Code.invariant code;
-  { code; cmis; debug = debug_data }
+  { code; cmis; debug = debug_data; globals = get_globals globals }
 
 (* As input: list of primitives + size of global table *)
 let from_bytes ~prims ~debug (code : bytecode) =
@@ -2930,7 +2940,7 @@ let from_compilation_units ~target ~includes:_ ~include_cmis ~debug_data l =
           StringSet.add (Ocaml_compiler.Cmo_format.name compunit) acc)
     else StringSet.empty
   in
-  { code = prepend prog body; cmis; debug = debug_data }
+  { code = prepend prog body; cmis; debug = debug_data; globals = get_globals globals }
 
 let from_cmo ~target ?(includes = []) ?(include_cmis = false) ?(debug = false) compunit ic
     =

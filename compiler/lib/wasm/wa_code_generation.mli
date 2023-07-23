@@ -15,9 +15,12 @@ type context =
   ; mutable curry_funs : Code.Var.t Stdlib.IntMap.t
   ; mutable dummy_funs : Code.Var.t Stdlib.IntMap.t
   ; mutable init_code : Wa_ast.instruction list
+  ; global_vars : Code.Var.Set.t
+        (** Variables that should be global (to reduce the number of
+            long-living local variables at toplevel) *)
   }
 
-val make_context : unit -> context
+val make_context : global_vars:Code.Var.Set.t -> context
 
 type 'a t
 
