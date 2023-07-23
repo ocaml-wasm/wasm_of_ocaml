@@ -44,7 +44,7 @@ let gen_file file f =
     (try Sys.remove file with Sys_error _ -> ());
     Sys.rename f_tmp file
   with exc ->
-    Sys.remove f_tmp;
+    (try Sys.remove f_tmp with Sys_error _ -> ());
     raise exc
 
 let write_file name contents =
@@ -247,9 +247,10 @@ let run { Cmd_arg.common; profile; runtime_files; input_file; output_file; param
   let need_debug = Config.Flag.debuginfo () in
   let output (one : Parse_bytecode.one) ~standalone ch =
     let code = one.code in
+    let globals = Wa_find_globals.f one.globals one.code in
     let _ =
       Driver.f
-        ~target:(`Wasm ch)
+        ~target:(`Wasm (globals, ch))
         ~standalone
         ?profile
         ~linkall:false

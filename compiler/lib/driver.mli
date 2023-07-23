@@ -21,7 +21,7 @@
 type profile
 
 val f :
-     target:[ `JavaScript of Pretty_print.t | `Wasm of out_channel ]
+     target:[ `JavaScript of Pretty_print.t | `Wasm of Code.Var.Set.t * out_channel ]
   -> ?standalone:bool
   -> ?wrap_with_fun:[ `Iife | `Anonymous | `Named of string ]
   -> ?profile:profile
