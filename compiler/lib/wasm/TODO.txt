@@ -410,3 +410,17 @@ perf record node --experimental-wasm-stringref --experimental-wasm-gc --experime
 
 cd ~/sources/bonsai/_build/default/web_ui/not_connected_warning_box/test/.bonsai_web_ui_not_connected_warning_box_test.inline-tests
 wasm-opt  -O2 -all -o toto.wasm before.wasm
+
+=======
+
+TODO
+====
+
+JS:
+- solve performance issue (minimize locals?)
+- integrate changes: IOs / 
+- zarith
+- bin-prot
+
+Release:
+- improve documentation
