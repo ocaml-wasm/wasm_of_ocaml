@@ -418,9 +418,11 @@ TODO
 
 JS:
 - solve performance issue (minimize locals?)
-- integrate changes: IOs / 
+- integrate changes: IOs / ...
 - zarith
 - bin-prot
 
 Release:
-- improve documentation
+- many PRs (jsoo bindings, dune, brr, gen_js_api, ...)
+- Basic output in browsers (stdout / stderr going to the console)
+
