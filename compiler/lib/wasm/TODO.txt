@@ -364,6 +364,9 @@ ml_z_of_substring_base
 ml_z_init
 ml_z_format
 
+//Provides: bigint_to_jsstring
+function bigint_to_jsstring (z, base) { return z.toString(base) }
+
 =========================
 
 export PATH=toto:/tmp/node-v21.0.0-v8-canary202307207f6d94de9e-linux-x64/bin:/home/jerome/V8/depot_tools:/home/jerome/.opam/4.14.0/bin:/home/jerome/sources/binaryen/bin:/home/jerome/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/snap/bin
@@ -389,4 +392,3 @@ JS:
 Release:
 - many PRs (jsoo bindings, dune, brr, gen_js_api, ...)
 - Basic output in browsers (stdout / stderr going to the console)
-

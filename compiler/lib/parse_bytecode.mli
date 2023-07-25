@@ -41,7 +41,6 @@ type one =
   { code : Code.program
   ; cmis : StringSet.t
   ; debug : Debug.t
-  ; globals : Code.Var.Set.t
   }
 
 module Toc : sig

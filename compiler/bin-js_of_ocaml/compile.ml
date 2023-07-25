@@ -257,7 +257,6 @@ let run
        { code
        ; cmis = StringSet.empty
        ; debug = Parse_bytecode.Debug.create ~include_cmis:false false
-       ; globals = Code.Var.Set.empty
        }
      in
      output_gen
