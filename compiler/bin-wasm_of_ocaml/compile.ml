@@ -44,7 +44,7 @@ let gen_file file f =
     (try Sys.remove file with Sys_error _ -> ());
     Sys.rename f_tmp file
   with exc ->
-    Sys.remove f_tmp;
+    (try Sys.remove f_tmp with Sys_error _ -> ());
     raise exc
 
 let write_file name contents =
@@ -55,7 +55,9 @@ let remove_file filename =
 
 let with_intermediate_file ?(keep = false) name f =
   match f name with
-  | _ -> if not keep then remove_file name
+  | res ->
+      if not keep then remove_file name;
+      res
   | exception e ->
       remove_file name;
       raise e
@@ -86,10 +88,39 @@ let link runtime_files input_file output_file =
            runtime_files)
     @ [ Filename.quote input_file; "exec"; "-o"; Filename.quote output_file ])
 
+let generate_dependencies primitives =
+  Yojson.Basic.to_string
+    (`List
+      (StringSet.fold
+         (fun nm s ->
+           `Assoc
+             [ "name", `String ("js:" ^ nm)
+             ; "import", `List [ `String "env"; `String nm ]
+             ]
+           :: s)
+         primitives
+         (Yojson.Basic.Util.to_list (Yojson.Basic.from_string Wa_runtime.dependencies))))
+
+let filter_unused_primitives primitives usage_file =
+  let ch = open_in usage_file in
+  let s = ref primitives in
+  (try
+     while true do
+       let l = input_line ch in
+       match String.drop_prefix ~prefix:"unused: js:" l with
+       | Some nm -> s := StringSet.remove nm !s
+       | None -> ()
+     done
+   with End_of_file -> ());
+  !s
+
 let dead_code_elimination in_file out_file =
   with_intermediate_file (Filename.temp_file "deps" ".json")
   @@ fun deps_file ->
-  write_file deps_file Wa_runtime.dependencies;
+  with_intermediate_file (Filename.temp_file "usage" ".txt")
+  @@ fun usage_file ->
+  let primitives = Linker.get_provided () in
+  write_file deps_file (generate_dependencies primitives);
   command
     (("wasm-metadce" :: common_binaryen_options)
     @ [ "--graph-file"
@@ -98,8 +129,9 @@ let dead_code_elimination in_file out_file =
       ; "-o"
       ; Filename.quote out_file
       ; ">"
-      ; "/dev/null"
-      ])
+      ; Filename.quote usage_file
+      ]);
+  filter_unused_primitives primitives usage_file
 
 let optimize in_file out_file =
   command
@@ -125,8 +157,9 @@ let link_and_optimize runtime_wasm_files wat_file output_file =
   link (runtime_file :: runtime_wasm_files) wat_file temp_file;
   with_intermediate_file (Filename.temp_file "wasm-dce" ".wasm")
   @@ fun temp_file' ->
-  dead_code_elimination temp_file temp_file';
-  optimize temp_file' output_file
+  let primitives = dead_code_elimination temp_file temp_file' in
+  optimize temp_file' output_file;
+  primitives
 
 let escape_string s =
   let l = String.length s in
@@ -146,7 +179,7 @@ let escape_string s =
   done;
   Buffer.contents b
 
-let build_js_runtime wasm_file output_file =
+let build_js_runtime _primitives wasm_file output_file =
   let wrap_in_iife ~use_strict js =
     let module J = Javascript in
     let var ident e = J.variable_declaration [ J.ident ident, (e, J.N) ], J.N in
@@ -191,10 +224,12 @@ let build_js_runtime wasm_file output_file =
     in
     expr (J.call (mk efun) [ J.EVar (J.ident Constant.global_object_) ] J.N)
   in
+  let { Linker.always_required_codes; _ } =
+    Driver.link ~standalone:true ~linkall:false []
+  in
   let always_required_js =
-    List.map
-      Linker.((link [] (init ())).always_required_codes)
-      ~f:(fun { Linker.program; _ } -> wrap_in_iife ~use_strict:false program)
+    List.map always_required_codes ~f:(fun { Linker.program; _ } ->
+        wrap_in_iife ~use_strict:false program)
   in
   let b = Buffer.create 1024 in
   let f = Pretty_print.to_buffer b in
@@ -292,8 +327,8 @@ let run { Cmd_arg.common; profile; runtime_files; input_file; output_file; param
        gen_file wasm_file
        @@ fun tmp_wasm_file ->
        output_gen wat_file (output code ~standalone:true);
-       link_and_optimize runtime_wasm_files wat_file tmp_wasm_file;
-       build_js_runtime wasm_file (fst output_file)
+       let primitives = link_and_optimize runtime_wasm_files wat_file tmp_wasm_file in
+       build_js_runtime primitives wasm_file (fst output_file)
    | `Cmo _ | `Cma _ -> assert false);
    close_ic ());
   Debug.stop_profiling ()

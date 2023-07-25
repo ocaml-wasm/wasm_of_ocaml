@@ -392,3 +392,17 @@ JS:
 Release:
 - many PRs (jsoo bindings, dune, brr, gen_js_api, ...)
 - Basic output in browsers (stdout / stderr going to the console)
+
+===========================
+
+Link-in JavaScript primitives
+   (function(globalThis){
+   ....;
+   return {x=x,y=y,z=z};
+   })(globalThis);
+
+
+let foo () =
+>> Driver.link ~standalone:true ~linkall:false
+>> Driver.pack ~wrap_with_fun:Iife ~standalone:true
+>> (split + insert)

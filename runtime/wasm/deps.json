@@ -90,5 +90,5 @@
     "name": "start_fiber",
     "import": ["bindings", "start_fiber"],
     "reaches": ["effects"]
-  },
+  }
 ]
