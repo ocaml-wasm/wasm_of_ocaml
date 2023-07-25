@@ -12,7 +12,7 @@
  (wasm
   (binaries (tools/node_wrapper.sh as node))
   (js_of_ocaml
-   (compilation_mode wasm)))
+   (target wasm)))
  (bench_no_debug
   (flags
    (:standard \ -g))
