@@ -216,9 +216,9 @@ Rethrow?
 ============================
 
 Js_of_ocaml fixes:
-==> bound check optimization for float arrays
-==> strict equality
 ==> Condition.wait should throw (never makes sense)
+==> weak/ephemerons
+==> Dom_html.Keyboard_code.of_event is weird
 
 ===============================
 
@@ -272,7 +272,6 @@ Optimizations
 
 Remaining runtime code:
 - printing errors (needs basic implementation of stderr on browsers)
-- weak / ephemeron
 - marshaling
 - filesystem / IOs
 - dynlink / toplevel / separate compilation
@@ -296,7 +295,6 @@ Files:
   sys
   toplevel
   unix (gettimeofday / time / gmtime)
-  weak
 
 - node bindings (I/Os)
 - virtual filesystem
@@ -310,14 +308,6 @@ TODO
   ==> link (wasm_runtime) wat/wast/wasm files  (jsoo_runtime)
   ==> wasm_files (javascript_files)
   ==> node options ===> (node_flags ...)
-
-- we should link-in javascript files that are not divided into fragments
-
-- documentation
-  ==> what tools (node/chrome/binaryen/dune) are needed/supported
-  ==> how do we run wasm_of_ocaml
-      output: foo.js / foo.wasm / foo.wat
-      wasm-opt -all -S -o - foo.wasm
 
 =================================
 
@@ -352,35 +342,9 @@ marshaling: use JavaScript maps
 
 ??? time_stamp_counter, bigstring_marshal_kernel,
 
-====================
-
-How to compile
-- wasm_of_ocaml --pretty  --opt 3 ~/CAMLBOY/_build/default/bin/web/bench.bc-for-jsoo
-
-TODO:
-- dune support
-
-fix caml_js_on_ie
-
-==============
-
-Changes to JavaScript bindings
-
-I have been thinking about generating WebAssembly code. To improve compatibility, I propose the following changes:
-- The OCaml comparison functions no longer coincide with JavaScript comparisons functions, so we should provide explicit bindings for this functions.
-- OCaml floats will no longer be implemented as JavaScript numbers, so explicit conversion functions should be available (and no longer deprecated).
-
 ====
 
-README:
-- changes compared to js_of_ocaml
-- less options (no separate compilation for now)
-- status
-
 Basic output in browsers (stdout / stderr going to the console)
-
-Typed arrays
-
 Performance (too many locals)
 
 =============
