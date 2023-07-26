@@ -138,12 +138,9 @@ let optimize in_file out_file =
     (("wasm-opt" :: common_binaryen_options)
     @ [ (*"--traps-never-happen"
           ;*)
-        "-O1"
-      ; (*
         "-O3"
       ; "--skip-pass=inlining-optimizing"
-      ;*)
-        Filename.quote in_file
+      ; Filename.quote in_file
       ; "-o"
       ; Filename.quote out_file
       ])
