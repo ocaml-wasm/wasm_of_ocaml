@@ -43,8 +43,7 @@ let num_failures = ref 0
 let test res1 res2 =
   if res1 = res2
   then print_char '.'
-  else begin
- print_string " FAIL "; incr num_failures end
+  else begin print_string " FAIL "; incr num_failures end
 
 let test_search_forward r ng s exp =
   test (search_forward r ng s 0) exp

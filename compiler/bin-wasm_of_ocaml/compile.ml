@@ -225,7 +225,8 @@ let build_js_runtime _primitives wasm_file output_file =
     expr (J.call (mk efun) [ J.EVar (J.ident Constant.global_object_) ] J.N)
   in
   let { Linker.always_required_codes; _ } =
-    Driver.link ~standalone:true ~linkall:false []
+    Linker.(link [] (init ()))
+    (*Driver.link ~standalone:true ~linkall:false []*)
   in
   let always_required_js =
     List.map always_required_codes ~f:(fun { Linker.program; _ } ->
