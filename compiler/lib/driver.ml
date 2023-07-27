@@ -579,6 +579,9 @@ let target_flag t =
   | `JavaScript _ -> `JavaScript
   | `Wasm _ -> `Wasm
 
+let link_and_pack ?(standalone = true) ?(wrap_with_fun = `Iife) ?(linkall = false) p =
+  p |> link ~standalone ~linkall |> pack ~wrap_with_fun ~standalone |> coloring
+
 let full ~target ~standalone ~wrap_with_fun ~profile ~linkall ~source_map d p =
   let exported_runtime = not standalone in
   let opt =

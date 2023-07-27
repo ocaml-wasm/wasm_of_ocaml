@@ -138,7 +138,7 @@ let optimize in_file out_file =
     (("wasm-opt" :: common_binaryen_options)
     @ [ (*"--traps-never-happen"
           ;*)
-        "-O3"
+        "-O2"
       ; "--skip-pass=inlining-optimizing"
       ; Filename.quote in_file
       ; "-o"
@@ -176,76 +176,61 @@ let escape_string s =
   done;
   Buffer.contents b
 
-let build_js_runtime _primitives wasm_file output_file =
-  let wrap_in_iife ~use_strict js =
-    let module J = Javascript in
-    let var ident e = J.variable_declaration [ J.ident ident, (e, J.N) ], J.N in
-    let expr e = J.Expression_statement e, J.N in
-    let freenames =
-      let o = new Js_traverse.free in
-      let (_ : J.program) = o#program js in
-      o#get_free
+let build_js_runtime primitives wasm_file output_file =
+  let always_required_js, primitives =
+    let l =
+      StringSet.fold
+        (fun nm l ->
+          let id = Utf8_string.of_string_exn nm in
+          Javascript.Property (PNS id, EVar (S { name = id; var = None; loc = N })) :: l)
+        primitives
+        []
     in
-    let export_shim js =
-      if J.IdentSet.mem (J.ident Constant.exports_) freenames
-      then
-        let export_node =
-          let s =
-            Printf.sprintf
-              {|((typeof module === 'object' && module.exports) || %s)|}
-              Constant.global_object
-          in
-          let lex = Parse_js.Lexer.of_string s in
-          Parse_js.parse_expr lex
-        in
-        var Constant.exports_ export_node :: js
-      else js
-    in
-    let old_global_object_shim js =
-      if J.IdentSet.mem (J.ident Constant.old_global_object_) freenames
-      then
-        var Constant.old_global_object_ (J.EVar (J.ident Constant.global_object_)) :: js
-      else js
-    in
-
-    let efun args body = J.EFun (None, J.fun_ args body J.U) in
-    let mk f =
-      let js = export_shim js in
-      let js = old_global_object_shim js in
-      let js =
-        if use_strict
-        then expr (J.EStr (Utf8_string.of_string_exn "use strict")) :: js
-        else js
-      in
-      f [ J.ident Constant.global_object_ ] js
-    in
-    expr (J.call (mk efun) [ J.EVar (J.ident Constant.global_object_) ] J.N)
-  in
-  let { Linker.always_required_codes; _ } =
-    Linker.(link [] (init ()))
-    (*Driver.link ~standalone:true ~linkall:false []*)
-  in
-  let always_required_js =
-    List.map always_required_codes ~f:(fun { Linker.program; _ } ->
-        wrap_in_iife ~use_strict:false program)
+    match
+      List.split_last
+      @@ Driver.link_and_pack [ Javascript.Return_statement (Some (EObj l)), N ]
+    with
+    | Some x -> x
+    | None -> assert false
   in
   let b = Buffer.create 1024 in
   let f = Pretty_print.to_buffer b in
   Pretty_print.set_compact f (not (Config.Flag.pretty ()));
   ignore (Js_output.program f always_required_js);
+  prerr_endline "AAA";
+  let b' = Buffer.create 1024 in
+  let f = Pretty_print.to_buffer b' in
+  Pretty_print.set_compact f (not (Config.Flag.pretty ()));
+  ignore (Js_output.program f [ primitives ]);
+  prerr_endline "BBB";
   let s = Wa_runtime.js_runtime in
-  let rec find i =
-    if String.equal (String.sub s ~pos:i ~len:4) "CODE" then i else find (i + 1)
+  let rec find pat i =
+    if String.equal (String.sub s ~pos:i ~len:(String.length pat)) pat
+    then i
+    else find pat (i + 1)
   in
   let i = String.index s '\n' + 1 in
-  let j = find 0 in
+  let j = find "CODE" 0 in
+  let k = find "PRIMITIVES" 0 in
+  Format.eprintf "ZZZZZ %d %d %d@." i j k;
+  let rec trim_semi s =
+    let l = String.length s in
+    if l = 0
+    then s
+    else
+      match s.[l - 1] with
+      | ';' | '\n' -> trim_semi (String.sub s ~pos:0 ~len:(l - 1))
+      | _ -> s
+  in
   write_file
     output_file
     (String.sub s ~pos:0 ~len:i
     ^ Buffer.contents b
     ^ String.sub s ~pos:i ~len:(j - i)
     ^ escape_string (Filename.basename wasm_file)
-    ^ String.sub s ~pos:(j + 4) ~len:(String.length s - j - 4))
+    ^ String.sub s ~pos:(j + 4) ~len:(k - j - 4)
+    ^ trim_semi (Buffer.contents b')
+    ^ String.sub s ~pos:(k + 10) ~len:(String.length s - k - 10))
 
 let run { Cmd_arg.common; profile; runtime_files; input_file; output_file; params } =
   Wa_generate.init ();
@@ -273,8 +258,15 @@ let run { Cmd_arg.common; profile; runtime_files; input_file; output_file; param
   List.iter builtin ~f:(fun t ->
       let filename = Builtins.File.name t in
       let runtimes = Linker.Fragment.parse_builtin t in
-      Linker.load_fragments ~target_env:Target_env.Isomorphic ~filename runtimes);
-  Linker.load_files ~target_env:Target_env.Isomorphic runtime_js_files;
+      Linker.load_fragments
+        ~ignore_always_annotation:true
+        ~target_env:Target_env.Isomorphic
+        ~filename
+        runtimes);
+  Linker.load_files
+    ~ignore_always_annotation:true
+    ~target_env:Target_env.Isomorphic
+    runtime_js_files;
   Linker.check_deps ();
   if times () then Format.eprintf "  parsing js: %a@." Timer.print t1;
   if times () then Format.eprintf "Start parsing...@.";
