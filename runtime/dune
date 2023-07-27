@@ -29,5 +29,4 @@
   domain.js
   prng.js
   sync.js
-  zarith.js
   runtime_events.js))

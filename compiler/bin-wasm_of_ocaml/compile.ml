@@ -93,6 +93,7 @@ let generate_dependencies primitives =
     (`List
       (StringSet.fold
          (fun nm s ->
+           prerr_endline nm;
            `Assoc
              [ "name", `String ("js:" ^ nm)
              ; "import", `List [ `String "js"; `String nm ]
