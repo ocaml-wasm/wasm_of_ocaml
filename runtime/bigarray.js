@@ -902,8 +902,3 @@ function caml_ba_from_typed_array(ta){
       new Int32Array(ta.buffer ,ta.byteOffset, ta.length) : ta;
   return caml_ba_create_unsafe(kind, 0, [ta.length], ta);
 }
-//Provides: bigint
-function bigint (s) { return BigInt (s) }
-
-//Provides: bigint_to_string
-function bigint_to_string (s) { return s.toString() }

@@ -93,7 +93,6 @@ let generate_dependencies primitives =
     (`List
       (StringSet.fold
          (fun nm s ->
-           prerr_endline nm;
            `Assoc
              [ "name", `String ("js:" ^ nm)
              ; "import", `List [ `String "js"; `String nm ]
@@ -198,12 +197,10 @@ let build_js_runtime primitives wasm_file output_file =
   let f = Pretty_print.to_buffer b in
   Pretty_print.set_compact f (not (Config.Flag.pretty ()));
   ignore (Js_output.program f always_required_js);
-  prerr_endline "AAA";
   let b' = Buffer.create 1024 in
   let f = Pretty_print.to_buffer b' in
   Pretty_print.set_compact f (not (Config.Flag.pretty ()));
   ignore (Js_output.program f [ primitives ]);
-  prerr_endline "BBB";
   let s = Wa_runtime.js_runtime in
   let rec find pat i =
     if String.equal (String.sub s ~pos:i ~len:(String.length pat)) pat
@@ -213,7 +210,6 @@ let build_js_runtime primitives wasm_file output_file =
   let i = String.index s '\n' + 1 in
   let j = find "CODE" 0 in
   let k = find "PRIMITIVES" 0 in
-  Format.eprintf "ZZZZZ %d %d %d@." i j k;
   let rec trim_semi s =
     let l = String.length s in
     if l = 0
