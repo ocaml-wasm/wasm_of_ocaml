@@ -95,7 +95,7 @@ let generate_dependencies primitives =
          (fun nm s ->
            `Assoc
              [ "name", `String ("js:" ^ nm)
-             ; "import", `List [ `String "env"; `String nm ]
+             ; "import", `List [ `String "js"; `String nm ]
              ]
            :: s)
          primitives
