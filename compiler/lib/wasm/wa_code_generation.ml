@@ -31,12 +31,9 @@ type context =
   ; mutable curry_funs : Var.t IntMap.t
   ; mutable dummy_funs : Var.t IntMap.t
   ; mutable init_code : W.instruction list
-  ; global_vars : Var.Set.t
-        (** Variables that should be global (to reduce the number of
-            long-living local variables at toplevel) *)
   }
 
-let make_context ~global_vars =
+let make_context () =
   { constants = Hashtbl.create 128
   ; data_segments = Var.Map.empty
   ; constant_globals = Var.Map.empty
@@ -48,7 +45,6 @@ let make_context ~global_vars =
   ; curry_funs = IntMap.empty
   ; dummy_funs = IntMap.empty
   ; init_code = []
-  ; global_vars
   }
 
 type var =
@@ -327,10 +323,6 @@ let tee ?typ x e =
     let* i = add_var ?typ x in
     return (W.LocalTee (i, e))
 
-let should_store_in_global x =
-  let* ctx = get_context in
-  return (Var.Set.mem x ctx.global_vars)
-
 let rec store ?(always = false) ?typ x e =
   let* e = e in
   match e with
@@ -342,21 +334,8 @@ let rec store ?(always = false) ?typ x e =
       if b && not always
       then register_constant x e
       else
-        let* b = should_store_in_global x in
-        if b && not always
-        then
-          let* () =
-            register_global
-              (V x)
-              ~constant:true
-              { mut = true; typ = Ref { nullable = false; typ = Eq } }
-              (W.I31New (Const (I32 0l)))
-          in
-          let* () = register_constant x (W.GlobalGet (V x)) in
-          instr (GlobalSet (V x, e))
-        else
-          let* i = add_var ?typ x in
-          instr (LocalSet (i, e))
+        let* i = add_var ?typ x in
+        instr (LocalSet (i, e))
 
 let assign x e =
   let* x = var x in

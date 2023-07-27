@@ -956,7 +956,6 @@ module Generate (Target : Wa_target_sig.S) = struct
   module Curry = Wa_curry.Make (Target)
 
   let f
-      ~global_vars
       (p : Code.program)
       ~live_vars
        (*
@@ -970,11 +969,7 @@ module Generate (Target : Wa_target_sig.S) = struct
   Code.Print.program (fun _ _ -> "") p;
 *)
     let ctx =
-      { live = live_vars
-      ; blocks = p.blocks
-      ; closures
-      ; global_context = make_context ~global_vars
-      }
+      { live = live_vars; blocks = p.blocks; closures; global_context = make_context () }
     in
     let toplevel_name = Var.fresh_n "toplevel" in
     let functions =
@@ -1015,13 +1010,13 @@ let init () =
     ; "caml_ensure_stack_capacity", "%identity"
     ]
 
-let f ~globals ch (p : Code.program) ~live_vars =
+let f ch (p : Code.program) ~live_vars =
   match target with
   | `Core ->
       let module G = Generate (Wa_core_target) in
-      let fields = G.f ~global_vars:Var.Set.empty ~live_vars p in
+      let fields = G.f ~live_vars p in
       Wa_asm_output.f ch fields
   | `GC ->
       let module G = Generate (Wa_gc_target) in
-      let fields = G.f ~global_vars:globals ~live_vars p in
+      let fields = G.f ~live_vars p in
       Wa_wat_output.f ch fields

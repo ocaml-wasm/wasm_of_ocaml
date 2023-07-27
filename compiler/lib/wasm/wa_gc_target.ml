@@ -744,9 +744,7 @@ module Closure = struct
           else res
 
   let bind_environment ~context ~closures f =
-    let info = Code.Var.Map.find f closures in
-    let free_variables = get_free_variables ~context info in
-    if List.is_empty free_variables
+    if Hashtbl.mem context.constants f
     then
       (* The closures are all constants and the environment is empty. *)
       let* _ = add_var (Code.Var.fresh ()) in
