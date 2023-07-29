@@ -385,10 +385,8 @@ TODO
 
 JS:
 - solve performance issue (minimize locals?)
-- integrate changes: IOs / ...
 - zarith
 - bin-prot
-
 Release:
 - many PRs (jsoo bindings, dune, brr, gen_js_api, ...)
 - Basic output in browsers (stdout / stderr going to the console)
@@ -406,3 +404,5 @@ let foo () =
 >> Driver.link ~standalone:true ~linkall:false
 >> Driver.pack ~wrap_with_fun:Iife ~standalone:true
 >> (split + insert)
+
+ZZZ Check string_of_jsbytes
