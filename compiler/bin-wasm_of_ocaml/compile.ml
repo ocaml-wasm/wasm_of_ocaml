@@ -182,7 +182,7 @@ let build_js_runtime primitives wasm_file output_file =
       StringSet.fold
         (fun nm l ->
           let id = Utf8_string.of_string_exn nm in
-          Javascript.Property (PNS id, EVar (S { name = id; var = None; loc = N })) :: l)
+          Javascript.Property (PNI id, EVar (S { name = id; var = None; loc = N })) :: l)
         primitives
         []
     in
