@@ -30,11 +30,25 @@ let is_backward g pc pc' = Hashtbl.find g.block_order pc >= Hashtbl.find g.block
 
 let is_forward g pc pc' = Hashtbl.find g.block_order pc < Hashtbl.find g.block_order pc'
 
-let rec leave_try_body blocks pc =
-  match Addr.Map.find pc blocks with
-  | { body = []; branch = (Return _ | Stop), _; _ } -> false
-  | { body = []; branch = Branch (pc', _), _; _ } -> leave_try_body blocks pc'
-  | _ -> true
+(* pc has at least two forward edges moving into it *)
+let is_merge_node' block_order preds pc =
+  let s = try Hashtbl.find preds pc with Not_found -> Addr.Set.empty in
+  let o = Hashtbl.find block_order pc in
+  let n =
+    Addr.Set.fold (fun pc' n -> if Hashtbl.find block_order pc' < o then n + 1 else n) s 0
+  in
+  n > 1
+
+let rec leave_try_body block_order preds blocks pc =
+  if is_merge_node' block_order preds pc
+  then false
+  else
+    match Addr.Map.find pc blocks with
+    | { body = []; branch = (Return _ | Stop), _; _ } -> false
+    | { body = []; branch = Branch (pc', _), _; _ } ->
+        leave_try_body block_order preds blocks pc'
+    | _ -> true
+
 
 let build_graph blocks pc =
   let succs = Hashtbl.create 16 in
@@ -113,16 +127,7 @@ let reversed_dominator_tree g =
 let dominator_tree g = reverse_tree (reversed_dominator_tree g)
 
 (* pc has at least two forward edges moving into it *)
-let is_merge_node g pc =
-  let s = try Hashtbl.find g.preds pc with Not_found -> Addr.Set.empty in
-  let o = Hashtbl.find g.block_order pc in
-  let n =
-    Addr.Set.fold
-      (fun pc' n -> if Hashtbl.find g.block_order pc' < o then n + 1 else n)
-      s
-      0
-  in
-  n > 1
+let is_merge_node g pc = is_merge_node' g.block_order g.preds pc
 
 let is_loop_header g pc =
   let s = try Hashtbl.find g.preds pc with Not_found -> Addr.Set.empty in
