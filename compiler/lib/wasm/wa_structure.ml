@@ -49,11 +49,11 @@ let rec leave_try_body block_order preds blocks pc =
         leave_try_body block_order preds blocks pc'
     | _ -> true
 
-
 let build_graph blocks pc =
   let succs = Hashtbl.create 16 in
   let l = ref [] in
   let visited = Hashtbl.create 16 in
+  let poptraps = ref [] in
   let rec traverse ~englobing_exn_handlers pc =
     if not (Hashtbl.mem visited pc)
     then (
@@ -71,13 +71,7 @@ let build_graph blocks pc =
                 match englobing_exn_handlers with
                 | [] -> assert false
                 | enter_pc :: rem ->
-                    if leave_try_body blocks leave_pc
-                    then
-                      (* Add an edge to limit the [try] body *)
-                      Hashtbl.add
-                        succs
-                        enter_pc
-                        (Addr.Set.add leave_pc (Hashtbl.find succs enter_pc));
+                    poptraps := (enter_pc, leave_pc) :: !poptraps;
                     rem)
             | _ -> englobing_exn_handlers
           in
@@ -89,6 +83,12 @@ let build_graph blocks pc =
   let block_order = Hashtbl.create 16 in
   List.iteri !l ~f:(fun i pc -> Hashtbl.add block_order pc i);
   let preds = reverse_graph succs in
+  List.iter !poptraps ~f:(fun (enter_pc, leave_pc) ->
+      if leave_try_body block_order preds blocks leave_pc
+      then (
+        (* Add an edge to limit the [try] body *)
+        Hashtbl.add succs enter_pc (Addr.Set.add leave_pc (Hashtbl.find succs enter_pc));
+        Hashtbl.add preds leave_pc (Addr.Set.add enter_pc (Hashtbl.find preds leave_pc))));
   { succs; preds; reverse_post_order = !l; block_order }
 
 let reversed_dominator_tree g =
