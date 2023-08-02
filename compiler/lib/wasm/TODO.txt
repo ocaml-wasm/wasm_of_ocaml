@@ -385,8 +385,7 @@ TODO
 
 JS:
 - solve performance issue (minimize locals?)
-- zarith
-- bin-prot
+  ==> --optimize-casts -O1
 Release:
 - many PRs (jsoo bindings, dune, brr, gen_js_api, ...)
 - Basic output in browsers (stdout / stderr going to the console)
