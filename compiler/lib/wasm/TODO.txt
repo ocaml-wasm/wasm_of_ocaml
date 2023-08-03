@@ -309,11 +309,6 @@ TODO
   ==> wasm_files (javascript_files)
   ==> node options ===> (node_flags ...)
 
-=================================
-
-Linker:
-annotate provides to indicate that they should be available in Wasm
-
 ============================
 
 Doc: binding changes
@@ -337,35 +332,18 @@ marshaling: use JavaScript maps
 ================
 
 
-* bin_prot/src/runtime.js
-* zarith_stubs_js/src/runtime.js
-
 ??? time_stamp_counter, bigstring_marshal_kernel,
 
 ====
 
 Basic output in browsers (stdout / stderr going to the console)
-Performance (too many locals)
-
-=============
-
-LWT / PR raphael proust
+Performance
 
 =============
 
 read at current fd offset
 seek: adjusts the fd offset
 (after a seek, read from current offset)
-
-===
-
-zarith:
-ml_z_of_substring_base
-ml_z_init
-ml_z_format
-
-//Provides: bigint_to_jsstring
-function bigint_to_jsstring (z, base) { return z.toString(base) }
 
 =========================
 
