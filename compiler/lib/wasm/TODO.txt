@@ -363,7 +363,14 @@ TODO
 
 JS:
 - solve performance issue (minimize locals?)
-  ==> --optimize-casts -O1
+  ==> --optimize-casts --coalesce-locals --vacuum  --remove-unused-brs
+      (somehow, we avoid a turbofan compilation)
 Release:
 - many PRs (jsoo bindings, dune, brr, gen_js_api, ...)
 - Basic output in browsers (stdout / stderr going to the console)
+
+===
+
+- dependency on bonsai_web_ui_gallery
+- writing to stdout not implemented
+- has to fake a load event
