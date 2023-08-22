@@ -26,6 +26,106 @@
    (global $CODE_CUSTOM_LEN i32 (i32.const 0x18))
    (global $CODE_CUSTOM_FIXED i32 (i32.const 0x19))
 
+   (type $string (array (mut i8)))
+   (type $block (array (mut (ref eq))))
+
+   (type $intern_state
+      (struct
+         (field $intern_src (ref $string))
+         (field $intern_pos (mut i32))))
+
+   (func $read8u (param $s (ref $intern_state)) (result i32)
+      (local $pos i32) (local $res i32)
+      (local.set $pos (struct.get $intern_state $intern_pos (local.get $s)))
+      (local.set $res
+         (array.get_u $string
+            (struct.get $intern_state $intern_src (local.get $s))
+            (local.get $pos)))
+      (struct.set $intern_state $intern_pos (local.get $s)
+         (i32.add (local.get $pos) (i32.const 1)))
+      (local.get $res))
+
+   (func $read8s (param $s (ref $intern_state)) (result i32)
+      (local $pos i32) (local $res i32)
+      (local.set $pos (struct.get $intern_state $intern_pos (local.get $s)))
+      (local.set $res
+         (array.get_s $string
+            (struct.get $intern_state $intern_src (local.get $s))
+            (local.get $pos)))
+      (struct.set $intern_state $intern_pos (local.get $s)
+         (i32.add (local.get $pos) (i32.const 1)))
+      (local.get $res))
+
+   (func $read16u (param $s (ref $intern_state)) (result i32)
+      (local $src (ref $string)) (local $pos i32) (local $res i32)
+      (local.set $src (struct.get $intern_state $intern_src (local.get $s)))
+      (local.set $pos (struct.get $intern_state $intern_pos (local.get $s)))
+      (local.set $res
+         (i32.or
+            (i32.shl
+               (array.get_u $string (local.get $src) (local.get $pos))
+               (i32.const 8))
+            (array.get_u $string (local.get $src)
+               (i32.add (local.get $pos) (i32.const 1)))))
+      (struct.set $intern_state $intern_pos (local.get $s)
+         (i32.add (local.get $pos) (i32.const 2)))
+      (local.get $res))
+
+   (func $read16s (param $s (ref $intern_state)) (result i32)
+      (local $src (ref $string)) (local $pos i32) (local $res i32)
+      (local.set $src (struct.get $intern_state $intern_src (local.get $s)))
+      (local.set $pos (struct.get $intern_state $intern_pos (local.get $s)))
+      (local.set $res
+         (i32.or
+            (i32.shl
+               (array.get_s $string (local.get $src) (local.get $pos))
+               (i32.const 8))
+            (array.get_u $string (local.get $src)
+               (i32.add (local.get $pos) (i32.const 1)))))
+      (struct.set $intern_state $intern_pos (local.get $s)
+         (i32.add (local.get $pos) (i32.const 2)))
+      (local.get $res))
+
+   (type $intern_item
+      (struct
+         (field $dest (ref $block))
+         (field $pos (mut i32))
+         (field $next (ref null $intern_item))))
+
+   (func $intern_rec (param $s (ref $intern_state)) (param $dest (ref $block))
+      (local $sp (ref $intern_item))
+      (local $code i32)
+      (local $tag i32)
+      (local $size i32)
+      (local $b (ref $block))
+      (local $v (ref eq))
+      (local.set $sp
+         (struct.new $intern_item
+            (local.get $dest) (i32.const 0) (ref.null $intern_item)))
+      (loop $loop
+         (local.set $code (call $read8u (local.get $s)))
+         (if (i32.ge_u (local.get $code) (global.get $PREFIX_SMALL_INT))
+            (then
+               (if (i32.ge_u (local.get $code) (global.get $PREFIX_SMALL_BLOCK))
+                  (then
+                     (local.set $tag (i32.and (local.get $code) (i32.const 0xF)))
+                     (local.set $size
+                        (i32.and (i32.shr_u (local.get $code) (i32.const 4))
+                           (i32.const 0xF)))
+                     (local.set $b
+                        (array.new $block (i31.new (i32.const 0))
+                           (i32.add (local.get $size) (i32.const 1))))
+                     (array.set $block (local.get $b) (i32.const 0)
+                        (i31.new (local.get $tag)))
+                     ;; ZZZ intern obj table
+                     (if (i32.ne (local.get $size) (i32.const 0))
+                        (then
+                           (local.set $sp
+                              (struct.new $intern_item
+                                 (local.get $b) (i32.const 1) (local.get $sp)))))
+                     (local.set $v (local.get $b))))))))
+
+
 (;
 //Provides: UInt8ArrayReader
 //Requires: caml_string_of_array, caml_jsbytes_of_string
