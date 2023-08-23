@@ -15,7 +15,6 @@
          (i32.const 116) (i32.const 114) (i32.const 105) (i32.const 110)
          (i32.const 103)))
 
-
    (export "caml_input_value_from_string" (func $caml_input_value_from_bytes))
    (func $caml_input_value_from_bytes (export "caml_input_value_from_bytes")
       (param $vstr (ref eq)) (param $vofs (ref eq)) (result (ref eq))
@@ -36,8 +35,7 @@
              (array.len (local.get $str)))
          (then
             (call $bad_length (global.get $input_val_from_string))))
-      ;; ZZZ alloc object table
-      (return_call $intern_rec (local.get $s)))
+      (return_call $intern_rec (local.get $s) (local.get $h)))
 
    (func (export "caml_output_value_to_buffer")
       (param (ref eq)) (param (ref eq)) (param (ref eq)) (param (ref eq))
@@ -89,7 +87,7 @@
       (struct
          (field $src (ref $string))
          (field $pos (mut i32))
-         (field $obj_table (ref null $block))
+         (field $obj_table (mut (ref null $block)))
          (field $obj_counter (mut i32))))
 
    (func $get_intern_state
@@ -267,7 +265,9 @@
    (data $code_pointer "input_value: code pointer")
    (data $ill_formed "input_value: ill-formed message")
 
-   (func $intern_rec (param $s (ref $intern_state)) (result (ref eq))
+   (func $intern_rec
+      (param $s (ref $intern_state)) (param $h (ref $marshal_header))
+      (result (ref eq))
       (local $dest (ref $block))
       (local $sp (ref $intern_item))
       (local $code i32)
@@ -280,6 +280,11 @@
       (local.set $sp
          (struct.new $intern_item
             (local.get $dest) (i32.const 0) (ref.null $intern_item)))
+      (local.set $size (struct.get $marshal_header $num_objects (local.get $h)))
+      (if (i32.eqz (local.get $size))
+         (then
+            (struct.set $intern_state $obj_table (local.get $s)
+               (array.new $block (i31.new (i32.const 0)) (local.get $len)))))
       (local.set $v (i31.new (i32.const 0))) ;; keep validator happy
       (loop $loop
        (block $done
@@ -345,6 +350,7 @@
                                              (i32.const 0) (i32.const 31)))
                                        (br $done))
                                       ;; CUSTOM
+                                      ;; ZZZ
                                       (unreachable))
                                      ;; CODEPOINTER
                                      (call $caml_failwith
