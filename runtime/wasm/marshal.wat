@@ -2,12 +2,42 @@
    (import "bindings" "log" (func $log_js (param anyref)))
    (import "fail" "caml_failwith" (func $caml_failwith (param (ref eq))))
    (import "obj" "double_array_tag" (global $double_array_tag i32))
+   (import "string" "caml_string_cat"
+      (func $caml_string_cat
+         (param (ref eq)) (param (ref eq)) (result (ref eq))))
 
-   (func (export "caml_input_value_from_bytes")
-      (param (ref eq) (ref eq)) (result (ref eq))
-      ;; ZZZ
-      (call $log_js (string.const "caml_input_value_from_bytes"))
-      (i31.new (i32.const 0)))
+   (global $input_val_from_string (ref $string)
+      (array.new_fixed $string 21
+         (i32.const 105) (i32.const 110) (i32.const 112) (i32.const 117)
+         (i32.const 116) (i32.const 95) (i32.const 118) (i32.const 97)
+         (i32.const 108) (i32.const 95) (i32.const 102) (i32.const 114)
+         (i32.const 111) (i32.const 109) (i32.const 95) (i32.const 115)
+         (i32.const 116) (i32.const 114) (i32.const 105) (i32.const 110)
+         (i32.const 103)))
+
+
+   (export "caml_input_value_from_string" (func $caml_input_value_from_bytes))
+   (func $caml_input_value_from_bytes (export "caml_input_value_from_bytes")
+      (param $vstr (ref eq)) (param $vofs (ref eq)) (result (ref eq))
+      (local $str (ref $string))
+      (local $ofs i32)
+      (local $s (ref $intern_state))
+      (local $h (ref $marshal_header))
+      (local.set $str (ref.cast (ref $string) (local.get $vstr)))
+      (local.set $ofs (i31.get_u (ref.cast (ref i31) (local.get $vofs))))
+      (local.set $s
+         (call $get_intern_state (local.get $str) (local.get $ofs)))
+      (local.set $h
+         (call $parse_header (local.get $s) (global.get $input_val_from_string)))
+      (if (i32.gt_s
+             (i32.add (local.get $ofs)
+                (i32.add (struct.get $marshal_header $data_len (local.get $h))
+                   (i32.const 20)))
+             (array.len (local.get $str)))
+         (then
+            (call $bad_length (global.get $input_val_from_string))))
+      ;; ZZZ alloc object table
+      (return_call $intern_rec (local.get $s)))
 
    (func (export "caml_output_value_to_buffer")
       (param (ref eq)) (param (ref eq)) (param (ref eq)) (param (ref eq))
@@ -20,7 +50,10 @@
       (param (ref eq)) (param (ref eq)) (result (ref eq))
       ;; ZZZ
       (call $log_js (string.const "caml_output_value_to_string"))
-      (array.new_fixed $string))
+      (array.new_fixed $string 0))
+
+   (global $Intext_magic_number_small i32 (i32.const 0x8495A6BE))
+   (global $Intext_magic_number_big i32 (i32.const 0x8495A6BF))
 
    (global $PREFIX_SMALL_BLOCK i32 (i32.const 0x80))
    (global $PREFIX_SMALL_INT i32 (i32.const 0x40))
@@ -63,17 +96,6 @@
       (param $src (ref $string)) (param $pos i32) (result (ref $intern_state))
       (struct.new $intern_state
          (local.get $src) (local.get $pos) (ref.null $block) (i32.const 0)))
-
-   (func (export "caml_marshal_data_size")
-      (param $buf (ref eq)) (param $ofs (ref eq)) (result (ref eq))
-      (local $s (ref $intern_state))
-      (local.set $s
-         (call $get_intern_state
-            (ref.cast (ref $string) (local.get $buf))
-            (i31.get_u (ref.cast i31 (local.get $ofs)))))
-      ;; ZZZ
-      (call $log_js (string.const "caml_marshal_data_size"))
-      (i31.new (i32.const 0)))
 
    (func $read8u (param $s (ref $intern_state)) (result i32)
       (local $pos i32) (local $res i32)
@@ -245,7 +267,8 @@
    (data $code_pointer "input_value: code pointer")
    (data $ill_formed "input_value: ill-formed message")
 
-   (func $intern_rec (param $s (ref $intern_state)) (param $dest (ref $block))
+   (func $intern_rec (param $s (ref $intern_state)) (result (ref eq))
+      (local $dest (ref $block))
       (local $sp (ref $intern_item))
       (local $code i32)
       (local $header i32) (local $tag i32) (local $size i32)
@@ -253,6 +276,7 @@
       (local $b (ref $block))
       (local $str (ref $string))
       (local $v (ref eq))
+      (local.set $dest (array.new_fixed $block 1 (i31.new (i32.const 0))))
       (local.set $sp
          (struct.new $intern_item
             (local.get $dest) (i32.const 0) (ref.null $intern_item)))
@@ -428,7 +452,77 @@
                 (local.set $sp
                    (br_on_null $exit
                       (struct.get $intern_item $next (local.get $sp))))))
-          (br $loop))))
+          (br $loop)))
+       (array.get $block (local.get $dest) (i32.const 0)))
+
+   (data $too_large ": object too large to be read back on a 32-bit platform")
+
+   (func $too_large (param $prim (ref $string))
+      (call $caml_failwith
+         (call $caml_string_cat (local.get $prim)
+            (array.new_data $string $too_large (i32.const 0) (i32.const 55)))))
+
+   (data $bad_object ": bad object")
+
+   (func $bad_object (param $prim (ref $string))
+      (call $caml_failwith
+         (call $caml_string_cat (local.get $prim)
+            (array.new_data $string $bad_object (i32.const 0) (i32.const 12)))))
+
+   (data $bad_length ": bad length")
+
+   (func $bad_length (param $prim (ref $string))
+      (call $caml_failwith
+         (call $caml_string_cat (local.get $prim)
+            (array.new_data $string $bad_length (i32.const 0) (i32.const 12)))))
+
+   (type $marshal_header
+      (struct
+         (field $data_len i32)
+         (field $num_objects i32)))
+
+   (func $parse_header
+      (param $s (ref $intern_state)) (param $prim (ref $string))
+      (result (ref $marshal_header))
+      (local $magic i32)
+      (local $data_len i32) (local $num_objects i32) (local $whsize i32)
+      (local.set $magic (call $read32 (local.get $s)))
+      (if (i32.eq (local.get $magic) (global.get $Intext_magic_number_big))
+         (then
+            (call $too_large (local.get $prim))))
+      (if (i32.ne (local.get $magic) (global.get $Intext_magic_number_small))
+         (then
+            (call $bad_object (local.get $prim))))
+      (local.set $data_len (call $read32 (local.get $s)))
+      (local.set $num_objects (call $read32 (local.get $s)))
+      (drop (call $read32 (local.get $s)))
+      (drop (call $read32 (local.get $s)))
+      (struct.new $marshal_header
+         (local.get $data_len)
+         (local.get $num_objects)))
+
+   (data $marshal_data_size "Marshal.data_size")
+
+   (func (export "caml_marshal_data_size")
+      (param $buf (ref eq)) (param $ofs (ref eq)) (result (ref eq))
+      (local $s (ref $intern_state))
+      (local $magic i32)
+      (local.set $s
+         (call $get_intern_state
+            (ref.cast (ref $string) (local.get $buf))
+            (i31.get_u (ref.cast (ref i31) (local.get $ofs)))))
+      (local.set $magic (call $read32 (local.get $s)))
+      (if (i32.eq (local.get $magic) (global.get $Intext_magic_number_big))
+         (then
+            (call $too_large
+               (array.new_data $string $marshal_data_size
+                  (i32.const 0) (i32.const 17)))))
+      (if (i32.ne (local.get $magic) (global.get $Intext_magic_number_small))
+         (then
+            (call $bad_object
+               (array.new_data $string $marshal_data_size
+                  (i32.const 0) (i32.const 17)))))
+      (i31.new (call $read32 (local.get $s))))
 
 (;
 //Provides: UInt8ArrayReader

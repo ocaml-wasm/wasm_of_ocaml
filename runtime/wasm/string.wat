@@ -327,4 +327,24 @@
          (i32.add (local.get $p) (i32.const 7))
          (i32.wrap_i64 (i64.shr_u (local.get $v) (i64.const 56))))
       (i31.new (i32.const 0)))
+
+   (func (export "caml_string_cat")
+      (param $vs1 (ref eq)) (param $vs2 (ref eq)) (result (ref eq))
+      (local $s1 (ref $string)) (local $s2 (ref $string))
+      (local $s (ref $string))
+      (local $l1 i32) (local $l2 i32)
+      (local.set $s1 (ref.cast (ref $string) (local.get $vs1)))
+      (local.set $s2 (ref.cast (ref $string) (local.get $vs2)))
+      (local.set $l1 (array.len (local.get $s1)))
+      (local.set $l2 (array.len (local.get $s2)))
+      (local.set $s
+         (array.new $string (i32.const 0)
+            (i32.add (local.get $l1) (local.get $l2))))
+      (array.copy $string $string
+         (local.get $s) (i32.const 0) (local.get $s1) (i32.const 0)
+         (local.get $l1))
+      (array.copy $string $string
+         (local.get $s) (local.get $l1) (local.get $s2) (i32.const 0)
+         (local.get $l2))
+      (local.get $s))
 )
