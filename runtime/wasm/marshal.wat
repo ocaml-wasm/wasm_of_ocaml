@@ -1,6 +1,7 @@
 (module
    (import "bindings" "log" (func $log_js (param anyref)))
    (import "fail" "caml_failwith" (func $caml_failwith (param (ref eq))))
+   (import "fail" "caml_raise_end_of_file" (func $caml_raise_end_of_file))
    (import "obj" "double_array_tag" (global $double_array_tag i32))
    (import "string" "caml_string_cat"
       (func $caml_string_cat
@@ -12,6 +13,13 @@
       (func $weak_map_get (param (ref any)) (param (ref eq)) (result i31ref)))
    (import "bindings" "weak_map_set"
       (func $weak_map_set (param (ref any)) (param (ref eq)) (param (ref i31))))
+   (import "io" "caml_really_putblock"
+      (func $caml_really_putblock
+         (param (ref eq)) (param (ref $string)) (param i32) (param i32)))
+   (import "io" "caml_really_getblock"
+      (func $caml_really_getblock
+         (param (ref eq)) (param (ref $string)) (param i32) (param i32)
+         (result i32)))
 
    (global $input_val_from_string (ref $string)
       (array.new_fixed $string 21
@@ -42,6 +50,41 @@
              (array.len (local.get $str)))
          (then
             (call $bad_length (global.get $input_val_from_string))))
+      (return_call $intern_rec (local.get $s) (local.get $h)))
+
+   (data $truncated_obj "input_value: truncated object")
+
+   (func (export "caml_input_value") (param $ch (ref eq)) (result (ref eq))
+      ;; ZZZ check binary channel?
+      (local $r i32) (local $len i32)
+      (local $header (ref $string)) (local $buf (ref $string))
+      (local $s (ref $intern_state)) (local $h (ref $marshal_header))
+      (local.set $header (array.new $string (i32.const 0) (i32.const 20)))
+      (local.set $r
+         (call $caml_really_getblock
+            (local.get $ch) (local.get $header) (i32.const 0) (i32.const 20)))
+      (if (i32.eq (local.get $r) (i32.const 0))
+         (then (call $caml_raise_end_of_file)))
+      (if (i32.lt_u (local.get $r) (i32.const 20))
+         (then
+            (call $caml_failwith
+               (array.new_data $string $truncated_obj
+                  (i32.const 0) (i32.const 29)))))
+      (local.set $s
+         (call $get_intern_state (local.get $header) (i32.const 0)))
+      (local.set $h
+         (call $parse_header (local.get $s) (global.get $input_val_from_string)))
+      (local.set $len (struct.get $marshal_header $data_len (local.get $h)))
+      (local.set $buf (array.new $string (i32.const 0) (local.get $len)))
+      (if (i32.lt_u
+             (call $caml_really_getblock (local.get $ch)
+                (local.get $buf) (i32.const 0) (local.get $len))
+             (local.get $len))
+         (then
+            (call $caml_failwith
+               (array.new_data $string $truncated_obj
+                  (i32.const 0) (i32.const 29)))))
+      (local.set $s (call $get_intern_state (local.get $buf) (i32.const 0)))
       (return_call $intern_rec (local.get $s) (local.get $h)))
 
    (type $block (array (mut (ref eq))))
@@ -1087,6 +1130,38 @@
       (array.copy $string $string
          (local.get $buf) (local.get $pos)
          (tuple.extract 1 (local.get $r)) (i32.const 0) (i32.const 20))
+      (i31.new (i32.const 0)))
+
+   (func (export "caml_output_value")
+      (param $ch (ref eq)) (param $v (ref eq)) (param $flags (ref eq))
+      (result (ref eq))
+      (local $r (i32 (ref $string) (ref $extern_state)))
+      (local $blk (ref $output_block)) (local $len i32)
+      (local $res (ref $string))
+      ;; ZZZ check if binary channel?
+      (local.set $blk
+         (struct.new $output_block
+            (ref.null $output_block)
+            (global.get $SIZE_EXTERN_OUTPUT_BLOCK)
+            (array.new $string (i32.const 0)
+               (global.get $SIZE_EXTERN_OUTPUT_BLOCK))))
+      (local.set $r
+         (call $extern_value
+            (local.get $flags) (local.get $blk)
+            (i32.const 0) (i32.const 0) (local.get $v)))
+      (call $caml_really_putblock (local.get $ch)
+         (tuple.extract 1 (local.get $r)) (i32.const 0) (i32.const 20))
+      (loop $loop
+         (block $done
+            (local.set $len (struct.get $output_block $end (local.get $blk)))
+            (call $caml_really_putblock (local.get $ch)
+               (struct.get $output_block $data (local.get $blk))
+               (i32.const 0)
+               (struct.get $output_block $end (local.get $blk)))
+            (local.set $blk
+               (br_on_null $done
+                  (struct.get $output_block $next (local.get $blk))))))
+      ;; ZZZ flush if unbuffered
       (i31.new (i32.const 0)))
 
 (;
