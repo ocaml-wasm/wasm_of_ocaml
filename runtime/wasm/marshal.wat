@@ -252,11 +252,11 @@
          (struct.set $intern_state $obj_counter (local.get $s)
             (i32.add (local.get $p) (i32.const 1)))))
 
-   (type $intern_item ;; ZZZ rename
+   (type $stack_item
       (struct
-         (field $dest (ref $block))
+         (field $blk (ref $block))
          (field $pos (mut i32))
-         (field $next (ref null $intern_item))))
+         (field $next (ref null $stack_item))))
 
    (data $integer_too_large "input_value: integer too large")
    (data $code_pointer "input_value: code pointer")
@@ -266,7 +266,7 @@
       (param $s (ref $intern_state)) (param $h (ref $marshal_header))
       (result (ref eq))
       (local $dest (ref $block))
-      (local $sp (ref $intern_item))
+      (local $sp (ref $stack_item))
       (local $code i32)
       (local $header i32) (local $tag i32) (local $size i32)
       (local $len i32) (local $pos i32) (local $ofs i32)
@@ -275,8 +275,8 @@
       (local $v (ref eq))
       (local.set $dest (array.new_fixed $block 1 (i31.new (i32.const 0))))
       (local.set $sp
-         (struct.new $intern_item
-            (local.get $dest) (i32.const 0) (ref.null $intern_item)))
+         (struct.new $stack_item
+            (local.get $dest) (i32.const 0) (ref.null $stack_item)))
       (local.set $size (struct.get $marshal_header $num_objects (local.get $h)))
       (if (i32.eqz (local.get $size))
          (then
@@ -439,22 +439,22 @@
               (call $register_object (local.get $s) (local.get $b)))
            (else
               (local.set $sp
-                 (struct.new $intern_item
+                 (struct.new $stack_item
                     (local.get $b) (i32.const 1) (local.get $sp)))))
         (local.set $v (local.get $b))
         (br $done))
        ;; done
-       (local.set $dest (struct.get $intern_item $dest (local.get $sp)))
-       (local.set $pos (struct.get $intern_item $pos (local.get $sp)))
+       (local.set $dest (struct.get $stack_item $blk (local.get $sp)))
+       (local.set $pos (struct.get $stack_item $pos (local.get $sp)))
        (array.set $block (local.get $dest) (local.get $pos) (local.get $v))
        (local.set $pos (i32.add (local.get $pos) (i32.const 1)))
-       (struct.set $intern_item $pos (local.get $sp) (local.get $pos))
+       (struct.set $stack_item $pos (local.get $sp) (local.get $pos))
        (block $exit
           (if (i32.eq (local.get $pos) (array.len (local.get $dest)))
              (then
                 (local.set $sp
                    (br_on_null $exit
-                      (struct.get $intern_item $next (local.get $sp))))))
+                      (struct.get $stack_item $next (local.get $sp))))))
           (br $loop)))
        (array.get $block (local.get $dest) (i32.const 0)))
 
@@ -855,8 +855,8 @@
    (data $abstract_value "output_value: abstract value")
 
    (func $extern_rec (param $s (ref $extern_state)) (param $v (ref eq))
-      (local $sp (ref null $intern_item))
-      (local $item (ref $intern_item))
+      (local $sp (ref null $stack_item))
+      (local $item (ref $stack_item))
       (local $b (ref $block)) (local $str (ref $string))
       (local $hd i32) (local $tag i32) (local $sz i32)
       (local $pos i32)
@@ -906,7 +906,7 @@
                (if (i32.gt_u (local.get $sz) (i32.const 1))
                   (then
                      (local.set $sp
-                        (struct.new $intern_item
+                        (struct.new $stack_item
                            (local.get $b)
                            (i32.const 2)
                            (local.get $sp)))))
@@ -964,15 +964,15 @@
          ;; next_item
          (block $done
             (local.set $item (br_on_null $done (local.get $sp)))
-            (local.set $b (struct.get $intern_item $dest (local.get $item)))
-            (local.set $pos (struct.get $intern_item $pos (local.get $item)))
+            (local.set $b (struct.get $stack_item $blk (local.get $item)))
+            (local.set $pos (struct.get $stack_item $pos (local.get $item)))
             (local.set $v (array.get $block (local.get $b) (local.get $pos)))
             (local.set $pos (i32.add (local.get $pos) (i32.const 1)))
-            (struct.set $intern_item $pos (local.get $item) (local.get $pos))
+            (struct.set $stack_item $pos (local.get $item) (local.get $pos))
             (if (i32.eq (local.get $pos) (array.len (local.get $b)))
                (then
                   (local.set $sp
-                     (struct.get $intern_item $next (local.get $item)))))
+                     (struct.get $stack_item $next (local.get $item)))))
             (br $loop))))
 
    (func $extern_output_length
