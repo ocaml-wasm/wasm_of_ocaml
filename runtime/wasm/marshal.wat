@@ -708,13 +708,14 @@
       (param $s (ref $extern_state)) (param $b (ref $block))
       (local $pos i32) (local $sz i32) (local $buf (ref $string)) (local $d i64)
       (local $i i32) (local $j i32)
-      (local.set $sz (array.len (local.get $b)))
+      (local.set $sz (i32.sub (array.len (local.get $b)) (i32.const 1)))
       (local.set $pos
          (call $reserve_extern_output
             (local.get $s) (i32.shl (local.get $sz) (i32.const 3))))
       (local.set $buf (struct.get $extern_state $buf (local.get $s)))
+      (local.set $j (i32.const 1))
       (loop $loop2
-         (if (i32.lt_u (local.get $j) (local.get $sz))
+         (if (i32.le_u (local.get $j) (local.get $sz))
             (then
                (local.set $d
                   (i64.reinterpret_f64
@@ -760,13 +761,13 @@
          (local.get $obj) (i31.new (local.get $pos))))
 
    (func $extern_size
-      (param $s (ref $extern_state)) (param $s1 i32) (param $s2 i32)
+      (param $s (ref $extern_state)) (param $s32 i32) (param $s64 i32)
       (struct.set $extern_state $size_32 (local.get $s)
          (i32.add (struct.get $extern_state $size_32 (local.get $s))
-            (i32.add (local.get $s1) (i32.const 1))))
+            (i32.add (local.get $s32) (i32.const 1))))
       (struct.set $extern_state $size_64 (local.get $s)
          (i32.add (struct.get $extern_state $size_64 (local.get $s))
-            (i32.add (local.get $s1) (i32.const 1)))))
+            (i32.add (local.get $s64) (i32.const 1)))))
 
    (func $extern_int (param $s (ref $extern_state)) (param $n i32)
       (if (i32.and (i32.ge_s (local.get $n) (i32.const 0))
@@ -871,12 +872,11 @@
                (local.set $b
                   (br_on_cast_fail $not_block (ref eq) (ref $block)
                      (local.get $v)))
-               (local.set $hd
+               (local.set $tag
                   (i31.get_u
                      (ref.cast (ref i31)
                         (array.get $block (local.get $b) (i32.const 0)))))
-               (local.set $tag (i32.and (local.get $hd) (i32.const 0xFF)))
-               (local.set $sz (i32.shr_u (local.get $hd) (i32.const 10)))
+               (local.set $sz (i32.sub (array.len (local.get $b)) (i32.const 1)))
                (if (i32.eq (local.get $sz) (i32.const 0))
                   (then
                      (call $extern_header
@@ -889,7 +889,8 @@
                      (call $extern_shared_reference (local.get $s)
                         (i32.sub
                            (struct.get $extern_state $obj_counter (local.get $s))
-                           (local.get $pos)))))
+                           (local.get $pos)))
+                     (br $next_item)))
                (call $extern_record_location (local.get $s) (local.get $v))
                (if (i32.eq (local.get $tag) (global.get $double_array_tag))
                   (then
@@ -918,7 +919,8 @@
                   (call $extern_shared_reference (local.get $s)
                      (i32.sub
                         (struct.get $extern_state $obj_counter (local.get $s))
-                        (local.get $pos)))))
+                        (local.get $pos)))
+                  (br $next_item)))
             (call $extern_record_location (local.get $s) (local.get $v))
             (drop (block $not_string (result (ref eq))
                (local.set $str
