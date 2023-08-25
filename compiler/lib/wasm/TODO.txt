@@ -374,3 +374,37 @@ Release:
 - dependency on bonsai_web_ui_gallery
 - writing to stdout not implemented
 - has to fake a load event
+
+=====
+
+find . -name ".*"
+find . -name "*jsoo" | xargs rm
+find . -name "*.wat" | xargs rm
+zip -r examples.zip `find . -name "*.wasm" | cut -d '/' -f 2 | sort`
+
+==========================
+
+Effects
+=======
+
+- CPS functions
+  ==> partial application handled differently
+      ==> at least two arguments
+- trampoline: just catch exceptions
+- runtime support
+
+=> we need to know whether a function is CPS or not
+   ==> cps_needed
+=> we need to know whether a call is a CPS call or not
+   ==> refine cps_calls (checked / CPS)
+
+=> switches should branch with no args ==> add intermediate blocks
+
+=> change way to install trampoline
+
+=========================
+
+buffered i/o
+filesystem errors
+marshaling: custom values
+missing i/o primitives (pos_in_64, ...)
