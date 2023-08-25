@@ -54,6 +54,12 @@
 
    (data $truncated_obj "input_value: truncated object")
 
+   (global $input_value (ref $string)
+      (array.new_fixed $string 11
+         (i32.const 105) (i32.const 110) (i32.const 112) (i32.const 117)
+         (i32.const 116) (i32.const 95) (i32.const 118) (i32.const 97)
+         (i32.const 108) (i32.const 117) (i32.const 101)))
+
    (func (export "caml_input_value") (param $ch (ref eq)) (result (ref eq))
       ;; ZZZ check binary channel?
       (local $r i32) (local $len i32)
@@ -63,7 +69,7 @@
       (local.set $r
          (call $caml_really_getblock
             (local.get $ch) (local.get $header) (i32.const 0) (i32.const 20)))
-      (if (i32.eq (local.get $r) (i32.const 0))
+      (if (i32.eqz (local.get $r))
          (then (call $caml_raise_end_of_file)))
       (if (i32.lt_u (local.get $r) (i32.const 20))
          (then
@@ -73,7 +79,7 @@
       (local.set $s
          (call $get_intern_state (local.get $header) (i32.const 0)))
       (local.set $h
-         (call $parse_header (local.get $s) (global.get $input_val_from_string)))
+         (call $parse_header (local.get $s) (global.get $input_value)))
       (local.set $len (struct.get $marshal_header $data_len (local.get $h)))
       (local.set $buf (array.new $string (i32.const 0) (local.get $len)))
       (if (i32.lt_u
@@ -203,7 +209,7 @@
                   (i32.const 16)))
             (i32.or
                (i32.shl
-                  (array.get_s $string (local.get $src)
+                  (array.get_u $string (local.get $src)
                      (i32.add (local.get $pos) (i32.const 2)))
                   (i32.const 8))
                (array.get_u $string (local.get $src)
@@ -308,198 +314,202 @@
    (func $intern_rec
       (param $s (ref $intern_state)) (param $h (ref $marshal_header))
       (result (ref eq))
-      (local $dest (ref $block))
-      (local $sp (ref $stack_item))
+      (local $res (ref $block)) (local $dest (ref $block))
+      (local $sp (ref null $stack_item))
+      (local $item (ref $stack_item))
       (local $code i32)
       (local $header i32) (local $tag i32) (local $size i32)
-      (local $len i32) (local $pos i32) (local $ofs i32)
+      (local $len i32) (local $pos i32) (local $pos' i32) (local $ofs i32)
       (local $b (ref $block))
       (local $str (ref $string))
       (local $v (ref eq))
-      (local.set $dest (array.new_fixed $block 1 (i31.new (i32.const 0))))
+      (local.set $res (array.new_fixed $block 1 (i31.new (i32.const 0))))
       (local.set $sp
          (struct.new $stack_item
-            (local.get $dest) (i32.const 0) (ref.null $stack_item)))
+            (local.get $res) (i32.const 0) (ref.null $stack_item)))
       (local.set $size (struct.get $marshal_header $num_objects (local.get $h)))
-      (if (i32.eqz (local.get $size))
+      (if (local.get $size)
          (then
             (struct.set $intern_state $obj_table (local.get $s)
-               (array.new $block (i31.new (i32.const 0)) (local.get $len)))))
+               (array.new $block (i31.new (i32.const 0)) (local.get $size)))))
       (local.set $v (i31.new (i32.const 0))) ;; keep validator happy
-      (loop $loop
-       (block $done
-        (block $read_block
-         (block $read_string
-          (block $read_double_array
-           (block $read_shared
-            (local.set $code (call $read8u (local.get $s)))
-            (if (i32.ge_u (local.get $code) (global.get $PREFIX_SMALL_INT))
-               (then
-                  (if (i32.ge_u (local.get $code) (global.get $PREFIX_SMALL_BLOCK))
-                     (then
-                        ;; Small block
-                        (local.set $tag
-                           (i32.and (local.get $code) (i32.const 0xF)))
-                        (local.set $size
-                           (i32.and (i32.shr_u (local.get $code) (i32.const 4))
-                              (i32.const 0xF)))
-                        (br $read_block))
-                     (else
-                        ;; Small int
-                        (local.set $v
-                           (i31.new
-                              (i32.and (local.get $code) (i32.const 0x3F))))
-                        (br $done))))
-               (else
-                  (if (i32.ge_u (local.get $code)
-                        (global.get $PREFIX_SMALL_STRING))
-                     (then
-                        (local.set $len
-                           (i32.and (local.get $code) (i32.const 0x1F)))
-                        (br $read_string))
-                     (else
-                        (block $INT8
-                         (block $INT16
-                          (block $INT32
-                           (block $INT64
-                            (block $SHARED8
-                             (block $SHARED16
-                              (block $SHARED32
-                               (block $BLOCK32
-                                (block $STRING8
-                                 (block $STRING32
-                                  (block $DOUBLE
-                                   (block $DOUBLE_ARRAY8
-                                    (block $DOUBLE_ARRAY32
-                                     (block $CODEPOINTER
-                                      (block $CUSTOM
-                                       (block $default
-                                        (br_table $INT8 $INT16 $INT32 $INT64
-                                           $SHARED8 $SHARED16 $SHARED32
-                                           $DOUBLE_ARRAY32 $BLOCK32 $STRING8
-                                           $STRING32 $DOUBLE $DOUBLE
-                                           $DOUBLE_ARRAY8 $DOUBLE_ARRAY8
-                                           $DOUBLE_ARRAY32 $CODEPOINTER
-                                           $CODEPOINTER $CUSTOM $default $default
-                                           $default $default $default
-                                           $CUSTOM $CUSTOM $default
-                                           (local.get $code)))
-                                       ;; default
-                                       (call $caml_failwith
-                                          (array.new_data $string $ill_formed
-                                             (i32.const 0) (i32.const 31)))
-                                       (br $done))
-                                      ;; CUSTOM
-                                      ;; ZZZ
-                                      (unreachable))
-                                     ;; CODEPOINTER
-                                     (call $caml_failwith
-                                       (array.new_data $string $code_pointer
-                                          (i32.const 0) (i32.const 25)))
-                                     (br $done))
-                                    ;; DOUBLE_ARRAY32
-                                    (local.set $len (call $read32 (local.get $s)))
+      (block $exit
+       (loop $loop
+        (local.set $item (br_on_null $exit (local.get $sp)))
+        (local.set $dest (struct.get $stack_item $blk (local.get $item)))
+        (local.set $pos (struct.get $stack_item $pos (local.get $item)))
+        (local.set $pos' (i32.add (local.get $pos) (i32.const 1)))
+        (struct.set $stack_item $pos (local.get $item) (local.get $pos'))
+        (if (i32.eq (local.get $pos') (array.len (local.get $dest)))
+           (then
+               (local.set $sp
+                  (struct.get $stack_item $next (local.get $item)))))
+        (block $done
+         (block $read_block
+          (block $read_string
+           (block $read_double_array
+            (block $read_shared
+             (local.set $code (call $read8u (local.get $s)))
+             (if (i32.ge_u (local.get $code) (global.get $PREFIX_SMALL_INT))
+                (then
+                   (if (i32.ge_u (local.get $code) (global.get $PREFIX_SMALL_BLOCK))
+                      (then
+                         ;; Small block
+                         (local.set $tag
+                            (i32.and (local.get $code) (i32.const 0xF)))
+                         (local.set $size
+                            (i32.and (i32.shr_u (local.get $code) (i32.const 4))
+                               (i32.const 0x7)))
+                         (br $read_block))
+                      (else
+                         ;; Small int
+                         (local.set $v
+                            (i31.new
+                               (i32.and (local.get $code) (i32.const 0x3F))))
+                         (br $done))))
+                (else
+                   (if (i32.ge_u (local.get $code)
+                         (global.get $PREFIX_SMALL_STRING))
+                      (then
+                         (local.set $len
+                            (i32.and (local.get $code) (i32.const 0x1F)))
+                         (br $read_string))
+                      (else
+                         (block $INT8
+                          (block $INT16
+                           (block $INT32
+                            (block $INT64
+                             (block $SHARED8
+                              (block $SHARED16
+                               (block $SHARED32
+                                (block $BLOCK32
+                                 (block $STRING8
+                                  (block $STRING32
+                                   (block $DOUBLE
+                                    (block $DOUBLE_ARRAY8
+                                     (block $DOUBLE_ARRAY32
+                                      (block $CODEPOINTER
+                                       (block $CUSTOM
+                                        (block $default
+                                         (br_table $INT8 $INT16 $INT32 $INT64
+                                            $SHARED8 $SHARED16 $SHARED32
+                                            $DOUBLE_ARRAY32 $BLOCK32 $STRING8
+                                            $STRING32 $DOUBLE $DOUBLE
+                                            $DOUBLE_ARRAY8 $DOUBLE_ARRAY8
+                                            $DOUBLE_ARRAY32 $CODEPOINTER
+                                            $CODEPOINTER $CUSTOM $default
+                                            $default $default $default $default
+                                            $CUSTOM $CUSTOM $default
+                                            (local.get $code)))
+                                        ;; default
+                                        (call $caml_failwith
+                                           (array.new_data $string $ill_formed
+                                              (i32.const 0) (i32.const 31)))
+                                        (br $done))
+                                       ;; CUSTOM
+                                       ;; ZZZ
+                                       (unreachable))
+                                      ;; CODEPOINTER
+                                      (call $caml_failwith
+                                        (array.new_data $string $code_pointer
+                                           (i32.const 0) (i32.const 25)))
+                                      (br $done))
+                                     ;; DOUBLE_ARRAY32
+                                     (local.set $len
+                                        (call $read32 (local.get $s)))
+                                     (br $read_double_array))
+                                    ;; DOUBLE_ARRAY8
+                                    (local.set $len
+                                       (call $read8u (local.get $s)))
                                     (br $read_double_array))
-                                   ;; DOUBLE_ARRAY8
-                                   (local.set $len (call $read8u (local.get $s)))
-                                   (br $read_double_array))
-                                  ;; DOUBLE
-                                  (local.set $v
-                                     (call $readfloat
-                                        (local.get $s) (local.get $code)))
-                                  (call $register_object
-                                     (local.get $s) (local.get $v))
-                                  (br $done))
-                                 ;; STRING32
-                                 (local.set $len (call $read32 (local.get $s)))
+                                   ;; DOUBLE
+                                   (local.set $v
+                                      (call $readfloat
+                                         (local.get $s) (local.get $code)))
+                                   (call $register_object
+                                      (local.get $s) (local.get $v))
+                                   (br $done))
+                                  ;; STRING32
+                                  (local.set $len (call $read32 (local.get $s)))
+                                  (br $read_string))
+                                 ;; STRING8
+                                 (local.set $len (call $read8u (local.get $s)))
                                  (br $read_string))
-                                ;; STRING8
-                                (local.set $len (call $read8u (local.get $s)))
-                                (br $read_string))
-                               ;; BLOCK32
-                               (local.set $header (call $read32 (local.get $s)))
-                               (local.set $tag
-                                  (i32.and (local.get $header) (i32.const 0xFF)))
-                               (local.set $size
-                                  (i32.shr_u (local.get $header) (i32.const 10)))
-                               (br $read_block))
-                              ;; SHARED32
-                              (local.set $ofs (call $read32 (local.get $s)))
+                                ;; BLOCK32
+                                (local.set $header (call $read32 (local.get $s)))
+                                (local.set $tag
+                                   (i32.and (local.get $header)
+                                      (i32.const 0xFF)))
+                                (local.set $size
+                                   (i32.shr_u (local.get $header)
+                                      (i32.const 10)))
+                                (br $read_block))
+                               ;; SHARED32
+                               (local.set $ofs (call $read32 (local.get $s)))
+                               (br $read_shared))
+                              ;; SHARED16
+                              (local.set $ofs (call $read16u (local.get $s)))
                               (br $read_shared))
-                             ;; SHARED16
-                             (local.set $ofs (call $read16u (local.get $s)))
+                             ;; SHARED8
+                             (local.set $ofs (call $read8u (local.get $s)))
                              (br $read_shared))
-                            ;; SHARED8
-                            (local.set $ofs (call $read8u (local.get $s)))
-                            (br $read_shared))
-                           ;; INT64
-                           (call $caml_failwith
-                              (array.new_data $string $integer_too_large
-                                 (i32.const 0) (i32.const 30)))
+                            ;; INT64
+                            (call $caml_failwith
+                               (array.new_data $string $integer_too_large
+                                  (i32.const 0) (i32.const 30)))
+                            (br $done))
+                           ;; INT32
+                           (local.set $v (i31.new (call $read32 (local.get $s))))
                            (br $done))
-                          ;; INT32
-                          (local.set $v (i31.new (call $read32 (local.get $s))))
+                          ;; INT16
+                          (local.set $v (i31.new (call $read16s (local.get $s))))
                           (br $done))
-                         ;; INT16
-                         (local.set $v (i31.new (call $read16s (local.get $s))))
+                         ;; INT8
+                         (local.set $v (i31.new (call $read8s (local.get $s))))
                          (br $done))
-                        ;; INT8
-                        (local.set $v (i31.new (call $read8s (local.get $s))))
-                        (br $done))
-                       ))))
-           ;; read_shared
-           (local.set $ofs
-              (i32.sub
-                 (struct.get $intern_state $obj_counter (local.get $s))
-                 (local.get $ofs)))
+                        ))))
+            ;; read_shared
+            (local.set $ofs
+               (i32.sub
+                  (struct.get $intern_state $obj_counter (local.get $s))
+                  (local.get $ofs)))
+            (local.set $v
+               (array.get $block
+                  (ref.as_non_null
+                     (struct.get $intern_state $obj_table
+                        (local.get $s)))
+                  (local.get $ofs)))
+            (br $done))
+           ;; read_double_array
            (local.set $v
-              (array.get $block
-                 (ref.as_non_null
-                    (struct.get $intern_state $obj_table
-                       (local.get $s)))
-                 (local.get $ofs)))
+              (call $readfloats
+                 (local.get $s) (local.get $code) (local.get $len)))
+           (call $register_object (local.get $s) (local.get $v))
            (br $done))
-          ;; read_double_array
-          (local.set $v
-             (call $readfloats
-                (local.get $s) (local.get $code) (local.get $len)))
+          ;; read_string
+          (local.set $str (array.new $string (i32.const 0) (local.get $len)))
+          (call $readblock (local.get $s) (local.get $str))
+          (local.set $v (local.get $str))
           (call $register_object (local.get $s) (local.get $v))
           (br $done))
-         ;; read_string
-         (local.set $str (array.new $string (i32.const 0) (local.get $len)))
-         (call $readblock (local.get $s) (local.get $str))
-         (local.set $v (local.get $str))
-         (call $register_object (local.get $s) (local.get $v))
+         ;; read_block
+         (local.set $b
+            (array.new $block (i31.new (i32.const 0))
+               (i32.add (local.get $size) (i32.const 1))))
+         (array.set $block (local.get $b) (i32.const 0)
+            (i31.new (local.get $tag)))
+         (if (local.get $size)
+            (then
+               (call $register_object (local.get $s) (local.get $b))
+               (local.set $sp
+                  (struct.new $stack_item
+                     (local.get $b) (i32.const 1) (local.get $sp)))))
+         (local.set $v (local.get $b))
          (br $done))
-        ;; read_block
-        (local.set $b
-           (array.new $block (i31.new (i32.const 0))
-              (i32.add (local.get $size) (i32.const 1))))
-        (array.set $block (local.get $b) (i32.const 0)
-           (i31.new (local.get $tag)))
-        (if (i32.eqz (local.get $size))
-           (then
-              (call $register_object (local.get $s) (local.get $b)))
-           (else
-              (local.set $sp
-                 (struct.new $stack_item
-                    (local.get $b) (i32.const 1) (local.get $sp)))))
-        (local.set $v (local.get $b))
-        (br $done))
-       ;; done
-       (local.set $dest (struct.get $stack_item $blk (local.get $sp)))
-       (local.set $pos (struct.get $stack_item $pos (local.get $sp)))
-       (array.set $block (local.get $dest) (local.get $pos) (local.get $v))
-       (local.set $pos (i32.add (local.get $pos) (i32.const 1)))
-       (struct.set $stack_item $pos (local.get $sp) (local.get $pos))
-       (block $exit
-          (if (i32.eq (local.get $pos) (array.len (local.get $dest)))
-             (then
-                (local.set $sp
-                   (br_on_null $exit
-                      (struct.get $stack_item $next (local.get $sp))))))
-          (br $loop)))
-       (array.get $block (local.get $dest) (i32.const 0)))
+        ;; done
+        (array.set $block (local.get $dest) (local.get $pos) (local.get $v))
+        (br $loop)))
+      (array.get $block (local.get $res) (i32.const 0)))
 
    (data $too_large ": object too large to be read back on a 32-bit platform")
 
@@ -920,7 +930,7 @@
                      (ref.cast (ref i31)
                         (array.get $block (local.get $b) (i32.const 0)))))
                (local.set $sz (i32.sub (array.len (local.get $b)) (i32.const 1)))
-               (if (i32.eq (local.get $sz) (i32.const 0))
+               (if (i32.eqz (local.get $sz))
                   (then
                      (call $extern_header
                         (local.get $s) (i32.const 0) (local.get $tag))
