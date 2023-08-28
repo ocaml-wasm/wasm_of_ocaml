@@ -104,7 +104,7 @@
    (type $float (struct (field f64)))
    (type $js (struct (field anyref)))
    (type $function_1 (func (param (ref eq) (ref eq)) (result (ref eq))))
-   (type $closure (struct (;(field i32);) (field (ref $function_1))))
+   (type $closure (sub (struct (;(field i32);) (field (ref $function_1)))))
 
    (type $compare
       (func (param (ref eq)) (param (ref eq)) (param i32) (result i32)))
@@ -123,7 +123,7 @@
          (field $fixed_length (ref null $fixed_length))
          (field $serialize (ref null $serialize))
          (field $deserialize (ref null $deserialize))))
-   (type $custom (struct (field (ref $custom_operations))))
+   (type $custom (sub (struct (field (ref $custom_operations)))))
 
    (global $Intext_magic_number_small i32 (i32.const 0x8495A6BE))
    (global $Intext_magic_number_big i32 (i32.const 0x8495A6BF))

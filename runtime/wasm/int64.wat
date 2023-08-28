@@ -31,7 +31,7 @@
          (field $fixed_length (ref null $fixed_length))
          (field $serialize (ref null $serialize))
          (field $deserialize (ref null $deserialize))))
-   (type $custom (struct (field (ref $custom_operations))))
+   (type $custom (sub (struct (field (ref $custom_operations)))))
 
    (global $int64_ops (export "int64_ops") (ref $custom_operations)
       (struct.new $custom_operations

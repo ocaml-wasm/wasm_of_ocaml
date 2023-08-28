@@ -54,10 +54,14 @@
    (import "jslib" "unwrap" (func $unwrap (param (ref eq)) (result anyref)))
    (import "int32" "caml_copy_int32"
       (func $caml_copy_int32 (param i32) (result (ref eq))))
+   (import "int32" "Int32_val"
+      (func $Int32_val (param (ref eq)) (result i32)))
    (import "int32" "caml_copy_nativeint"
       (func $caml_copy_nativeint (param i32) (result (ref eq))))
    (import "int64" "caml_copy_int64"
       (func $caml_copy_int64 (param i64) (result (ref eq))))
+   (import "int64" "Int64_val"
+      (func $Int64_val (param (ref eq)) (result i64)))
    (import "obj" "double_array_tag" (global $double_array_tag i32))
    (import "compare" "unordered" (global $unordered i32))
    (import "hash" "caml_hash_mix_int"
@@ -110,12 +114,7 @@
          (field $fixed_length (ref null $fixed_length))
          (field $serialize (ref null $serialize))
          (field $deserialize (ref null $deserialize))))
-   (type $custom (struct (field (ref $custom_operations))))
-   (type $int32
-      (sub final $custom (struct (field (ref $custom_operations)) (field i32))))
-   (type $int64
-      (sub final $custom (struct (field (ref $custom_operations)) (field i64))))
-   (type $int_array (array (mut i32)))
+   (type $custom (sub (struct (field (ref $custom_operations)))))
 
    (global $bigarray_ops (export "bigarray_ops") (ref $custom_operations)
       ;; ZZZ
@@ -130,6 +129,8 @@
          (ref.null $fixed_length)
          (ref.func $bigarray_serialize)
          (ref.func $bigarray_deserialize)))
+
+   (type $int_array (array (mut i32)))
 
    (type $bigarray
       (sub final $custom
@@ -888,7 +889,7 @@
                 (return))
                ;; nativeint
                (call $ta_set_i32 (local.get $data) (local.get $i)
-                  (struct.get $int32 1 (ref.cast (ref $int32) (local.get $v))))
+                  (call $Int32_val (local.get $v)))
                (return))
               ;; int
               (call $ta_set_i32 (local.get $data) (local.get $i)
@@ -896,8 +897,7 @@
               (return))
              ;; int64
              (local.set $i (i32.shl (local.get $i) (i32.const 1)))
-             (local.set $l
-                (struct.get $int64 1 (ref.cast (ref $int64) (local.get $v))))
+             (local.set $l (call $Int64_val (local.get $v)))
              (call $ta_set_i32 (local.get $data) (local.get $i)
                 (i32.wrap_i64 (local.get $l)))
              (call $ta_set_i32 (local.get $data)
@@ -906,7 +906,7 @@
              (return))
             ;; int32
             (call $ta_set_i32 (local.get $data) (local.get $i)
-               (struct.get $int32 1 (ref.cast (ref $int32) (local.get $v))))
+               (call $Int32_val (local.get $v)))
             (return))
            ;; uint16
            (call $ta_set_ui16 (local.get $data) (local.get $i)
@@ -1518,8 +1518,7 @@
            (return (i31.new (i32.const 0))))
           ;; int64
           (local.set $len (call $ta_length (local.get $data)))
-          (local.set $l
-             (struct.get $int64 1 (ref.cast (ref $int64) (local.get $v))))
+          (local.set $l (call $Int64_val (local.get $v)))
           (local.set $i1 (i32.wrap_i64 (local.get $l)))
           (local.set $i2
              (i32.wrap_i64 (i64.shr_u (local.get $l) (i64.const 32))))
@@ -1535,8 +1534,7 @@
                    (br $loop))))
           (return (i31.new (i32.const 0))))
          ;; int32
-         (call $ta_fill_int (local.get $data)
-            (struct.get $int32 1 (ref.cast (ref $int32) (local.get $v))))
+         (call $ta_fill_int (local.get $data) (call $Int32_val (local.get $v)))
          (return (i31.new (i32.const 0))))
         ;; int
         (call $ta_fill_int (local.get $data)
@@ -2036,8 +2034,7 @@
       (local.set $ba (ref.cast (ref $bigarray) (local.get $vba)))
       (local.set $data (struct.get $bigarray $ba_data (local.get $ba)))
       (local.set $p (i31.get_s (ref.cast (ref i31) (local.get $i))))
-      (local.set $d
-         (struct.get $int32 1 (ref.cast (ref $int32) (local.get $v))))
+      (local.set $d (call $Int32_val (local.get $v)))
       (if (i32.lt_s (local.get $p) (i32.const 0))
          (then (call $caml_bound_error)))
       (if (i32.ge_u (i32.add (local.get $p) (i32.const 3))
@@ -2067,8 +2064,7 @@
       (local.set $ba (ref.cast (ref $bigarray) (local.get $vba)))
       (local.set $data (struct.get $bigarray $ba_data (local.get $ba)))
       (local.set $p (i31.get_s (ref.cast (ref i31) (local.get $i))))
-      (local.set $d
-         (struct.get $int64 1 (ref.cast (ref $int64) (local.get $v))))
+      (local.set $d (call $Int64_val (local.get $v)))
       (if (i32.lt_s (local.get $p) (i32.const 0))
          (then (call $caml_bound_error)))
       (if (i32.ge_u (i32.add (local.get $p) (i32.const 7))

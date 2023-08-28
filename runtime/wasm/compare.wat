@@ -19,7 +19,7 @@
    (type $float (struct (field f64)))
    (type $js (struct (field anyref)))
    (type $function_1 (func (param (ref eq) (ref eq)) (result (ref eq))))
-   (type $closure (struct (;(field i32);) (field (ref $function_1))))
+   (type $closure (sub (struct (;(field i32);) (field (ref $function_1)))))
 
    (type $int_array (array (mut i32)))
    (type $block_array (array (mut (ref $block))))
@@ -46,7 +46,7 @@
          (field $fixed_length (ref null $fixed_length))
          (field $serialize (ref null $serialize))
          (field $deserialize (ref null $deserialize))))
-   (type $custom (struct (field (ref $custom_operations))))
+   (type $custom (sub (struct (field (ref $custom_operations)))))
 
    (global $dummy_block (ref $block)
       (array.new $block (i31.new (i32.const 0)) (i32.const 0)))

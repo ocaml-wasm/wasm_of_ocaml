@@ -406,5 +406,7 @@ Effects
 
 buffered i/o
 filesystem errors
-marshaling: custom values
 missing i/o primitives (pos_in_64, ...)
+
+zarith 1.13
+final types
