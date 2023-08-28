@@ -43,9 +43,8 @@ let gen_file file f =
     f f_tmp;
     (try Sys.remove file with Sys_error _ -> ());
     Sys.rename f_tmp file
-  with exc ->
-    (try Sys.remove f_tmp with Sys_error _ -> ());
-    raise exc
+  with exc -> (*    (try Sys.remove f_tmp with Sys_error _ -> ());*)
+              raise exc
 
 let write_file name contents =
   Filename.gen_file name @@ fun ch -> output_string ch contents
