@@ -71,16 +71,21 @@
    (type $block (array (mut (ref eq))))
    (type $string (array (mut i8)))
    (type $float (struct (field f64)))
-   (type $value->value->int->int
+   (type $compare
       (func (param (ref eq)) (param (ref eq)) (param i32) (result i32)))
-   (type $value->int
+   (type $hash
       (func (param (ref eq)) (result i32)))
+   (type $fixed_length (struct (field $bsize_32 i32) (field $bsize_64 i32)))
+   (type $serialize
+      (func (param (ref eq)) (param (ref eq)) (result i32) (result i32)))
    (type $custom_operations
       (struct
-         (field $cust_id (ref $string))
-         (field $cust_compare (ref null $value->value->int->int))
-         (field $cust_compare_ext (ref null $value->value->int->int))
-         (field $cust_hash (ref null $value->int))
+         (field $id (ref $string))
+         (field $compare (ref null $compare))
+         (field $compare_ext (ref null $compare))
+         (field $hash (ref null $hash))
+         (field $fixed_length (ref null $fixed_length))
+         (field $serialize (ref null $serialize))
          ;; ZZZ
       ))
    (type $custom (struct (field (ref $custom_operations))))
@@ -98,8 +103,10 @@
             (i32.const 97) (i32.const 114) (i32.const 114) (i32.const 48)
             (i32.const 50))
          (ref.func $caml_ba_compare)
-         (ref.null $value->value->int->int)
-         (ref.func $bigarray_hash)))
+         (ref.null $compare)
+         (ref.func $bigarray_hash)
+         (ref.null $fixed_length)
+         (ref.null $serialize))) ;; ZZZ
 
    (type $bigarray
       (sub final $custom

@@ -4,27 +4,14 @@
       (func $caml_invalid_argument (param $arg (ref eq))))
    (import "int32" "caml_copy_int32"
       (func $caml_copy_int32 (param i32) (result (ref eq))))
+   (import "int32" "Int32_val"
+      (func $Int32_val (param (ref eq)) (result i32)))
    (import "int64" "caml_copy_int64"
       (func $caml_copy_int64 (param i64) (result (ref eq))))
+   (import "int64" "Int64_val"
+      (func $Int64_val (param (ref eq)) (result i64)))
 
    (type $string (array (mut i8)))
-   (type $value->value->int->int
-      (func (param (ref eq)) (param (ref eq)) (param i32) (result i32)))
-   (type $value->int
-      (func (param (ref eq)) (result i32)))
-   (type $custom_operations
-      (struct
-         (field $cust_id (ref $string))
-         (field $cust_compare (ref null $value->value->int->int))
-         (field $cust_compare_ext (ref null $value->value->int->int))
-         (field $cust_hash (ref null $value->int))
-         ;; ZZZ
-      ))
-   (type $custom (struct (field (ref $custom_operations))))
-   (type $int32
-      (sub final $custom (struct (field (ref $custom_operations)) (field i32))))
-   (type $int64
-      (sub final $custom (struct (field (ref $custom_operations)) (field i64))))
 
    (export "caml_bytes_equal" (func $caml_string_equal))
    (func $caml_string_equal (export "caml_string_equal")
@@ -274,7 +261,7 @@
       (local $s (ref $string)) (local $p i32) (local $v i32)
       (local.set $s (ref.cast (ref $string) (local.get 0)))
       (local.set $p (i31.get_s (ref.cast (ref i31) (local.get 1))))
-      (local.set $v (struct.get $int32 1 (ref.cast (ref $int32) (local.get 2))))
+      (local.set $v (call $Int32_val (local.get 2)))
       (if (i32.lt_s (local.get $p) (i32.const 0))
          (then (call $caml_bound_error)))
       (if (i32.ge_u (i32.add (local.get $p) (i32.const 3))
@@ -297,7 +284,7 @@
       (local $s (ref $string)) (local $p i32) (local $v i64)
       (local.set $s (ref.cast (ref $string) (local.get 0)))
       (local.set $p (i31.get_s (ref.cast (ref i31) (local.get 1))))
-      (local.set $v (struct.get $int64 1 (ref.cast (ref $int64) (local.get 2))))
+      (local.set $v (call $Int64_val (local.get 2)))
       (if (i32.lt_s (local.get $p) (i32.const 0))
          (then (call $caml_bound_error)))
       (if (i32.ge_u (i32.add (local.get $p) (i32.const 7))
