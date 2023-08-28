@@ -7,6 +7,8 @@
          (param (ref eq)) (param i32) (param i32) (result (ref eq))))
    (import "marshal" "caml_serialize_int_4"
       (func $caml_serialize_int_4 (param (ref eq)) (param i32)))
+   (import "marshal" "caml_deserialize_int_4"
+      (func $caml_deserialize_int_4 (param (ref eq)) (result i32)))
 
    (type $string (array (mut i8)))
    (type $compare
@@ -16,6 +18,7 @@
    (type $fixed_length (struct (field $bsize_32 i32) (field $bsize_64 i32)))
    (type $serialize
       (func (param (ref eq)) (param (ref eq)) (result i32) (result i32)))
+   (type $deserialize (func (param (ref eq)) (result (ref eq)) (result i32)))
    (type $custom_operations
       (struct
          (field $id (ref $string))
@@ -24,8 +27,7 @@
          (field $hash (ref null $hash))
          (field $fixed_length (ref null $fixed_length))
          (field $serialize (ref null $serialize))
-         ;; ZZZ
-      ))
+         (field $deserialize (ref null $deserialize))))
    (type $custom (struct (field (ref $custom_operations))))
 
    (global $int32_ops (export "int32_ops") (ref $custom_operations)
@@ -35,7 +37,8 @@
          (ref.null $compare)
          (ref.func $int32_hash)
          (struct.new $fixed_length (i32.const 4) (i32.const 4))
-         (ref.func $int32_serialize)))
+         (ref.func $int32_serialize)
+         (ref.func $int32_deserialize)))
 
    (type $int32
       (sub final $custom (struct (field (ref $custom_operations)) (field i32))))
@@ -58,6 +61,12 @@
       (call $caml_serialize_int_4 (local.get $s)
          (struct.get $int32 1 (ref.cast (ref $int32) (local.get $v))))
       (tuple.make (i32.const 4) (i32.const 4)))
+
+   (func $int32_deserialize (param $s (ref eq)) (result (ref eq)) (result i32)
+      (tuple.make
+         (struct.new $int32 (global.get $int32_ops)
+            (call $caml_deserialize_int_4 (local.get $s)))
+         (i32.const 4)))
 
    (func $caml_copy_int32 (export "caml_copy_int32")
       (param $i i32) (result (ref eq))
@@ -107,7 +116,15 @@
          (ref.null $compare)
          (ref.func $int32_hash)
          (struct.new $fixed_length (i32.const 4) (i32.const 8))
-         (ref.func $int32_serialize)))
+         (ref.func $int32_serialize)
+         (ref.func $nativeint_deserialize)))
+
+   (func $nativeint_deserialize
+      (param $s (ref eq)) (result (ref eq)) (result i32)
+      (tuple.make
+         (struct.new $int32 (global.get $nativeint_ops)
+            (call $caml_deserialize_int_4 (local.get $s)))
+         (i32.const 4)))
 
    (func $caml_copy_nativeint (export "caml_copy_nativeint")
       (param $i i32) (result (ref eq))

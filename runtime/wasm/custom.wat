@@ -1,4 +1,14 @@
 (module
+   (import "int32" "int32_ops" (global $int32_ops (ref $custom_operations)))
+   (import "int32" "nativeint_ops"
+      (global $nativeint_ops (ref $custom_operations)))
+   (import "int64" "int64_ops" (global $int64_ops (ref $custom_operations)))
+   (import "bigarray" "bigarray_ops"
+      (global $bigarray_ops (ref $custom_operations)))
+   (import "string" "caml_string_equal"
+      (func $caml_string_equal
+         (param (ref eq)) (param (ref eq)) (result (ref eq))))
+
    (type $string (array (mut i8)))
    (type $compare
       (func (param (ref eq)) (param (ref eq)) (param i32) (result i32)))
@@ -7,6 +17,7 @@
    (type $fixed_length (struct (field $bsize_32 i32) (field $bsize_64 i32)))
    (type $serialize
       (func (param (ref eq)) (param (ref eq)) (result i32) (result i32)))
+   (type $deserialize (func (param (ref eq)) (result (ref eq)) (result i32)))
    (type $custom_operations
       (struct
          (field $id (ref $string))
@@ -15,8 +26,7 @@
          (field $hash (ref null $hash))
          (field $fixed_length (ref null $fixed_length))
          (field $serialize (ref null $serialize))
-         ;; ZZZ
-      ))
+         (field $deserialize (ref null $deserialize))))
    (type $custom (struct (field (ref $custom_operations))))
 
    (type $custom_with_id
@@ -52,4 +62,51 @@
       (local.set $id (global.get $next_id))
       (global.set $next_id (i64.add (local.get $id) (i64.const 1)))
       (local.get $id))
+
+   (type $custom_operations_list
+      (struct
+         (field $ops (ref $custom_operations))
+         (field $next (ref null $custom_operations_list))))
+
+   (global $custom_operations
+      (mut (ref null $custom_operations_list))
+      (ref.null $custom_operations_list))
+
+   (func $caml_register_custom_operations
+      (export "caml_register_custom_operations")
+      (param $ops (ref $custom_operations))
+      (global.set $custom_operations
+         (struct.new $custom_operations_list
+            (local.get $ops) (global.get $custom_operations))))
+
+   (func (export "caml_find_custom_operations")
+      (param $id (ref $string)) (result (ref null $custom_operations))
+      (local $l (ref null $custom_operations_list))
+      (block $not_found
+         (local.set $l (br_on_null $not_found (global.get $custom_operations)))
+         (loop $loop
+            (local.set $l
+               (br_on_null $not_found
+                  (struct.get $custom_operations_list $next (local.get $l))))
+            (if (i31.get_u
+                   (ref.cast (ref i31)
+                       (call $caml_string_equal (local.get $id)
+                         (struct.get $custom_operations $id
+                            (struct.get $custom_operations_list $ops
+                               (local.get $l))))))
+               (then
+                  (return
+                     (struct.get $custom_operations_list $ops (local.get $l)))))
+            (br $loop)))
+      (ref.null $custom_operations))
+
+   (global $initialized (mut i32) (i32.const 0))
+
+   (func (export "caml_init_custom_operations")
+      (if (global.get $initialized) (then (return)))
+      (call $caml_register_custom_operations (global.get $int32_ops))
+      (call $caml_register_custom_operations (global.get $nativeint_ops))
+      (call $caml_register_custom_operations (global.get $int64_ops))
+      (call $caml_register_custom_operations (global.get $bigarray_ops))
+      (global.set $initialized (i32.const 1)))
 )

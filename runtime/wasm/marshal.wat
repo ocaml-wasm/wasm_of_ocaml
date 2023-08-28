@@ -22,6 +22,11 @@
       (func $caml_really_getblock
          (param (ref eq)) (param (ref $string)) (param i32) (param i32)
          (result i32)))
+   (import "custom" "caml_init_custom_operations"
+      (func $caml_init_custom_operations))
+   (import "custom" "caml_find_custom_operations"
+      (func $caml_find_custom_operations
+         (param (ref $string)) (result (ref null $custom_operations))))
 
    (global $input_val_from_string (ref $string)
       (array.new_fixed $string 21
@@ -101,6 +106,25 @@
    (type $js (struct (field anyref)))
    (type $function_1 (func (param (ref eq) (ref eq)) (result (ref eq))))
    (type $closure (struct (;(field i32);) (field (ref $function_1))))
+
+   (type $compare
+      (func (param (ref eq)) (param (ref eq)) (param i32) (result i32)))
+   (type $hash
+      (func (param (ref eq)) (result i32)))
+   (type $fixed_length (struct (field $bsize_32 i32) (field $bsize_64 i32)))
+   (type $serialize
+      (func (param (ref eq)) (param (ref eq)) (result i32) (result i32)))
+   (type $deserialize (func (param (ref eq)) (result (ref eq)) (result i32)))
+   (type $custom_operations
+      (struct
+         (field $id (ref $string))
+         (field $compare (ref null $compare))
+         (field $compare_ext (ref null $compare))
+         (field $hash (ref null $hash))
+         (field $fixed_length (ref null $fixed_length))
+         (field $serialize (ref null $serialize))
+         (field $deserialize (ref null $deserialize))))
+   (type $custom (struct (field (ref $custom_operations))))
 
    (global $Intext_magic_number_small i32 (i32.const 0x8495A6BE))
    (global $Intext_magic_number_big i32 (i32.const 0x8495A6BF))
@@ -231,6 +255,26 @@
       (struct.set $intern_state $pos (local.get $s)
          (i32.add (local.get $pos) (local.get $len))))
 
+   (func $readstr (param $s (ref $intern_state)) (result (ref $string))
+      (local $len i32) (local $pos i32) (local $res (ref $string))
+      (local $src (ref $string))
+      (local.set $src (struct.get $intern_state $src (local.get $s)))
+      (local.set $pos (struct.get $intern_state $pos (local.get $s)))
+      (loop $loop
+         (if (array.get_u $string (local.get $src)
+                (i32.add (local.get $pos) (local.get $len)))
+            (then
+               (local.set $len (i32.add (local.get $len) (i32.const 1)))
+               (br $loop))))
+      (local.set $res (array.new $string (i32.const 0) (local.get $len)))
+      (array.copy $string $string
+         (local.get $res) (i32.const 0)
+         (local.get $src) (local.get $pos)
+         (local.get $len))
+      (struct.set $intern_state $pos (local.get $s)
+         (i32.add (local.get $pos) (i32.add (local.get $len) (i32.const 1))))
+      (local.get $res))
+
    (func $readfloat
       (param $s (ref $intern_state)) (param $code i32) (result (ref eq))
       (local $src (ref $string)) (local $pos i32) (local $res i32)
@@ -291,6 +335,16 @@
                (br $loop))))
       (local.get $dest))
 
+   (func (export "caml_deserialize_int_4") (param $s (ref eq)) (result i32)
+      (return_call $read32 (ref.cast (ref $intern_state) (local.get $s))))
+
+   (func (export "caml_deserialize_int_8") (param $vs (ref eq)) (result i64)
+      (local $s (ref $intern_state))
+      (local.set $s (ref.cast (ref $intern_state) (local.get $vs)))
+      (i64.or (i64.shl (i64.extend_i32_u (call $read32 (local.get $s)))
+                 (i64.const 32))
+         (i64.extend_i32_u (call $read32 (local.get $s)))))
+
    (func $register_object (param $s (ref $intern_state)) (param $v (ref eq))
       (local $obj_table (ref $block))
       (local $p i32)
@@ -313,6 +367,58 @@
    (data $code_pointer "input_value: code pointer")
    (data $ill_formed "input_value: ill-formed message")
 
+   (data $unknown_custom "input_value: unknown custom block identifier")
+   (data $expected_size "input_value: expected a fixed-size custom block")
+   (data $incorrect_size
+      "input_value: incorrect length of serialized custom block")
+
+   (func $intern_custom
+      (param $s (ref $intern_state)) (param $code i32) (result (ref eq))
+      (local $ops (ref $custom_operations))
+      (local $expected_size i32)
+      (local $r ((ref eq) i32))
+      (block $unknown
+         (local.set $ops
+            (br_on_null $unknown
+               (call
+                  $caml_find_custom_operations
+                  (call $readstr
+                     (local.get $s)))))
+         (block $no_length
+            (if (i32.eq (local.get $code) (global.get $CODE_CUSTOM_FIXED))
+               (then
+                  (local.set $expected_size
+                     (struct.get $fixed_length $bsize_32
+                        (br_on_null $no_length
+                           (struct.get $custom_operations $fixed_length
+                              (local.get $ops))))))
+            (else
+               (if (i32.eq (local.get $code) (global.get $CODE_CUSTOM_LEN))
+                  (then
+                     (local.set $expected_size (call $read32 (local.get $s)))
+                     (struct.set $intern_state $pos (local.get $s)
+                        (i32.add (struct.get $intern_state $pos (local.get $s))
+                           (i32.const 8)))))))
+            (local.set $r
+               (call_ref $deserialize (local.get $s)
+                  (struct.get $custom_operations $deserialize (local.get $ops))))
+            (if (i32.and
+                  (i32.ne (tuple.extract 1 (local.get $r))
+                     (local.get $expected_size))
+                  (i32.ne (local.get $code) (global.get $CODE_CUSTOM)))
+               (then
+                  (call $caml_failwith
+                     (array.new_data $string $incorrect_size
+                        (i32.const 0) (i32.const 56)))))
+            (return (tuple.extract 0 (local.get $r))))
+         (call $caml_failwith
+            (array.new_data $string $expected_size
+               (i32.const 0) (i32.const 47))))
+      (call $caml_failwith
+         (array.new_data $string $unknown_custom
+            (i32.const 0) (i32.const 44)))
+      (i31.new (i32.const 0)))
+
    (func $intern_rec
       (param $s (ref $intern_state)) (param $h (ref $marshal_header))
       (result (ref eq))
@@ -325,6 +431,7 @@
       (local $b (ref $block))
       (local $str (ref $string))
       (local $v (ref eq))
+      (call $caml_init_custom_operations)
       (local.set $res (array.new_fixed $block 1 (i31.new (i32.const 0))))
       (local.set $sp
          (struct.new $stack_item
@@ -409,8 +516,11 @@
                                               (i32.const 0) (i32.const 31)))
                                         (br $done))
                                        ;; CUSTOM
-                                       ;; ZZZZZZZZ
-                                       (local.set $v (i31.new (i32.const 0)))
+                                       (local.set $v
+                                          (call $intern_custom (local.get $s)
+                                             (local.get $code)))
+                                       (call $register_object (local.get $s)
+                                          (local.get $v))
                                        (br $done))
                                       ;; CODEPOINTER
                                       (call $caml_failwith
@@ -910,25 +1020,6 @@
             (call $writecode32 (local.get $s)
                (global.get $CODE_DOUBLE_ARRAY32_LITTLE) (local.get $nfloats))))
       (call $writefloats (local.get $s) (local.get $v)))
-
-   (type $compare
-      (func (param (ref eq)) (param (ref eq)) (param i32) (result i32)))
-   (type $hash
-      (func (param (ref eq)) (result i32)))
-   (type $fixed_length (struct (field $bsize_32 i32) (field $bsize_64 i32)))
-   (type $serialize
-      (func (param (ref eq)) (param (ref eq)) (result i32) (result i32)))
-   (type $custom_operations
-      (struct
-         (field $id (ref $string))
-         (field $compare (ref null $compare))
-         (field $compare_ext (ref null $compare))
-         (field $hash (ref null $hash))
-         (field $fixed_length (ref null $fixed_length))
-         (field $serialize (ref null $serialize))
-         ;; ZZZ
-      ))
-   (type $custom (struct (field (ref $custom_operations))))
 
    (data $incorrect_sizes "output_value: incorrect fixed sizes specified by ")
 

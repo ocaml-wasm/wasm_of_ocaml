@@ -71,6 +71,7 @@
    (type $block (array (mut (ref eq))))
    (type $string (array (mut i8)))
    (type $float (struct (field f64)))
+
    (type $compare
       (func (param (ref eq)) (param (ref eq)) (param i32) (result i32)))
    (type $hash
@@ -78,6 +79,7 @@
    (type $fixed_length (struct (field $bsize_32 i32) (field $bsize_64 i32)))
    (type $serialize
       (func (param (ref eq)) (param (ref eq)) (result i32) (result i32)))
+   (type $deserialize (func (param (ref eq)) (result (ref eq)) (result i32)))
    (type $custom_operations
       (struct
          (field $id (ref $string))
@@ -86,8 +88,7 @@
          (field $hash (ref null $hash))
          (field $fixed_length (ref null $fixed_length))
          (field $serialize (ref null $serialize))
-         ;; ZZZ
-      ))
+         (field $deserialize (ref null $deserialize))))
    (type $custom (struct (field (ref $custom_operations))))
    (type $int32
       (sub final $custom (struct (field (ref $custom_operations)) (field i32))))
@@ -95,7 +96,7 @@
       (sub final $custom (struct (field (ref $custom_operations)) (field i64))))
    (type $int_array (array (mut i32)))
 
-   (global $bigarray_ops (ref $custom_operations)
+   (global $bigarray_ops (export "bigarray_ops") (ref $custom_operations)
       ;; ZZZ
       (struct.new $custom_operations
          (array.new_fixed $string 9 ;; "_bigarr02"
@@ -106,7 +107,8 @@
          (ref.null $compare)
          (ref.func $bigarray_hash)
          (ref.null $fixed_length)
-         (ref.null $serialize))) ;; ZZZ
+         (ref.null $serialize)
+         (ref.null $deserialize))) ;; ZZZ
 
    (type $bigarray
       (sub final $custom

@@ -15,6 +15,7 @@
    (type $fixed_length (struct (field $bsize_32 i32) (field $bsize_64 i32)))
    (type $serialize
       (func (param (ref eq)) (param (ref eq)) (result i32) (result i32)))
+   (type $deserialize (func (param (ref eq)) (result (ref eq)) (result i32)))
    (type $custom_operations
       (struct
          (field $id (ref $string))
@@ -23,8 +24,7 @@
          (field $hash (ref null $hash))
          (field $fixed_length (ref null $fixed_length))
          (field $serialize (ref null $serialize))
-         ;; ZZZ
-      ))
+         (field $deserialize (ref null $deserialize))))
    (type $custom (struct (field (ref $custom_operations))))
    (type $custom_with_id
       (sub $custom
@@ -41,7 +41,8 @@
          (ref.null $compare)
          (ref.func $custom_hash_id)
          (ref.null $fixed_length)
-         (ref.null $serialize)))
+         (ref.null $serialize)
+         (ref.null $deserialize)))
 
    (type $mutex
       (sub final $custom_with_id

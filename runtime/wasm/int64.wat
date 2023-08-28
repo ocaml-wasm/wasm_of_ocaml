@@ -10,6 +10,8 @@
    (import "fail" "caml_failwith" (func $caml_failwith (param (ref eq))))
    (import "marshal" "caml_serialize_int_8"
       (func $caml_serialize_int_8 (param (ref eq)) (param i64)))
+   (import "marshal" "caml_deserialize_int_8"
+      (func $caml_deserialize_int_8 (param (ref eq)) (result i64)))
 
    (type $string (array (mut i8)))
    (type $compare
@@ -19,6 +21,7 @@
    (type $fixed_length (struct (field $bsize_32 i32) (field $bsize_64 i32)))
    (type $serialize
       (func (param (ref eq)) (param (ref eq)) (result i32) (result i32)))
+   (type $deserialize (func (param (ref eq)) (result (ref eq)) (result i32)))
    (type $custom_operations
       (struct
          (field $id (ref $string))
@@ -27,8 +30,7 @@
          (field $hash (ref null $hash))
          (field $fixed_length (ref null $fixed_length))
          (field $serialize (ref null $serialize))
-         ;; ZZZ
-      ))
+         (field $deserialize (ref null $deserialize))))
    (type $custom (struct (field (ref $custom_operations))))
 
    (global $int64_ops (export "int64_ops") (ref $custom_operations)
@@ -38,7 +40,8 @@
          (ref.null $compare)
          (ref.func $int64_hash)
          (struct.new $fixed_length (i32.const 8) (i32.const 8))
-         (ref.func $int64_serialize)))
+         (ref.func $int64_serialize)
+         (ref.func $int64_deserialize)))
 
    (type $int64
       (sub final $custom (struct (field (ref $custom_operations)) (field i64))))
@@ -66,6 +69,12 @@
       (call $caml_serialize_int_8 (local.get $s)
          (struct.get $int64 1 (ref.cast (ref $int64) (local.get $v))))
       (tuple.make (i32.const 8) (i32.const 8)))
+
+   (func $int64_deserialize (param $s (ref eq)) (result (ref eq)) (result i32)
+      (tuple.make
+         (struct.new $int64 (global.get $int64_ops)
+            (call $caml_deserialize_int_8 (local.get $s)))
+         (i32.const 8)))
 
    (func $caml_copy_int64 (export "caml_copy_int64")
       (param $i i64) (result (ref eq))
