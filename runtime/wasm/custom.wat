@@ -85,9 +85,6 @@
       (block $not_found
          (local.set $l (br_on_null $not_found (global.get $custom_operations)))
          (loop $loop
-            (local.set $l
-               (br_on_null $not_found
-                  (struct.get $custom_operations_list $next (local.get $l))))
             (if (i31.get_u
                    (ref.cast (ref i31)
                        (call $caml_string_equal (local.get $id)
@@ -97,6 +94,9 @@
                (then
                   (return
                      (struct.get $custom_operations_list $ops (local.get $l)))))
+            (local.set $l
+               (br_on_null $not_found
+                  (struct.get $custom_operations_list $next (local.get $l))))
             (br $loop)))
       (ref.null $custom_operations))
 

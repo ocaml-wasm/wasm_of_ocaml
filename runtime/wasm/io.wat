@@ -238,12 +238,13 @@
       (local $n i32) (local $offset i64) (local $fd i32)
       (local $buf (ref extern))
       (local.set $buf (struct.get $channel $buffer (local.get $ch)))
+      (local.set $fd (struct.get $channel $fd (local.get $ch)))
       (local.set $offset
          (array.get $offset_array (global.get $fd_offsets)
             (local.get $fd)))
       (local.set $n
          (call $read
-            (struct.get $channel $fd (local.get $ch))
+            (local.get $fd)
             (local.get $buf)
             (i32.const 0)
             (struct.get $channel $size (local.get $ch))

@@ -1,5 +1,4 @@
 (module
-   (import "bindings" "log" (func $log_js (param anyref)))
    (import "fail" "caml_failwith" (func $caml_failwith (param (ref eq))))
    (import "fail" "caml_invalid_argument"
       (func $caml_invalid_argument (param (ref eq))))
@@ -334,6 +333,18 @@
                   (call $readfloat (local.get $s) (local.get $code)))
                (br $loop))))
       (local.get $dest))
+
+   (func (export "caml_deserialize_uint_1") (param $s (ref eq)) (result i32)
+      (return_call $read8u (ref.cast (ref $intern_state) (local.get $s))))
+
+   (func (export "caml_deserialize_sint_1") (param $s (ref eq)) (result i32)
+      (return_call $read8s (ref.cast (ref $intern_state) (local.get $s))))
+
+   (func (export "caml_deserialize_uint_2") (param $s (ref eq)) (result i32)
+      (return_call $read16u (ref.cast (ref $intern_state) (local.get $s))))
+
+   (func (export "caml_deserialize_sint_2") (param $s (ref eq)) (result i32)
+      (return_call $read16s (ref.cast (ref $intern_state) (local.get $s))))
 
    (func (export "caml_deserialize_int_4") (param $s (ref eq)) (result i32)
       (return_call $read32 (ref.cast (ref $intern_state) (local.get $s))))
@@ -1307,7 +1318,8 @@
             (local.set $pos (i32.add (local.get $pos) (local.get $len)))
             (local.set $blk
                (br_on_null $done
-                  (struct.get $output_block $next (local.get $blk))))))
+                  (struct.get $output_block $next (local.get $blk))))
+            (br $loop)))
       (local.get $res))
 
    (func (export "caml_output_value_to_buffer")
@@ -1364,9 +1376,28 @@
                (struct.get $output_block $end (local.get $blk)))
             (local.set $blk
                (br_on_null $done
-                  (struct.get $output_block $next (local.get $blk))))))
+                  (struct.get $output_block $next (local.get $blk))))
+            (br $loop)))
       ;; ZZZ flush if unbuffered
       (i31.new (i32.const 0)))
+
+   (func (export "caml_serialize_int_1") (param $vs (ref eq)) (param $i i32)
+      (local $s (ref $extern_state))
+      (local $pos i32)
+      (local.set $s (ref.cast (ref $extern_state) (local.get $vs)))
+      (local.set $pos
+         (call $reserve_extern_output (local.get $s) (i32.const 1)))
+      (array.set $string (struct.get $extern_state $buf (local.get $s))
+         (local.get $pos) (local.get $i)))
+
+   (func (export "caml_serialize_int_2") (param $vs (ref eq)) (param $i i32)
+      (local $s (ref $extern_state))
+      (local $pos i32)
+      (local.set $s (ref.cast (ref $extern_state) (local.get $vs)))
+      (local.set $pos
+         (call $reserve_extern_output (local.get $s) (i32.const 2)))
+      (call $store16 (struct.get $extern_state $buf (local.get $s))
+         (local.get $pos) (local.get $i)))
 
    (func (export "caml_serialize_int_4") (param $vs (ref eq)) (param $i i32)
       (local $s (ref $extern_state))
