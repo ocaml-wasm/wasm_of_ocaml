@@ -227,6 +227,7 @@ Performance improvements:
   can call it directly.
 - float arrays
 - use unboxed primitives for int64/int32/nativeint
+- no nested exception handlers (?)
 
 ===================================
 
@@ -396,7 +397,7 @@ Effects
 => we need to know whether a function is CPS or not
    ==> cps_needed
 => we need to know whether a call is a CPS call or not
-   ==> refine cps_calls (checked / CPS)
+   ==> cps_needed?
 
 => switches should branch with no args ==> add intermediate blocks
 
