@@ -254,7 +254,10 @@ module type S = sig
   end
 
   val exception_handler_body :
-    typ:Wa_ast.value_type list -> unit Wa_code_generation.t -> unit Wa_code_generation.t
+       typ:Wa_ast.value_type list
+    -> context:[ `Block of Code.Addr.t | `Skip ] list
+    -> ([ `Block of Code.Addr.t | `Skip ] list -> unit Wa_code_generation.t)
+    -> unit Wa_code_generation.t
 
   val post_process_function_body :
        param_count:int
