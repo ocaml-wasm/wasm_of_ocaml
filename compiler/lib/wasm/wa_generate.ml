@@ -574,6 +574,17 @@ module Generate (Target : Wa_target_sig.S) = struct
             Value.val_int
               Arith.(
                 (Value.int_val j < Value.int_val i) - (Value.int_val i < Value.int_val j))
+        | Extern "%js_array", l ->
+            let* l =
+              List.fold_right
+                ~f:(fun x acc ->
+                  let* x = x in
+                  let* acc = acc in
+                  return (`Expr x :: acc))
+                l
+                ~init:(return [])
+            in
+            Memory.allocate stack_ctx x ~tag:0 l
         | Extern name, l ->
             (*ZZZ Different calling convention when large number of parameters *)
             let* f = register_import ~name (Fun (func_type (List.length l))) in
