@@ -12,7 +12,7 @@
    (import "bindings" "close" (func $close (param i32)))
    (import "bindings" "write"
       (func $write
-         (param i32) (param (ref extern)) (param i32) (param i32) (param i64)
+         (param i32) (param (ref extern)) (param i32) (param i32) (param i32)
          (result i32)))
    (import "bindings" "write"
       (func $write'
@@ -644,7 +644,7 @@
                         (local.get $buf)
                         (i32.const 0)
                         (local.get $towrite)
-                        (local.get $offset)))
+                        (i32.wrap_i64 (local.get $offset)))) ;; ZZZ
                   (else
                      (call $write'
                         (local.get $fd)

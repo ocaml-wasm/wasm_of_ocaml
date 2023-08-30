@@ -5,8 +5,13 @@
    (import "ints" "format_int"
       (func $format_int
          (param (ref eq)) (param i32) (param i32) (result (ref eq))))
+   (import "fail" "caml_failwith" (func $caml_failwith (param (ref eq))))
+   (import "marshal" "caml_serialize_int_1"
+      (func $caml_serialize_int_1 (param (ref eq)) (param i32)))
    (import "marshal" "caml_serialize_int_4"
       (func $caml_serialize_int_4 (param (ref eq)) (param i32)))
+   (import "marshal" "caml_deserialize_uint_1"
+      (func $caml_deserialize_uint_1 (param (ref eq)) (result i32)))
    (import "marshal" "caml_deserialize_int_4"
       (func $caml_deserialize_int_4 (param (ref eq)) (result i32)))
 
@@ -116,11 +121,25 @@
          (ref.null $compare)
          (ref.func $int32_hash)
          (struct.new $fixed_length (i32.const 4) (i32.const 8))
-         (ref.func $int32_serialize)
+         (ref.func $nativeint_serialize)
          (ref.func $nativeint_deserialize)))
+
+   (func $nativeint_serialize
+      (param $s (ref eq)) (param $v (ref eq)) (result i32) (result i32)
+      (call $caml_serialize_int_1 (local.get $s) (i32.const 1))
+      (call $caml_serialize_int_4 (local.get $s)
+         (struct.get $int32 1 (ref.cast (ref $int32) (local.get $v))))
+      (tuple.make (i32.const 4) (i32.const 4)))
+
+   (data $integer_too_large "input_value: native integer value too large")
 
    (func $nativeint_deserialize
       (param $s (ref eq)) (result (ref eq)) (result i32)
+      (if (i32.ne (call $caml_deserialize_uint_1 (local.get $s)) (i32.const 1))
+         (then
+            (call $caml_failwith
+               (array.new_data $string $integer_too_large
+                  (i32.const 0) (i32.const 43)))))
       (tuple.make
          (struct.new $int32 (global.get $nativeint_ops)
             (call $caml_deserialize_int_4 (local.get $s)))

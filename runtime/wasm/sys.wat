@@ -24,6 +24,7 @@
 
    (type $block (array (mut (ref eq))))
    (type $string (array (mut i8)))
+   (type $float (struct (field f64)))
 
    (tag $ocaml_exit (export "ocaml_exit") (param i32))
 
@@ -57,7 +58,7 @@
       (param (ref eq)) (result (ref eq))
       ;; ZZZ
       (call $log_js (string.const "caml_sys_time"))
-      (i31.new (i32.const 0)))
+      (struct.new $float (f64.const 0)))
 
    (func (export "caml_sys_system_command")
       (param (ref eq)) (result (ref eq))
