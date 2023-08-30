@@ -20,12 +20,16 @@ module Make (Target : Wa_target_sig.S) = struct
       ~init:(return ())
       l
 
-  let call ?typ ~arity closure args =
+  let call ?typ ~cps ~arity closure args =
     let funct = Var.fresh () in
     let* closure = tee ?typ funct closure in
     let args = args @ [ closure ] in
     let* kind, funct =
-      Memory.load_function_pointer ~arity ~skip_cast:(Option.is_some typ) (load funct)
+      Memory.load_function_pointer
+        ~cps
+        ~arity
+        ~skip_cast:(Option.is_some typ)
+        (load funct)
     in
     match kind with
     | `Index -> return (W.Call_indirect (func_type (List.length args), funct, args))
@@ -58,11 +62,18 @@ module Make (Target : Wa_target_sig.S) = struct
       let rec loop m args closure closure_typ =
         if m = arity
         then
-          let* e = call ?typ:closure_typ ~arity (load closure) (List.append args args') in
+          let* e =
+            call
+              ?typ:closure_typ
+              ~cps:false
+              ~arity
+              (load closure)
+              (List.append args args')
+          in
           instr (W.Push e)
         else
           let* load_arg, load_closure, closure_typ =
-            Closure.curry_load ~arity m closure
+            Closure.curry_load ~cps:false ~arity m closure
           in
           let* x = load_arg in
           let closure' = Code.Var.fresh_n "f" in
@@ -119,7 +130,15 @@ module Make (Target : Wa_target_sig.S) = struct
       let stack_ctx = Stack.start_function ~context stack_info in
       let* () =
         push
-          (Closure.curry_allocate ~stack_ctx ~x:res ~arity m ~f:name' ~closure:f ~arg:x)
+          (Closure.curry_allocate
+             ~stack_ctx
+             ~x:res
+             ~cps:false
+             ~arity
+             m
+             ~f:name'
+             ~closure:f
+             ~arg:x)
       in
       Stack.perform_spilling stack_ctx (`Instr ret)
     in
@@ -130,6 +149,41 @@ module Make (Target : Wa_target_sig.S) = struct
     :: functions
 
   let curry ~arity ~name = curry ~arity arity ~name
+
+  let _cps_curry_app_name n m = Printf.sprintf "cps_curry_app %d_%d" n m
+
+  let _cps_curry_app ~context ~arity m ~name =
+    let body =
+      let args =
+        List.init ~f:(fun i -> Code.Var.fresh_n (Printf.sprintf "x_%d" i)) ~len:(m + 1)
+      in
+      let* () = bind_parameters args in
+      let f = Code.Var.fresh_n "f" in
+      let* _ = add_var f in
+      let* args' = expression_list load args in
+      let* _f = load f in
+      let rec loop m args closure closure_typ =
+        if m = arity
+        then
+          let* e =
+            call ?typ:closure_typ ~cps:true ~arity (load closure) (List.append args args')
+          in
+          instr (W.Push e)
+        else
+          let* load_arg, load_closure, closure_typ =
+            Closure.curry_load ~cps:true ~arity m closure
+          in
+          let* x = load_arg in
+          let closure' = Code.Var.fresh_n "f" in
+          let* () = store ?typ:closure_typ closure' load_closure in
+          loop (m + 1) (x :: args) closure' closure_typ
+      in
+      loop m [] f None
+    in
+    let locals, body =
+      function_body ~context ~value_type:Value.value ~param_count:3 ~body
+    in
+    W.Function { name; exported_name = None; typ = func_type 2; locals; body }
 
   let apply ~context ~arity ~name =
     assert (arity > 1);
@@ -143,10 +197,11 @@ module Make (Target : Wa_target_sig.S) = struct
       let* _ = add_var f in
       Memory.check_function_arity
         f
-        arity
+        ~cps:false
+        ~arity
         (fun ~typ closure ->
           let* l = expression_list load l in
-          call ?typ ~arity closure l)
+          call ?typ ~cps:false ~arity closure l)
         (let rec build_spilling_info stack_info stack live_vars acc l =
            match l with
            | [] -> stack_info, List.rev acc
@@ -178,7 +233,7 @@ module Make (Target : Wa_target_sig.S) = struct
                let* () = Stack.perform_spilling stack_ctx (`Instr y') in
                let* x = load x in
                Stack.kill_variables stack_ctx;
-               let* () = store y' (call ~arity:1 y [ x ]) in
+               let* () = store y' (call ~cps:false ~arity:1 y [ x ]) in
                build_applies (load y') rem
          in
          build_applies (load f) l)
@@ -188,7 +243,7 @@ module Make (Target : Wa_target_sig.S) = struct
     in
     W.Function { name; exported_name = None; typ = func_type arity; locals; body }
 
-  let dummy ~context ~arity ~name =
+  let dummy ~context ~cps ~arity ~name =
     let body =
       let l =
         List.rev
@@ -197,10 +252,15 @@ module Make (Target : Wa_target_sig.S) = struct
       let* () = bind_parameters l in
       let f = Code.Var.fresh_n "f" in
       let* _ = add_var f in
-      let* typ, closure = Memory.load_real_closure ~arity (load f) in
+      let* typ, closure = Memory.load_real_closure ~cps ~arity (load f) in
       let* l = expression_list load l in
       let* e =
-        call ~typ:(W.Ref { nullable = false; typ = Type typ }) ~arity (return closure) l
+        call
+          ~typ:(W.Ref { nullable = false; typ = Type typ })
+          ~cps
+          ~arity
+          (return closure)
+          l
       in
       instr (W.Return (Some e))
     in
@@ -222,7 +282,7 @@ module Make (Target : Wa_target_sig.S) = struct
       context.curry_funs;
     IntMap.iter
       (fun arity name ->
-        let f = dummy ~context ~arity ~name in
+        let f = dummy ~context ~cps:false ~arity ~name in
         context.other_fields <- f :: context.other_fields)
       context.dummy_funs
 end

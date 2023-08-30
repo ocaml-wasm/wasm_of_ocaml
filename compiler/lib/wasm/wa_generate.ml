@@ -28,6 +28,8 @@ module Generate (Target : Wa_target_sig.S) = struct
 
   type ctx =
     { live : int array
+    ; cps_calls : Effects.cps_calls
+    ; in_cps : Effects.in_cps
     ; blocks : block Addr.Map.t
     ; closures : Wa_closure_conversion.closure Var.Map.t
     ; global_context : Wa_code_generation.context
@@ -96,7 +98,12 @@ module Generate (Target : Wa_target_sig.S) = struct
               let arity = List.length args in
               let funct = Var.fresh () in
               let* closure = tee funct (load f) in
-              let* kind, funct = Memory.load_function_pointer ~arity (load funct) in
+              let* kind, funct =
+                Memory.load_function_pointer
+                  ~cps:(Var.Set.mem x ctx.in_cps)
+                  ~arity
+                  (load funct)
+              in
               Stack.kill_variables stack_ctx;
               let* b = is_closure f in
               if b
@@ -130,12 +137,18 @@ module Generate (Target : Wa_target_sig.S) = struct
         Memory.allocate stack_ctx x ~tag (List.map ~f:(fun x -> `Var x) (Array.to_list a))
     | Field (x, n) -> Memory.field (load x) n
     | Closure _ ->
-        Closure.translate ~context:ctx.global_context ~closures:ctx.closures ~stack_ctx x
+        Closure.translate
+          ~context:ctx.global_context
+          ~closures:ctx.closures
+          ~stack_ctx
+          ~cps:(Var.Set.mem x ctx.in_cps)
+          x
     | Constant c -> Constant.translate c
     | Prim (Extern "caml_alloc_dummy_function", [ _; Pc (Int (_, arity)) ])
-      when Poly.(target = `GC) -> Closure.dummy ~arity:(Int32.to_int arity)
+      when Poly.(target = `GC) ->
+        Closure.dummy ~cps:(Var.Set.mem x ctx.in_cps) ~arity:(Int32.to_int arity)
     | Prim (Extern "caml_alloc_dummy_infix", _) when Poly.(target = `GC) ->
-        Closure.dummy ~arity:1
+        Closure.dummy ~cps:(Var.Set.mem x ctx.in_cps) ~arity:1
     | Prim (p, l) -> (
         let l = List.map ~f:transl_prim_arg l in
         match p, l with
@@ -907,7 +920,11 @@ module Generate (Target : Wa_target_sig.S) = struct
       let* () = bind_parameters in
       match name_opt with
       | Some f ->
-          Closure.bind_environment ~context:ctx.global_context ~closures:ctx.closures f
+          Closure.bind_environment
+            ~context:ctx.global_context
+            ~closures:ctx.closures
+            ~cps:(Var.Set.mem f ctx.in_cps)
+            f
       | None -> return ()
     in
     (*
@@ -968,19 +985,26 @@ module Generate (Target : Wa_target_sig.S) = struct
   let f
       (p : Code.program)
       ~live_vars
-       (*
-    ~cps_calls
+      ~cps_calls
+      ~in_cps (*
     ~should_export
     ~warn_on_unhandled_effect
-      _debug *)
-      =
+      _debug *) =
     let p, closures = Wa_closure_conversion.f p in
     (*
   Code.Print.program (fun _ _ -> "") p;
 *)
     let ctx =
-      { live = live_vars; blocks = p.blocks; closures; global_context = make_context () }
+      { live = live_vars
+      ; cps_calls
+      ; in_cps
+      ; blocks = p.blocks
+      ; closures
+      ; global_context = make_context ()
+      }
     in
+    (*ZZZ*)
+    ignore ctx.cps_calls;
     let toplevel_name = Var.fresh_n "toplevel" in
     let functions =
       Code.fold_closures_outermost_first
@@ -1020,13 +1044,13 @@ let init () =
     ; "caml_ensure_stack_capacity", "%identity"
     ]
 
-let f ch (p : Code.program) ~live_vars =
+let f ch (p : Code.program) ~live_vars ~cps_calls ~in_cps =
   match target with
   | `Core ->
       let module G = Generate (Wa_core_target) in
-      let fields = G.f ~live_vars p in
+      let fields = G.f ~live_vars ~cps_calls ~in_cps p in
       Wa_asm_output.f ch fields
   | `GC ->
       let module G = Generate (Wa_gc_target) in
-      let fields = G.f ~live_vars p in
+      let fields = G.f ~live_vars ~cps_calls ~in_cps p in
       Wa_wat_output.f ch fields

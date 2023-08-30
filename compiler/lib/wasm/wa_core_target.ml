@@ -119,15 +119,15 @@ module Memory = struct
 
   let set_field e idx e' = mem_store ~offset:(4 * idx) e e'
 
-  let load_function_pointer ~arity ?skip_cast:_ closure =
+  let load_function_pointer ~cps:_ ~arity ?skip_cast:_ closure =
     let* e = field closure (if arity = 1 then 0 else 2) in
     return (`Index, e)
 
   let load_function_arity closure = Arith.(field closure 1 lsr const 24l)
 
-  let load_real_closure ~arity:_ _ = assert false
+  let load_real_closure ~cps:_ ~arity:_ _ = assert false
 
-  let check_function_arity f arity if_match if_mismatch =
+  let check_function_arity f ~cps:_ ~arity if_match if_mismatch =
     let func_arity = load_function_arity (load f) in
     if_
       { params = []; result = [ I32 ] }
@@ -427,7 +427,7 @@ module Closure = struct
   let closure_info ~arity ~sz =
     W.Const (I32 Int32.(add (shift_left (of_int arity) 24) (of_int ((sz lsl 1) + 1))))
 
-  let translate ~context ~closures ~stack_ctx x =
+  let translate ~context ~closures ~stack_ctx ~cps:_ x =
     let info = Code.Var.Map.find x closures in
     let f, _ = List.hd info.Wa_closure_conversion.functions in
     let* () = set_closure_env x x in
@@ -484,7 +484,7 @@ module Closure = struct
       let offset = Int32.of_int (4 * function_offset_in_closure info x) in
       Arith.(load f + const offset)
 
-  let bind_environment ~context ~closures f =
+  let bind_environment ~context ~closures ~cps:_ f =
     if Hashtbl.mem context.constants f
     then
       (* The closures are all constants and the environment is empty. *)
@@ -525,7 +525,7 @@ module Closure = struct
            ~init:(offset, return ())
            free_variables)
 
-  let curry_allocate ~stack_ctx ~x ~arity _ ~f ~closure ~arg =
+  let curry_allocate ~stack_ctx ~x ~cps:_ ~arity _ ~f ~closure ~arg =
     Memory.allocate
       stack_ctx
       x
@@ -536,10 +536,10 @@ module Closure = struct
       ; `Var arg
       ]
 
-  let curry_load ~arity:_ _ closure =
+  let curry_load ~cps:_ ~arity:_ _ closure =
     return (Memory.field (load closure) 3, Memory.field (load closure) 4, None)
 
-  let dummy ~arity:_ = assert false
+  let dummy ~cps:_ ~arity:_ = assert false
 end
 
 module Math = struct

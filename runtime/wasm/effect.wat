@@ -371,4 +371,74 @@
 
    (func (export "caml_initialize_effects") (param $s externref)
       (global.set $current_suspender (local.get $s)))
+
+;;;;;;;;;;;;;;;;;;;
+
+   (func $raise_exception
+      (param $exn (ref eq)) (param (ref eq)) (result (ref eq))
+      (throw $ocaml_exception (local.get $exn)))
+
+   (func (export "caml_pop_trap") (result (ref eq))
+      ;; ZZZ
+      (return (struct.new $closure (ref.func $raise_exception))))
+
+   (func (export "caml_maybe_attach_backtrace")
+      (param $exn (ref eq)) (result (ref eq))
+      (local.get $exn))
+
+   (type $function_2
+      (func (param (ref eq) (ref eq) (ref eq)) (result (ref eq))))
+   (type $cps_closure (sub (struct (field (ref $function_2)))))
+
+   (type $iterator
+     (sub $closure
+       (struct
+          (field (ref $function_1))
+          (field $i (mut i32))
+          (field $args (ref $block)))))
+
+   (func $identity (param (ref eq)) (param (ref eq)) (result (ref eq))
+      (local.get 0))
+
+   (global $identity (ref $closure) (struct.new $closure (ref.func $identity)))
+
+   (func $iterator
+      (param $f (ref eq)) (param $venv (ref eq)) (result (ref eq))
+      (local $env (ref $iterator))
+      (local $i i32) (local $args (ref $block))
+      (local.set $env (ref.cast (ref $iterator) (local.get $venv)))
+      (local.set $i (struct.get $iterator $i (local.get $env)))
+      (local.set $args (struct.get $iterator $args (local.get $env)))
+      (struct.set $iterator $i (local.get $env)
+         (i32.add (local.get $i) (i32.const 1)))
+      (return_call_ref $function_2
+         (array.get $block (local.get $args) (local.get $i))
+         (if (result (ref eq))
+             (i32.eq (i32.add (local.get $i) (i32.const 1))
+                (array.len (local.get $args)))
+            (then (global.get $identity))
+            (else (local.get $env)))
+         (local.get $f)
+         (struct.get $cps_closure 0
+            (ref.cast (ref $cps_closure) (local.get $f)))))
+
+   ;; ZZZ initalize stack?
+   (func (export "caml_trampoline")
+      (param $f (ref eq)) (param $vargs (ref eq)) (result (ref eq))
+      (local $args (ref $block))
+      (local $i i32)
+      (local.set $args (ref.cast (ref $block) (local.get $vargs)))
+      (return_call_ref $function_2
+         (array.get $block (local.get $args) (i32.const 1))
+         (if (result (ref eq))
+             (i32.eq (i32.const 2) (array.len (local.get $args)))
+            (then (global.get $identity))
+            (else
+               (struct.new $iterator
+                  (ref.func $iterator)
+                  (i32.const 2)
+                  (local.get $args))))
+         (local.get $f)
+         (struct.get $cps_closure 0
+            (ref.cast (ref $cps_closure) (local.get $f)))))
 )

@@ -31,7 +31,7 @@
    with exceptions from the runtime or from JavaScript code (a [try
    ... with] at the top of stack can have access to the current
    exception handler and resume the execution from there; see the
-   definition of runtime function [caml_callback]).
+   definition of runtime function [caml_trampoline]).
 *)
 open! Stdlib
 open Code
@@ -248,6 +248,8 @@ let jump_closures blocks_to_transform idom : jump_closures =
     { closure_of_jump = Addr.Map.empty; closures_of_alloc_site = Addr.Map.empty }
 
 type cps_calls = Var.Set.t
+
+type in_cps = Var.Set.t
 
 type st =
   { mutable new_blocks : Code.block Addr.Map.t * Code.Addr.t
@@ -670,7 +672,7 @@ let cps_transform ~live_vars ~flow_info ~cps_needed p =
           | None ->
               (* We are handling the toplevel code. If it performs no
                  CPS call, we can leave it in direct style and we
-                 don't need to wrap it within a [caml_callback]. *)
+                 don't need to wrap it within a [caml_trampoline]. *)
               not (Addr.Set.is_empty blocks_to_transform)
         in
         if debug ()
@@ -718,7 +720,7 @@ let cps_transform ~live_vars ~flow_info ~cps_needed p =
     match Hashtbl.find_opt closure_info p.start with
     | None -> p
     | Some (k, _) ->
-        (* Call [caml_callback] to set up the execution context. *)
+        (* Call [caml_trampoline] to set up the execution context. *)
         let new_start = p.free_pc in
         let blocks =
           let main = Var.fresh () in
@@ -730,7 +732,7 @@ let cps_transform ~live_vars ~flow_info ~cps_needed p =
             ; body =
                 [ Let (main, Closure ([ k ], (p.start, []))), noloc
                 ; Let (args, Prim (Extern "%js_array", [])), noloc
-                ; Let (res, Prim (Extern "caml_callback", [ Pv main; Pv args ])), noloc
+                ; Let (res, Prim (Extern "caml_trampoline", [ Pv main; Pv args ])), noloc
                 ]
             ; branch = Return res, noloc
             }
@@ -755,7 +757,7 @@ let wrap_call ~cps_needed p x f args accu loc =
   ( p
   , Var.Set.remove x cps_needed
   , [ Let (arg_array, Prim (Extern "%js_array", List.map ~f:(fun y -> Pv y) args)), noloc
-    ; Let (x, Prim (Extern "caml_callback", [ Pv f; Pv arg_array ])), loc
+    ; Let (x, Prim (Extern "caml_trampoline", [ Pv f; Pv arg_array ])), loc
     ]
     :: accu )
 
@@ -775,7 +777,7 @@ let wrap_primitive ~cps_needed p x e accu loc =
   , let args = Var.fresh () in
     [ Let (f, Closure ([], (closure_pc, []))), noloc
     ; Let (args, Prim (Extern "%js_array", [])), noloc
-    ; Let (x, Prim (Extern "caml_callback", [ Pv f; Pv args ])), loc
+    ; Let (x, Prim (Extern "caml_trampoline", [ Pv f; Pv args ])), loc
     ]
     :: accu )
 
@@ -787,9 +789,9 @@ let rewrite_toplevel_instr (p, cps_needed, accu) instr =
       wrap_primitive ~cps_needed p x e accu loc
   | _ -> p, cps_needed, [ instr ] :: accu
 
-(* Wrap function calls inside [caml_callback] at toplevel to avoid
+(* Wrap function calls inside [caml_trampoline] at toplevel to avoid
    unncessary function nestings. This is not done inside loops since
-   using repeatedly [caml_callback] can be costly. *)
+   using repeatedly [caml_trampoline] can be costly. *)
 let rewrite_toplevel ~cps_needed p =
   let { start; blocks; _ } = p in
   let cfg = build_graph blocks start in
@@ -936,4 +938,4 @@ let f (p, live_vars) =
   let p = split_blocks ~cps_needed p in
   let p, cps_calls = cps_transform ~live_vars ~flow_info ~cps_needed p in
   if Debug.find "times" () then Format.eprintf "  effects: %a@." Timer.print t;
-  p, cps_calls
+  p, cps_calls, cps_needed
