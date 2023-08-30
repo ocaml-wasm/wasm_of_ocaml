@@ -189,14 +189,14 @@ let random =
   fun () ->
     (*    // Robert Jenkins' 32 bit integer hash function. *)
     let s = !seed in
-    let s = (s + 0x7ed55d16 + (s lsl 12)) land 0xffffffff in
-    let s = s lxor 0xc761c23c lxor (s lsr 19) in
+    let s = (s + 0x7ed55d16 + (s lsl 12)) land 0x7fffffff in
+    let s = s lxor 0x4761c23c lxor (s lsr 19) in
     let s = s + 0x165667b1 + (s lsl 5) in
-    let s = (s + 0xd3a2646c) lxor (s lsl 9) in
-    let s = (s + 0xfd7046c5 + (s lsl 3)) land 0xffffffff in
-    let s = s lxor 0xb55a4f09 lxor (s lsr 16) in
+    let s = (s + 0x53a2646c) lxor (s lsl 9) in
+    let s = (s + 0x7d7046c5 + (s lsl 3)) land 0x7fffffff in
+    let s = s lxor 0x255a4f09 lxor (s lsr 16) in
     seed := s;
-    float (s land 0xfffffff) /. float 0x10000000
+    float (s land 0x7ffffff) /. float 0x8000000
 
 let generateKey = random
 

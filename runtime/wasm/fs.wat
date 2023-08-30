@@ -7,6 +7,7 @@
       (func $readdir (param anyref) (result (ref extern))))
    (import "bindings" "file_exists"
       (func $file_exists (param anyref) (result (ref eq))))
+   (import "bindings" "rename" (func $rename (param anyref) (param anyref)))
    (import "jslib" "wrap" (func $wrap (param anyref) (result (ref eq))))
    (import "jslib" "unwrap" (func $unwrap (param (ref eq)) (result anyref)))
    (import "jslib" "caml_string_of_jsstring"
@@ -17,8 +18,19 @@
       (func $caml_js_to_string_array (param $a (ref extern)) (result (ref eq))))
    (import "fail" "caml_raise_sys_error"
       (func $caml_raise_sys_error (param (ref eq))))
+   (import "io" "caml_ml_open_descriptor_in"
+      (func $caml_ml_open_descriptor_in (param (ref eq)) (result (ref eq))))
+   (import "io" "caml_ml_channel_size"
+      (func $caml_ml_channel_size (param (ref eq)) (result (ref eq))))
+   (import "io" "caml_really_getblock"
+      (func $caml_really_getblock
+         (param (ref eq)) (param (ref $string)) (param i32) (param i32)))
+   (import "sys" "caml_sys_open"
+      (func $caml_sys_open
+         (param (ref eq)) (param (ref eq)) (param (ref eq)) (result (ref eq))))
 
    (type $string (array (mut i8)))
+   (type $block (array (mut (ref eq))))
 
    (func (export "caml_sys_getcwd")
       (param (ref eq)) (result (ref eq))
@@ -47,9 +59,10 @@
       (i31.new (i32.const 0)))
 
    (func (export "caml_sys_rename")
-      (param (ref eq)) (param (ref eq)) (result (ref eq))
-      ;; ZZZ
-      (call $log_js (string.const "caml_sys_rename"))
+      (param $o (ref eq)) (param $n (ref eq)) (result (ref eq))
+      (call $rename
+         (call $unwrap (call $caml_jsstring_of_string (local.get $o)))
+         (call $unwrap (call $caml_jsstring_of_string (local.get $n))))
       (i31.new (i32.const 0)))
 
    (func (export "caml_sys_file_exists")
@@ -76,11 +89,25 @@
       (call $caml_raise_sys_error (local.get $msg)))
 
    (func (export "caml_read_file_content")
-      (param (ref eq)) (result (ref eq))
-      ;; ZZZ
+      (param $name (ref eq)) (result (ref eq))
+      (local $ch (ref eq)) (local $len i32) (local $res (ref $string))
       (call $log_js (string.const "caml_read_file_content"))
+      ;; ZZZ
       (call $caml_raise_no_such_file (local.get 0))
-      (i31.new (i32.const 0)))
+      (local.set $ch
+         (call $caml_ml_open_descriptor_in
+            (call $caml_sys_open (local.get $name)
+               (array.new_fixed $block 3 (i31.new (i32.const 0))
+                  (i31.new (i32.const 0)) ;; Open_rdonly
+                  (i31.new (i32.const 0)))
+               (i31.new (i32.const 438))))) ;; 0o666
+      (local.set $len
+         (i31.get_u
+            (ref.cast (ref i31) (call $caml_ml_channel_size (local.get $ch)))))
+      (local.set $res (array.new $string (i32.const 0) (local.get $len)))
+      (call $caml_really_getblock
+         (local.get $ch) (local.get $res) (i32.const 0) (local.get $len))
+      (local.get $res))
 
    (func (export "caml_fs_init") (result (ref eq))
       (i31.new (i32.const 0)))

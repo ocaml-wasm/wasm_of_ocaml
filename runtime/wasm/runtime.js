@@ -270,7 +270,7 @@
            fs.openSync(p,open_flags.reduce((f,v,i)=>(flags&(1<<i))?(f|v):f,0),
                        perm),
          close:(fd)=>fs.closeSync(fd),
-         write:(fd,b,o,l,p)=>fs?fs.writeSync(fd,b,o,l,Number(p)):(console.log(new TextDecoder().decode(b.slice(o,o+l))),l),
+         write:(fd,b,o,l,p)=>fs?fs.writeSync(fd,b,o,l,p==null?p:Number(p)):(console.log(new TextDecoder().decode(b.slice(o,o+l))),l),
          read:(fd,b,o,l,p)=>fs.readSync(fd,b,o,l,p),
          file_size:(fd)=>fs.fstatSync(fd,{bigint:true}).size,
          register_channel,
@@ -282,11 +282,13 @@
            var res = require('child_process').spawnSync(c,{shell:true, stdio: 'inherit'});
            return res.signal?128:res.status
          },
+         time:()=>performance.now(),
          getcwd:()=>isNode?process.cwd():'/static',
          chdir:(x)=>process.chdir(x),
          unlink:(p)=>fs.unlinkSync(p),
          readdir:(p)=>fs.readdirSync(p),
          file_exists:(p)=>+fs.existsSync(p),
+         rename:(o,n)=>fs.renameSync(o, n),
          start_fiber:(x)=>start_fiber(x),
          suspend_fiber:
          wrap_fun(
