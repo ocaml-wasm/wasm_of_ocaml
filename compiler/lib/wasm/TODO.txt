@@ -414,3 +414,6 @@ cps_apply f x1 x2 x3 cont =
   let cont2 f = f x3 cont in
   let cont1 f = f x2 cont2 in
   f x1 cont1
+(or iterator)
+
+(curry_n f) x cont = cont (curry_{n + 1} f x)

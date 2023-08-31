@@ -90,7 +90,8 @@ module Generate (Target : Wa_target_sig.S) = struct
 
   let rec translate_expr ctx stack_ctx x e =
     match e with
-    | Apply { f; args; exact } when exact || List.length args = 1 ->
+    | Apply { f; args; exact }
+      when exact || List.length args = if Var.Set.mem x ctx.in_cps then 2 else 1 ->
         let* () = Stack.perform_spilling stack_ctx (`Instr x) in
         let rec loop acc l =
           match l with
@@ -128,7 +129,9 @@ module Generate (Target : Wa_target_sig.S) = struct
         loop [] args
     | Apply { f; args; _ } ->
         let* () = Stack.perform_spilling stack_ctx (`Instr x) in
-        let* apply = need_apply_fun ~arity:(List.length args) in
+        let* apply =
+          need_apply_fun ~cps:(Var.Set.mem x ctx.in_cps) ~arity:(List.length args)
+        in
         let* args = expression_list load args in
         let* closure = load f in
         Stack.kill_variables stack_ctx;
@@ -1044,6 +1047,43 @@ let init () =
     ; "caml_ensure_stack_capacity", "%identity"
     ]
 
+let fix_switch_branches p =
+  let p' = ref p in
+  let updates = ref Addr.Map.empty in
+  let fix_branches l =
+    Array.iteri
+      ~f:(fun i ((pc, args) as cont) ->
+        if not (List.is_empty args)
+        then
+          l.(i) <-
+            ( (let l = try Addr.Map.find pc !updates with Not_found -> [] in
+               try List.assoc args l
+               with Not_found ->
+                 let pc' = !p'.free_pc in
+                 p' :=
+                   { !p' with
+                     blocks =
+                       Addr.Map.add
+                         pc'
+                         { params = []; body = []; branch = Branch cont, No }
+                         !p'.blocks
+                   ; free_pc = pc' + 1
+                   };
+                 updates := Addr.Map.add pc ((args, pc') :: l) !updates;
+                 pc')
+            , [] ))
+      l
+  in
+  Addr.Map.iter
+    (fun _ block ->
+      match fst block.branch with
+      | Switch (_, l, l') ->
+          fix_branches l;
+          fix_branches l'
+      | _ -> ())
+    p.blocks;
+  !p'
+
 let f ch (p : Code.program) ~live_vars ~cps_calls ~in_cps =
   match target with
   | `Core ->
@@ -1052,5 +1092,6 @@ let f ch (p : Code.program) ~live_vars ~cps_calls ~in_cps =
       Wa_asm_output.f ch fields
   | `GC ->
       let module G = Generate (Wa_gc_target) in
+      let p = fix_switch_branches p in
       let fields = G.f ~live_vars ~cps_calls ~in_cps p in
       Wa_wat_output.f ch fields

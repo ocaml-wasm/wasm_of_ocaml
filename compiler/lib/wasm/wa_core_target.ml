@@ -427,7 +427,7 @@ module Closure = struct
   let closure_info ~arity ~sz =
     W.Const (I32 Int32.(add (shift_left (of_int arity) 24) (of_int ((sz lsl 1) + 1))))
 
-  let translate ~context ~closures ~stack_ctx ~cps:_ x =
+  let translate ~context ~closures ~stack_ctx ~cps x =
     let info = Code.Var.Map.find x closures in
     let f, _ = List.hd info.Wa_closure_conversion.functions in
     let* () = set_closure_env x x in
@@ -438,7 +438,7 @@ module Closure = struct
         List.fold_left
           ~f:(fun accu (f, arity) ->
             let* i, start = accu in
-            let* curry_fun = if arity > 1 then need_curry_fun ~arity else return f in
+            let* curry_fun = if arity > 1 then need_curry_fun ~cps ~arity else return f in
             let start =
               if i = 0
               then start
