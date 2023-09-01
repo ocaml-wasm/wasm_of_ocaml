@@ -374,13 +374,33 @@
 
 ;;;;;;;;;;;;;;;;;;;
 
+   (type $exn_stack
+      (struct (field $h (ref eq)) (field $next (ref null $exn_stack))))
+
+   (global $caml_exn_stack (mut (ref null $exn_stack)) (ref.null $exn_stack))
+
+   (func (export "caml_push_trap") (param $h (ref eq)) (result (ref eq))
+      (global.set $caml_exn_stack
+         (struct.new $exn_stack (local.get $h) (global.get $caml_exn_stack)))
+      (i31.new (i32.const 0)))
+
    (func $raise_exception
       (param $exn (ref eq)) (param (ref eq)) (result (ref eq))
+      (call $log_js (string.const "uncaught exception"))
       (throw $ocaml_exception (local.get $exn)))
 
+   (global $raise_exception (ref eq)
+      (struct.new $closure (ref.func $raise_exception)))
+
    (func (export "caml_pop_trap") (result (ref eq))
-      ;; ZZZ
-      (return (struct.new $closure (ref.func $raise_exception))))
+      (local $top (ref $exn_stack))
+      (block $empty
+         (local.set $top (br_on_null $empty (global.get $caml_exn_stack)))
+         (global.set $caml_exn_stack
+            (struct.get $exn_stack $next (local.get $top)))
+         (return (struct.get $exn_stack $h (local.get $top))))
+      (global.get $raise_exception))
+
 
    (func (export "caml_maybe_attach_backtrace")
       (param $exn (ref eq)) (result (ref eq))
@@ -398,11 +418,12 @@
           (field $args (ref $block)))))
 
    (func $identity (param (ref eq)) (param (ref eq)) (result (ref eq))
+(call $log_js (string.const "id"))
       (local.get 0))
 
    (global $identity (ref $closure) (struct.new $closure (ref.func $identity)))
 
-   (func $iterator
+   (func $trampoline_iterator
       (param $f (ref eq)) (param $venv (ref eq)) (result (ref eq))
       (local $env (ref $iterator))
       (local $i i32) (local $args (ref $block))
@@ -422,23 +443,88 @@
          (struct.get $cps_closure 0
             (ref.cast (ref $cps_closure) (local.get $f)))))
 
-   ;; ZZZ initalize stack?
-   (func (export "caml_trampoline")
-      (param $f (ref eq)) (param $vargs (ref eq)) (result (ref eq))
-      (local $args (ref $block))
-      (local $i i32)
-      (local.set $args (ref.cast (ref $block) (local.get $vargs)))
+   (func $apply_iterator
+      (param $f (ref eq)) (param $venv (ref eq)) (result (ref eq))
+      (local $env (ref $iterator))
+      (local $i i32) (local $args (ref $block))
+      (local.set $env (ref.cast (ref $iterator) (local.get $venv)))
+      (local.set $i (struct.get $iterator $i (local.get $env)))
+      (local.set $args (struct.get $iterator $args (local.get $env)))
+      (struct.set $iterator $i (local.get $env)
+         (i32.add (local.get $i) (i32.const 1)))
       (return_call_ref $function_2
-         (array.get $block (local.get $args) (i32.const 1))
+         (array.get $block (local.get $args) (local.get $i))
          (if (result (ref eq))
-             (i32.eq (i32.const 2) (array.len (local.get $args)))
-            (then (global.get $identity))
+             (i32.eq (i32.add (local.get $i) (i32.const 2))
+                (array.len (local.get $args)))
+            (then
+               (array.get $block (local.get $args)
+                  (i32.add (local.get $i) (i32.const 1))))
             (else
-               (struct.new $iterator
-                  (ref.func $iterator)
-                  (i32.const 2)
-                  (local.get $args))))
+               (local.get $env)))
          (local.get $f)
          (struct.get $cps_closure 0
             (ref.cast (ref $cps_closure) (local.get $f)))))
+
+   (import "bindings" "log" (func $log_js (param anyref)))
+
+   (func (export "caml_apply_continuation")
+      (param $args (ref eq)) (result (ref eq))
+      (struct.new $iterator
+         (ref.func $apply_iterator)
+         (i32.const 1)
+         (ref.cast (ref $block) (local.get $args))))
+
+   ;; ZZZ initialize effect handlers
+   ;; ZZZ js exceptions
+   (func (export "caml_trampoline")
+      (param $f (ref eq)) (param $vargs (ref eq)) (result (ref eq))
+      (local $args (ref $block))
+      (local $i i32) (local $res (ref eq))
+      (local $exn (ref eq)) (local $top (ref $exn_stack))
+      (local.set $args (ref.cast (ref $block) (local.get $vargs)))
+      (call $log_js (string.const "trampoline"))
+      (try (result (ref eq))
+         (do
+            (local.set $res
+               (call_ref $function_2
+                  (array.get $block (local.get $args) (i32.const 1))
+                  (if (result (ref eq))
+                      (i32.eq (i32.const 2) (array.len (local.get $args)))
+                     (then (global.get $identity))
+                     (else
+                        (struct.new $iterator
+                           (ref.func $trampoline_iterator)
+                           (i32.const 2)
+                           (local.get $args))))
+                  (local.get $f)
+                  (struct.get $cps_closure 0
+                     (ref.cast (ref $cps_closure) (local.get $f)))))
+            (return (local.get $res)))
+         (catch $ocaml_exception
+            (local.set $exn (pop (ref eq)))
+      (call $log_js (string.const "exception (1)"))
+            (loop $loop
+               (call $log_js (string.const "exception"))
+               (block $empty
+                  (local.set $top
+                     (br_on_null $empty (global.get $caml_exn_stack)))
+                  (global.set $caml_exn_stack
+                     (struct.get $exn_stack $next (local.get $top)))
+                  (local.set $f (struct.get $exn_stack $h (local.get $top)))
+                  (try
+                     (do
+                        (local.set $res
+                           (call_ref $function_1
+                              (local.get $exn)
+                              (local.get $f)
+                              (struct.get $closure 0
+                                 (ref.cast (ref $closure) (local.get $f)))))
+                        (return (local.get $res)))
+                     (catch $ocaml_exception
+                        (local.set $exn (pop (ref eq)))
+      (call $log_js (string.const "exception (2)"))
+                        (br $loop))))
+               (call $log_js (string.const "uncaught exception"))
+               (throw $ocaml_exception (local.get $exn))))))
 )

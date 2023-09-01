@@ -331,47 +331,46 @@ module Make (Target : Wa_target_sig.S) = struct
         (fun ~typ closure ->
           let* l = expression_list load l in
           call ?typ ~cps:true ~arity closure l)
-        ((*let rec build_spilling_info stack_info stack live_vars acc l =
-             match l with
-             | [] -> stack_info, List.rev acc
-             | x :: rem ->
-                 let live_vars = Var.Set.remove x live_vars in
-                 let y = Var.fresh () in
-                 let stack_info, stack =
-                   Stack.add_spilling
-                     stack_info
-                     ~location:y
-                     ~stack
-                     ~live_vars
-                     ~spilled_vars:
-                       (if List.is_empty stack then live_vars else Var.Set.empty)
-                 in
-                 build_spilling_info stack_info stack live_vars ((x, y) :: acc) rem
-           in
-           let stack_info, l =
-             build_spilling_info (Stack.make_info ()) [] (Var.Set.of_list l) [] l
-           in
-           let stack_ctx = Stack.start_function ~context stack_info in
-           let rec build_applies y l =
-             match l with
-             | [] ->
-                 let* y = y in
-                 instr (Push y)
-             | (x, y') :: rem ->
-                 let* () = Stack.perform_reloads stack_ctx (`Vars (Var.Set.singleton x)) in
-                 let* () = Stack.perform_spilling stack_ctx (`Instr y') in
-                 let* x = load x in
-                 Stack.kill_variables stack_ctx;
-                 let* () = store y' (call ~cps:true ~arity:1 y [ x ]) in
-                 build_applies (load y') rem
-           in
-           build_applies (load f) l
-         *)
-         (*ZZZZZZZZZZZZ*)
-         let exception_name = "ocaml_exception" in
-         let* tag = register_import ~name:exception_name (Tag Value.value) in
-         let* f = load f in
-         instr (Throw (tag, f)))
+        (let args = Code.Var.fresh_n "args" in
+         let stack_info, stack =
+           Stack.make_info ()
+           |> fun info ->
+           Stack.add_spilling
+             info
+             ~location:args
+             ~stack:[]
+             ~live_vars:(Var.Set.of_list (f :: l))
+             ~spilled_vars:(Var.Set.of_list (f :: l))
+         in
+         let ret = Code.Var.fresh_n "ret" in
+         let stack_info, _ =
+           Stack.add_spilling
+             stack_info
+             ~location:ret
+             ~stack
+             ~live_vars:Var.Set.empty
+             ~spilled_vars:Var.Set.empty
+         in
+         let stack_ctx = Stack.start_function ~context stack_info in
+         let* args =
+           Memory.allocate
+             stack_ctx
+             args
+             ~tag:0
+             (List.map ~f:(fun x -> `Var x) (List.tl l))
+         in
+         let* make_iterator =
+           register_import ~name:"caml_apply_continuation" (Fun (func_type 0))
+         in
+         Stack.kill_variables stack_ctx;
+         let iterate = Var.fresh_n "iterate" in
+         let* () = store iterate (return (W.Call (make_iterator, [ args ]))) in
+         let x = List.hd l in
+         let* () = Stack.perform_reloads stack_ctx (`Vars (Var.Set.of_list [ x; f ])) in
+         let* x = load x in
+         let* iterate = load iterate in
+         let* () = push (call ~cps:true ~arity:2 (load f) [ x; iterate ]) in
+         Stack.perform_spilling stack_ctx (`Instr ret))
     in
     let locals, body =
       function_body ~context ~value_type:Value.value ~param_count:(arity + 1) ~body
