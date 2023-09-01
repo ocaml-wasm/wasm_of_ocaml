@@ -386,7 +386,6 @@
 
    (func $raise_exception
       (param $exn (ref eq)) (param (ref eq)) (result (ref eq))
-      (call $log_js (string.const "uncaught exception"))
       (throw $ocaml_exception (local.get $exn)))
 
    (global $raise_exception (ref eq)
@@ -403,7 +402,7 @@
 
 
    (func (export "caml_maybe_attach_backtrace")
-      (param $exn (ref eq)) (result (ref eq))
+      (param $exn (ref eq)) (param (ref eq)) (result (ref eq))
       (local.get $exn))
 
    (type $function_2
@@ -418,7 +417,6 @@
           (field $args (ref $block)))))
 
    (func $identity (param (ref eq)) (param (ref eq)) (result (ref eq))
-(call $log_js (string.const "id"))
       (local.get 0))
 
    (global $identity (ref $closure) (struct.new $closure (ref.func $identity)))
@@ -483,7 +481,6 @@
       (local $i i32) (local $res (ref eq))
       (local $exn (ref eq)) (local $top (ref $exn_stack))
       (local.set $args (ref.cast (ref $block) (local.get $vargs)))
-      (call $log_js (string.const "trampoline"))
       (try (result (ref eq))
          (do
             (local.set $res
@@ -503,9 +500,7 @@
             (return (local.get $res)))
          (catch $ocaml_exception
             (local.set $exn (pop (ref eq)))
-      (call $log_js (string.const "exception (1)"))
             (loop $loop
-               (call $log_js (string.const "exception"))
                (block $empty
                   (local.set $top
                      (br_on_null $empty (global.get $caml_exn_stack)))
@@ -523,8 +518,6 @@
                         (return (local.get $res)))
                      (catch $ocaml_exception
                         (local.set $exn (pop (ref eq)))
-      (call $log_js (string.const "exception (2)"))
                         (br $loop))))
-               (call $log_js (string.const "uncaught exception"))
                (throw $ocaml_exception (local.get $exn))))))
 )

@@ -394,22 +394,6 @@ zarith 1.13
 Effects
 =======
 
-- CPS functions
-  ==> partial application handled differently
-      ==> at least two arguments
-- trampoline: just catch exceptions
 - runtime support
 
-=> we need to know whether a function is CPS or not
-   ==> cps_needed
-=> we need to know whether a call is a CPS call or not
-   ==> cps_needed?
-
-=> switches should branch with no args ==> add intermediate blocks
-
-=> change way to install trampoline
-
-ZZZZZZZZZZZ
-Update caml_callback
-
-Why do we get 0 as an exception???
+=> Update caml_callback
