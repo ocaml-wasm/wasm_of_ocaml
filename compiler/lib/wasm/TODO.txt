@@ -391,6 +391,14 @@ zarith 1.13
 
 ==========================
 
+Dune
+====
+
+- compile both to js and wasm
+- set node options + variable for node
+
+==========================
+
 Effects
 =======
 

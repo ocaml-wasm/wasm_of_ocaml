@@ -198,7 +198,9 @@ module Type = struct
       | `Access -> closure_type_1 ~cps
     else if arity = 0
     then
-      register_type "closure_0" (fun () ->
+      register_type
+        (if cps then "cps_closure_0" else "closure_0")
+        (fun () ->
           let* fun_ty' = function_type ~cps arity in
           return
             { supertype = None

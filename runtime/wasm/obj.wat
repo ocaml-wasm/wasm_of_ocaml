@@ -56,7 +56,7 @@
             (field (mut (ref null $closure_4))))))
 
    (global $forcing_tag i32 (i32.const 244))
-   (global $cont_tag i32 (i32.const 245))
+   (global $cont_tag (export "cont_tag") i32 (i32.const 245))
    (global $lazy_tag (export "lazy_tag") i32 (i32.const 246))
    (global $closure_tag i32 (i32.const 247))
    (global $object_tag (export "object_tag") i32 (i32.const 248))

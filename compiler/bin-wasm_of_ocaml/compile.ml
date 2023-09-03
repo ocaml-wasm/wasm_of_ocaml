@@ -76,7 +76,6 @@ let common_binaryen_options =
   ; "--enable-nontrapping-float-to-int"
   ; "--enable-strings"
   ; "-g"
-  ; "--standard-final-types"
   ]
 
 let link runtime_files input_file output_file =
