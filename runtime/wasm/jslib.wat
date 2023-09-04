@@ -399,7 +399,7 @@
                                     (local.get $arg)
                                     (local.get $acc)
                                     (struct.get $closure 0
-                                       (br_on_cast_fail $done
+                                       (br_on_cast_fail $cps
                                           (ref eq) (ref $closure)
                                           (local.get $acc)))))
                               (br $continue)))
