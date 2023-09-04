@@ -405,3 +405,4 @@ Effects
 - runtime support
 
 => Update caml_callback
+=> test for closures
