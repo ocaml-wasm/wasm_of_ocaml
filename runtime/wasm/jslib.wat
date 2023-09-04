@@ -408,7 +408,9 @@
                                  (br_on_cast_fail $done
                                     (ref eq) (ref $cps_closure)
                                     (local.get $acc))
-                                 (local.get $arg)
+                                 (array.new_fixed $block 2
+                                    (i31.new (i32.const 0))
+                                    (local.get $arg))
                                  (ref.as_non_null
                                     (global.get $caml_trampoline_ref)))))
                         (local.set $i (i32.add (local.get $i) (i32.const 1)))
