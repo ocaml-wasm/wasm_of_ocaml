@@ -181,11 +181,7 @@ let is_closure f st = Var.Map.mem f st.context.closure_envs, st
 
 let var x st =
   try Var.Map.find x st.vars, st
-  with Not_found -> (
-    try Expr (return (Hashtbl.find st.context.constants x)), st
-    with Not_found ->
-      Format.eprintf "ZZZ %a@." Code.Var.print x;
-      assert false)
+  with Not_found -> Expr (return (Hashtbl.find st.context.constants x)), st
 
 let add_var ?typ x ({ var_count; vars; _ } as st) =
   match Var.Map.find_opt x vars with

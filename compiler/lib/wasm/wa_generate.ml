@@ -28,7 +28,6 @@ module Generate (Target : Wa_target_sig.S) = struct
 
   type ctx =
     { live : int array
-    ; cps_calls : Effects.cps_calls
     ; in_cps : Effects.in_cps
     ; blocks : block Addr.Map.t
     ; closures : Wa_closure_conversion.closure Var.Map.t
@@ -994,7 +993,6 @@ module Generate (Target : Wa_target_sig.S) = struct
   let f
       (p : Code.program)
       ~live_vars
-      ~cps_calls
       ~in_cps (*
     ~should_export
     ~warn_on_unhandled_effect
@@ -1005,15 +1003,12 @@ module Generate (Target : Wa_target_sig.S) = struct
 *)
     let ctx =
       { live = live_vars
-      ; cps_calls
       ; in_cps
       ; blocks = p.blocks
       ; closures
       ; global_context = make_context ()
       }
     in
-    (*ZZZ*)
-    ignore ctx.cps_calls;
     let toplevel_name = Var.fresh_n "toplevel" in
     let functions =
       Code.fold_closures_outermost_first
@@ -1053,6 +1048,7 @@ let init () =
     ; "caml_ensure_stack_capacity", "%identity"
     ]
 
+(* Make sure we can use [br_table] for switches *)
 let fix_switch_branches p =
   let p' = ref p in
   let updates = ref Addr.Map.empty in
@@ -1090,14 +1086,14 @@ let fix_switch_branches p =
     p.blocks;
   !p'
 
-let f ch (p : Code.program) ~live_vars ~cps_calls ~in_cps =
+let f ch (p : Code.program) ~live_vars ~in_cps =
+  let p = if Config.Flag.effects () then fix_switch_branches p else p in
   match target with
   | `Core ->
       let module G = Generate (Wa_core_target) in
-      let fields = G.f ~live_vars ~cps_calls ~in_cps p in
+      let fields = G.f ~live_vars ~in_cps p in
       Wa_asm_output.f ch fields
   | `GC ->
       let module G = Generate (Wa_gc_target) in
-      let p = fix_switch_branches p in
-      let fields = G.f ~live_vars ~cps_calls ~in_cps p in
+      let fields = G.f ~live_vars ~in_cps p in
       Wa_wat_output.f ch fields

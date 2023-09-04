@@ -615,8 +615,8 @@ let full ~target ~standalone ~wrap_with_fun ~profile ~linkall ~source_map d p =
   match target with
   | `JavaScript formatter -> emit formatter r
   | `Wasm ch ->
-      let (p, live_vars), cps_calls, in_cps = r in
-      Wa_generate.f ch ~live_vars ~cps_calls ~in_cps p;
+      let (p, live_vars), _, in_cps = r in
+      Wa_generate.f ch ~live_vars ~in_cps p;
       None
 
 let full_no_source_map ~target ~standalone ~wrap_with_fun ~profile ~linkall d p =
