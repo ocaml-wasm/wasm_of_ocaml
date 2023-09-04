@@ -41,7 +41,11 @@
 
    (func (export "caml_named_value") (param anyref) (result (ref null eq))
       (local $s (ref eq))
-      (local.set $s (call $caml_string_of_jsstring (call $wrap (local.get $0))))
+      (local.set $s
+         (block $convert (result (ref eq))
+            (call $caml_string_of_jsstring
+               (call $wrap
+                  (br_on_cast $convert anyref (ref $string) (local.get 0))))))
       (return_call $find_named_value
          (local.get $s)
          (array.get $assoc_array (global.get $named_value_table)
