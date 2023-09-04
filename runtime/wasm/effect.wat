@@ -204,7 +204,7 @@
          (ref.cast (ref $fiber) (struct.get $pair 0 (local.get $p))))
       (local.set $p (ref.cast (ref $pair) (struct.get $pair 1 (local.get $p))))
       (local.set $k (call $push_stack (local.get $stack) (local.get $k)))
-      (call_ref $cont_func (local.get $p) (local.get $k)
+      (return_call_ref $cont_func (local.get $p) (local.get $k)
          (struct.get $cont $cont_func (local.get $k))))
 
    (func (export "%resume")
@@ -270,7 +270,7 @@
              (ref.cast (ref null $fiber)
                 (struct.get $continuation 0 (local.get $cont)))))
       (local.set $k1 (call $pop_fiber))
-      (call_ref $cont_func
+      (return_call_ref $cont_func
          (struct.new $pair
             (struct.new $call_handler_env
                (ref.func $call_effect_handler)
@@ -297,7 +297,8 @@
    (func $call_handler (param $f (ref eq)) (param $x (ref eq))
       ;; Propagate a value or an exception to the parent fiber
       (local $cont (ref $cont))
-      (call_ref $cont_func (struct.new $pair (local.get $f) (local.get $x))
+      (return_call_ref $cont_func
+         (struct.new $pair (local.get $f) (local.get $x))
          (local.tee $cont (call $pop_fiber))
          (struct.get $cont $cont_func (local.get $cont))))
 
