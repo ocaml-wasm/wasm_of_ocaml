@@ -406,3 +406,5 @@ Effects
 
 => Update caml_callback
 => test for closures
+
+===> do not use several exception handlers
