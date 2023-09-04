@@ -4,9 +4,8 @@
    (type $closure (sub (struct (;(field i32);) (field (ref $function_1)))))
    (import "sync" "caml_ml_mutex_unlock"
       (func $caml_ml_mutex_unlock (param (ref eq)) (result (ref eq))))
-   (import "effect" "caml_trampoline"
-      (func $caml_trampoline
-         (param (ref eq)) (param (ref eq)) (result (ref eq))))
+   (import "effect" "caml_trampoline_ref"
+      (global $caml_trampoline_ref (mut (ref null $function_1))))
 
    (func (export "caml_atomic_cas")
       (param $ref (ref eq)) (param $o (ref eq)) (param $n (ref eq))
@@ -81,17 +80,18 @@
          (i32.add (local.get $id) (i32.const 1)))
       (local.set $old (global.get $caml_domain_id))
       (block $done
-         (drop (block $not_direct (result (ref eq))
+         (drop (block $cps (result (ref eq))
             (drop (call_ref $function_1 (i31.new (i32.const 0))
                      (local.get $f)
                         (struct.get $closure 0
-                           (br_on_cast_fail $not_direct (ref eq) (ref $closure)
+                           (br_on_cast_fail $cps (ref eq) (ref $closure)
                               (local.get $f)))))
             (br $done)))
-         (drop (call $caml_trampoline
+         (drop (call_ref $function_1
             (local.get $f)
             (array.new_fixed $block 2
-               (i31.new (i32.const 0)) (i31.new (i32.const 0))))))
+               (i31.new (i32.const 0)) (i31.new (i32.const 0)))
+            (ref.as_non_null (global.get $caml_trampoline_ref)))))
       (global.set $caml_domain_id (local.get $old))
       (drop (call $caml_ml_mutex_unlock (local.get $mutex)))
       (i31.new (local.get $id)))

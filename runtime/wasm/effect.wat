@@ -378,7 +378,7 @@
    (func (export "caml_initialize_effects") (param $s externref)
       (global.set $current_suspender (local.get $s)))
 
-   ;; Effects though CPS transformation
+   ;; Effects through CPS transformation
 
    (type $function_2
       (func (param (ref eq) (ref eq) (ref eq)) (result (ref eq))))
@@ -508,8 +508,7 @@
          (ref.null $exn_stack)
          (ref.null $cps_fiber)))
 
-   ;; ZZZ use in caml_callback
-   (func (export "caml_trampoline")
+   (func $caml_trampoline (export "caml_trampoline")
       (param $f (ref eq)) (param $vargs (ref eq)) (result (ref eq))
       (local $args (ref $block))
       (local $i i32) (local $res (ref eq))
@@ -581,6 +580,10 @@
       (global.set $exn_stack (local.get $saved_exn_stack))
       (global.set $cps_fiber_stack (local.get $saved_fiber_stack))
       (throw $ocaml_exception (local.get $exn)))
+
+   (global (export "caml_trampoline_ref")
+      (mut (ref null $function_1));; (ref.null $function_1)
+      (ref.func $caml_trampoline))
 
    (func $caml_pop_fiber (result (ref eq))
       (local $top (ref $cps_fiber))

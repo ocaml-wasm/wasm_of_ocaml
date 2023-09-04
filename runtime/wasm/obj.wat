@@ -80,6 +80,11 @@
       (i32.or (ref.test (ref $closure) (local.get $v))
               (ref.test (ref $cps_closure) (local.get $v))))
 
+   (func (export "caml_is_last_arg")
+      (param $v (ref eq)) (result i32)
+      (i32.or (ref.test (ref $closure_last_arg) (local.get $v))
+              (ref.test (ref $cps_closure_last_arg) (local.get $v))))
+
    (func (export "caml_alloc_dummy") (param $size (ref eq)) (result (ref eq))
       (array.new $block (i31.new (i32.const 0))
                  (i32.add (i31.get_u (ref.cast (ref i31) (local.get $size)))
