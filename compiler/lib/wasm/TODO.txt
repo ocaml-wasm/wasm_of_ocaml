@@ -399,14 +399,7 @@ Dune
 
 ==========================
 
-Effects
-=======
-
-- runtime support
-
-=> Update caml_callback
-=> test for closures
-
+Performance
 ===> do not use several exception handlers
 
 =====
