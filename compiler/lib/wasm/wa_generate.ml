@@ -149,9 +149,9 @@ module Generate (Target : Wa_target_sig.S) = struct
     | Constant c -> Constant.translate c
     | Prim (Extern "caml_alloc_dummy_function", [ _; Pc (Int (_, arity)) ])
       when Poly.(target = `GC) ->
-        Closure.dummy ~cps:(Var.Set.mem x ctx.in_cps) ~arity:(Int32.to_int arity)
+        Closure.dummy ~cps:(Config.Flag.effects ()) ~arity:(Int32.to_int arity)
     | Prim (Extern "caml_alloc_dummy_infix", _) when Poly.(target = `GC) ->
-        Closure.dummy ~cps:(Var.Set.mem x ctx.in_cps) ~arity:1
+        Closure.dummy ~cps:(Config.Flag.effects ()) ~arity:1
     | Prim (p, l) -> (
         let l = List.map ~f:transl_prim_arg l in
         match p, l with
@@ -603,6 +603,12 @@ module Generate (Target : Wa_target_sig.S) = struct
             Memory.allocate stack_ctx x ~tag:0 l
         | Extern name, l ->
             (*ZZZ Different calling convention when large number of parameters *)
+            let name =
+              match name with
+              | "caml_callback" -> "caml_trampoline"
+              | "caml_alloc_stack" when Config.Flag.effects () -> "caml_cps_alloc_stack"
+              | _ -> name
+            in
             let* f = register_import ~name (Fun (func_type (List.length l))) in
             let* () = Stack.perform_spilling stack_ctx (`Instr x) in
             let rec loop acc l =

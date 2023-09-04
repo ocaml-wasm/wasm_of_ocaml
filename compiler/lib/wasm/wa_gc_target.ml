@@ -932,7 +932,7 @@ module Closure = struct
     (* The runtime only handle function with arity up to 4
        (1 for CPS functions) *)
     let arity = if cps then 1 else if arity > 4 then 1 else arity in
-    let* dummy_fun = need_dummy_fun ~arity in
+    let* dummy_fun = need_dummy_fun ~cps ~arity in
     let* ty = Type.dummy_closure_type ~cps ~arity in
     let* curry_fun = if arity > 1 then need_curry_fun ~cps ~arity else return dummy_fun in
     let* cl_typ = Type.closure_type ~usage:`Alloc ~cps arity in

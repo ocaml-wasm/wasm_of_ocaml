@@ -16,6 +16,7 @@ type context =
   ; mutable curry_funs : Code.Var.t Stdlib.IntMap.t
   ; mutable cps_curry_funs : Code.Var.t Stdlib.IntMap.t
   ; mutable dummy_funs : Code.Var.t Stdlib.IntMap.t
+  ; mutable cps_dummy_funs : Code.Var.t Stdlib.IntMap.t
   ; mutable init_code : Wa_ast.instruction list
   }
 
@@ -145,7 +146,7 @@ val need_apply_fun : cps:bool -> arity:int -> Code.Var.t t
 
 val need_curry_fun : cps:bool -> arity:int -> Code.Var.t t
 
-val need_dummy_fun : arity:int -> Code.Var.t t
+val need_dummy_fun : cps:bool -> arity:int -> Code.Var.t t
 
 val function_body :
      context:context

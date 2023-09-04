@@ -331,7 +331,6 @@
    (func $initial_cont (param $p (ref $pair)) (param (ref eq))
       (call $start_fiber (local.get $p)))
 
-(;ZZZZZZZZ
    (func (export "caml_alloc_stack")
       (param $hv (ref eq)) (param $hx (ref eq)) (param $hf (ref eq))
       (result (ref eq))
@@ -340,7 +339,6 @@
          (struct.new $cont (ref.func $initial_cont))
          (ref.null extern)
          (ref.null $fiber)))
-;)
 
    ;; Other functions
 
@@ -380,16 +378,42 @@
    (func (export "caml_initialize_effects") (param $s externref)
       (global.set $current_suspender (local.get $s)))
 
-;;;;;;;;;;;;;;;;;;;
+   ;; Effects though CPS transformation
+
+   (type $function_2
+      (func (param (ref eq) (ref eq) (ref eq)) (result (ref eq))))
+   (type $function_4
+      (func (param (ref eq) (ref eq) (ref eq) (ref eq) (ref eq))
+         (result (ref eq))))
+   (type $cps_closure (sub (struct (field (ref $function_2)))))
+   (type $cps_closure_0 (sub (struct (field (ref $function_1)))))
+   (type $cps_closure_3
+      (sub $cps_closure
+         (struct (field (ref $function_2)) (field (ref $function_4)))))
+
+   (type $iterator
+     (sub $closure
+       (struct
+          (field (ref $function_1))
+          (field $i (mut i32))
+          (field $args (ref $block)))))
 
    (type $exn_stack
       (struct (field $h (ref eq)) (field $next (ref null $exn_stack))))
 
-   (global $caml_exn_stack (mut (ref null $exn_stack)) (ref.null $exn_stack))
+   (type $cps_fiber
+      (sub final $generic_fiber
+         (struct
+            (field $handlers (mut (ref $handlers)))
+            (field $cont (ref eq))
+            (field $exn_stack (ref null $exn_stack))
+            (field $next (ref null $cps_fiber)))))
+
+   (global $exn_stack (mut (ref null $exn_stack)) (ref.null $exn_stack))
 
    (func (export "caml_push_trap") (param $h (ref eq)) (result (ref eq))
-      (global.set $caml_exn_stack
-         (struct.new $exn_stack (local.get $h) (global.get $caml_exn_stack)))
+      (global.set $exn_stack
+         (struct.new $exn_stack (local.get $h) (global.get $exn_stack)))
       (i31.new (i32.const 0)))
 
    (func $raise_exception
@@ -402,28 +426,15 @@
    (func (export "caml_pop_trap") (result (ref eq))
       (local $top (ref $exn_stack))
       (block $empty
-         (local.set $top (br_on_null $empty (global.get $caml_exn_stack)))
-         (global.set $caml_exn_stack
+         (local.set $top (br_on_null $empty (global.get $exn_stack)))
+         (global.set $exn_stack
             (struct.get $exn_stack $next (local.get $top)))
          (return (struct.get $exn_stack $h (local.get $top))))
       (global.get $raise_exception))
 
-
    (func (export "caml_maybe_attach_backtrace")
       (param $exn (ref eq)) (param (ref eq)) (result (ref eq))
       (local.get $exn))
-
-   (type $function_2
-      (func (param (ref eq) (ref eq) (ref eq)) (result (ref eq))))
-   (type $cps_closure (sub (struct (field (ref $function_2)))))
-   (type $cps_closure_0 (sub (struct (field (ref $function_1)))))
-
-   (type $iterator
-     (sub $closure
-       (struct
-          (field (ref $function_1))
-          (field $i (mut i32))
-          (field $args (ref $block)))))
 
    (func $identity (param (ref eq)) (param (ref eq)) (result (ref eq))
       (local.get 0))
@@ -480,73 +491,13 @@
          (i32.const 1)
          (ref.cast (ref $block) (local.get $args))))
 
-   ;; ZZZ initialize effect handlers
-   ;; ZZZ js exceptions
-   ;; ZZZ use in caml_callback
-   (func (export "caml_trampoline")
-      (param $f (ref eq)) (param $vargs (ref eq)) (result (ref eq))
-      (local $args (ref $block))
-      (local $i i32)
-      (local $exn (ref eq)) (local $top (ref $exn_stack))
-      (local.set $args (ref.cast (ref $block) (local.get $vargs)))
-      (try (result (ref eq))
-         (do
-            (if (i32.eq (array.len $block (local.get $args)) (i32.const 1))
-               (then
-                  (return ;; NOT a tail call
-                     (call_ref $function_1 (global.get $identity)
-                        (local.get $f)
-                        (struct.get $cps_closure_0 0
-                           (ref.cast (ref $cps_closure_0) (local.get $f)))))))
-            (return ;; NOT a tail call
-               (call_ref $function_2
-                  (array.get $block (local.get $args) (i32.const 1))
-                  (if (result (ref eq))
-                      (i32.eq (i32.const 2) (array.len (local.get $args)))
-                     (then (global.get $identity))
-                     (else
-                        (struct.new $iterator
-                           (ref.func $trampoline_iterator)
-                           (i32.const 2)
-                           (local.get $args))))
-                  (local.get $f)
-                  (struct.get $cps_closure 0
-                     (ref.cast (ref $cps_closure) (local.get $f))))))
-         (catch $ocaml_exception
-            (local.set $exn (pop (ref eq)))
-            (loop $loop
-               (block $empty
-                  (local.set $top
-                     (br_on_null $empty (global.get $caml_exn_stack)))
-                  (global.set $caml_exn_stack
-                     (struct.get $exn_stack $next (local.get $top)))
-                  (local.set $f (struct.get $exn_stack $h (local.get $top)))
-                  (try
-                     (do
-                        (return ;; NOT a tail call
-                           (call_ref $function_1
-                              (local.get $exn)
-                              (local.get $f)
-                              (struct.get $closure 0
-                                 (ref.cast (ref $closure) (local.get $f))))))
-                     (catch $ocaml_exception
-                        (local.set $exn (pop (ref eq)))
-                        (br $loop))))
-               (throw $ocaml_exception (local.get $exn))))))
-
-   (type $cps_fiber
-      (sub final $generic_fiber
-         (struct
-            (field $handlers (mut (ref $handlers)))
-            (field $cont (ref eq))
-            (field $exn_stack (ref null $exn_stack))
-            (field $next (ref null $cps_fiber)))))
-
    (func $dummy_cps_fun
       (param (ref eq)) (param (ref eq)) (param (ref eq)) (result (ref eq))
       (unreachable))
 
-   (global $cps_fiber_stack (mut (ref null $cps_fiber)) ;; (ref.null $cps_fiber)
+   (global $cps_fiber_stack (mut (ref null $cps_fiber)) (ref.null $cps_fiber))
+
+   (global $default_fiber_stack (ref null $cps_fiber)
       (struct.new $cps_fiber
          (struct.new $handlers
             (i31.new (i32.const 0)) (i31.new (i32.const 0))
@@ -557,19 +508,86 @@
          (ref.null $exn_stack)
          (ref.null $cps_fiber)))
 
-   (type $function_4
-      (func (param (ref eq) (ref eq) (ref eq) (ref eq) (ref eq))
-         (result (ref eq))))
-   (type $cps_closure_3
-      (sub $cps_closure
-         (struct (field (ref $function_2)) (field (ref $function_4)))))
+   ;; ZZZ use in caml_callback
+   (func (export "caml_trampoline")
+      (param $f (ref eq)) (param $vargs (ref eq)) (result (ref eq))
+      (local $args (ref $block))
+      (local $i i32) (local $res (ref eq))
+      (local $exn (ref eq)) (local $top (ref $exn_stack))
+      (local $saved_exn_stack (ref null $exn_stack))
+      (local $saved_fiber_stack (ref null $cps_fiber))
+      (local.set $saved_exn_stack (global.get $exn_stack))
+      (local.set $saved_fiber_stack (global.get $cps_fiber_stack))
+      (global.set $exn_stack (ref.null $exn_stack))
+      (global.set $cps_fiber_stack (global.get $default_fiber_stack))
+      (local.set $args (ref.cast (ref $block) (local.get $vargs)))
+      (local.set $exn
+         (try (result (ref eq))
+            (do
+               (local.set $res
+                  (if (result (ref eq))
+                      (i32.eq (array.len $block (local.get $args)) (i32.const 1))
+                     (then
+                        (call_ref $function_1 (global.get $identity)
+                           (local.get $f)
+                           (struct.get $cps_closure_0 0
+                              (ref.cast (ref $cps_closure_0) (local.get $f)))))
+                     (else
+                        (call_ref $function_2
+                           (array.get $block (local.get $args) (i32.const 1))
+                           (if (result (ref eq))
+                               (i32.eq (i32.const 2)
+                                       (array.len (local.get $args)))
+                              (then (global.get $identity))
+                              (else
+                                 (struct.new $iterator
+                                    (ref.func $trampoline_iterator)
+                                    (i32.const 2)
+                                    (local.get $args))))
+                           (local.get $f)
+                           (struct.get $cps_closure 0
+                              (ref.cast (ref $cps_closure) (local.get $f)))))))
+               (global.set $exn_stack (local.get $saved_exn_stack))
+               (global.set $cps_fiber_stack (local.get $saved_fiber_stack))
+               (return (local.get $res)))
+            (catch $ocaml_exception
+               (pop (ref eq)))
+            (catch $javascript_exception
+               (call $caml_wrap_exception (pop externref)))))
+      (loop $loop
+         (block $empty
+            (local.set $top
+               (br_on_null $empty (global.get $exn_stack)))
+            (global.set $exn_stack
+               (struct.get $exn_stack $next (local.get $top)))
+            (local.set $f (struct.get $exn_stack $h (local.get $top)))
+            (try
+               (do
+                  (local.set $res
+                     (call_ref $function_1
+                        (local.get $exn)
+                        (local.get $f)
+                        (struct.get $closure 0
+                           (ref.cast (ref $closure) (local.get $f)))))
+                  (global.set $exn_stack (local.get $saved_exn_stack))
+                  (global.set $cps_fiber_stack (local.get $saved_fiber_stack))
+                  (return (local.get $res)))
+               (catch $ocaml_exception
+                  (local.set $exn (pop (ref eq)))
+                  (br $loop))
+               (catch $javascript_exception
+                  (local.set $exn (call $caml_wrap_exception (pop externref)))
+                  (br $loop)))))
+      (global.set $exn_stack (local.get $saved_exn_stack))
+      (global.set $cps_fiber_stack (local.get $saved_fiber_stack))
+      (throw $ocaml_exception (local.get $exn)))
 
    (func $caml_pop_fiber (result (ref eq))
       (local $top (ref $cps_fiber))
       (local.set $top (ref.as_non_null (global.get $cps_fiber_stack)))
       (global.set $cps_fiber_stack
          (struct.get $cps_fiber $next (local.get $top)))
-      (global.set $caml_exn_stack
+      (global.set $exn_stack
          (struct.get $cps_fiber $exn_stack (local.get $top)))
       (struct.get $cps_fiber $cont (local.get $top)))
 
@@ -586,10 +604,10 @@
                   (struct.new $cps_fiber
                      (struct.get $cps_fiber $handlers (local.get $stack))
                      (local.get $k)
-                     (global.get $caml_exn_stack)
+                     (global.get $exn_stack)
                      (global.get $cps_fiber_stack)))
                (local.set $k (struct.get $cps_fiber $cont (local.get $stack)))
-               (global.set $caml_exn_stack
+               (global.set $exn_stack
                   (struct.get $cps_fiber $exn_stack (local.get $stack)))
                (local.set $stack
                   (br_on_null $done
@@ -623,11 +641,11 @@
          (struct.new $cps_fiber
             (local.get $handlers)
             (local.get $k0)
-            (global.get $caml_exn_stack)
+            (global.get $exn_stack)
             (ref.cast (ref null $cps_fiber)
                (struct.get $continuation 0 (local.get $cont)))))
       (local.set $k1 (call $caml_pop_fiber))
-      (call_ref $function_4
+      (return_call_ref $function_4
          (local.get $eff) (local.get $cont) (local.get $k1) (local.get $k1)
          (local.get $handler)
          (struct.get $cps_closure_3 1
@@ -662,7 +680,7 @@
    (global $exn_handler (ref $closure)
       (struct.new $closure (ref.func $exn_handler)))
 
-   (func (export "caml_alloc_stack")
+   (func (export "caml_cps_alloc_stack")
       (param $hv (ref eq)) (param $hx (ref eq)) (param $hf (ref eq))
       (result (ref eq))
       (struct.new $cps_fiber

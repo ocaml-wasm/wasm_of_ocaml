@@ -378,6 +378,7 @@ module Make (Target : Wa_target_sig.S) = struct
     W.Function { name; exported_name = None; typ = func_type arity; locals; body }
 
   let dummy ~context ~cps ~arity ~name =
+    let arity = if cps then arity + 1 else arity in
     let body =
       let l =
         List.rev
@@ -428,5 +429,10 @@ module Make (Target : Wa_target_sig.S) = struct
       (fun arity name ->
         let f = dummy ~context ~cps:false ~arity ~name in
         context.other_fields <- f :: context.other_fields)
-      context.dummy_funs
+      context.dummy_funs;
+    IntMap.iter
+      (fun arity name ->
+        let f = dummy ~context ~cps:true ~arity ~name in
+        context.other_fields <- f :: context.other_fields)
+      context.cps_dummy_funs
 end

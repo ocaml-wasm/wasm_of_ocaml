@@ -32,6 +32,7 @@ type context =
   ; mutable curry_funs : Var.t IntMap.t
   ; mutable cps_curry_funs : Var.t IntMap.t
   ; mutable dummy_funs : Var.t IntMap.t
+  ; mutable cps_dummy_funs : Var.t IntMap.t
   ; mutable init_code : W.instruction list
   }
 
@@ -48,6 +49,7 @@ let make_context () =
   ; curry_funs = IntMap.empty
   ; cps_curry_funs = IntMap.empty
   ; dummy_funs = IntMap.empty
+  ; cps_dummy_funs = IntMap.empty
   ; init_code = []
   }
 
@@ -434,13 +436,21 @@ let need_curry_fun ~cps ~arity st =
          x)
   , st )
 
-let need_dummy_fun ~arity st =
+let need_dummy_fun ~cps ~arity st =
   let ctx = st.context in
-  ( (try IntMap.find arity ctx.dummy_funs
-     with Not_found ->
-       let x = Var.fresh_n (Printf.sprintf "dummy_%d" arity) in
-       ctx.dummy_funs <- IntMap.add arity x ctx.dummy_funs;
-       x)
+  ( (if cps
+     then (
+       try IntMap.find arity ctx.cps_dummy_funs
+       with Not_found ->
+         let x = Var.fresh_n (Printf.sprintf "cps_dummy_%d" arity) in
+         ctx.cps_dummy_funs <- IntMap.add arity x ctx.cps_dummy_funs;
+         x)
+     else
+       try IntMap.find arity ctx.dummy_funs
+       with Not_found ->
+         let x = Var.fresh_n (Printf.sprintf "dummy_%d" arity) in
+         ctx.dummy_funs <- IntMap.add arity x ctx.dummy_funs;
+         x)
   , st )
 
 let init_code context = instrs context.init_code
