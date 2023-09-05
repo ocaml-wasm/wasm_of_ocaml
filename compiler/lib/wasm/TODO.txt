@@ -373,8 +373,6 @@ Release:
 ===
 
 - dependency on bonsai_web_ui_gallery
-- writing to stdout not implemented
-- has to fake a load event
 
 =====
 
@@ -399,25 +397,4 @@ Dune
 
 ==========================
 
-Performance
-===> do not use several exception handlers
-
-=====
-
 Move exception handling to webassembly / change caml_named_value api
-
-=====
-
-- alternative to js_of_ocaml
-- make use of all useful wasm proposals, see how well they fit our needs
-- wasm gc is crucial (different approach needed otherwise)
-- rely quite a lot on javascript for now (maths, ...)
-- stringref used to interoperate with javascript + implement some functionalities like float parsing / formating. Could use other approach, but more complicated. Still very experimental. May reconsider.
-- can do without tail calls
-- could do without exception handlers
-- wasmtime plan to implement gc extension, but not done yet
-
-=========
-
-update time_now, base, ppx_expect, ppx_inline_test, ...
-
