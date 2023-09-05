@@ -999,7 +999,7 @@ let handle_exceptions ~result_typ ~fall_through ~context body x exn_handler =
            , let exn = Code.Var.fresh () in
              let* () = store ~always:true ~typ:externref exn (return (W.Pop externref)) in
              let* exn = load exn in
-             instr (Throw (ocaml_tag, W.Call (f, [ exn ]))) )
+             store ~always:true x (return (W.Call (f, [ exn ]))) )
          ]
      in
      exn_handler ~result_typ ~fall_through ~context)
