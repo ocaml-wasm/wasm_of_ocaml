@@ -582,9 +582,8 @@
       (global.set $cps_fiber_stack (local.get $saved_fiber_stack))
       (throw $ocaml_exception (local.get $exn)))
 
-   (global (export "caml_trampoline_ref")
-      (mut (ref null $function_1));; (ref.null $function_1)
-      (ref.func $caml_trampoline))
+   (global $caml_trampoline_ref (export "caml_trampoline_ref")
+      (mut (ref null $function_1)) (ref.null $function_1))
 
    (func $caml_pop_fiber (result (ref eq))
       (local $top (ref $cps_fiber))
@@ -705,4 +704,7 @@
                   (ref.cast (ref $continuation) (local.get $k))))
             (local.get $ms)))
       (call $raise_unhandled (local.get $eff) (i31.new (i32.const 0))))
+
+   (func (export "caml_initialize_cps_effects")
+      (global.set $caml_trampoline_ref (ref.func $caml_trampoline)))
 )

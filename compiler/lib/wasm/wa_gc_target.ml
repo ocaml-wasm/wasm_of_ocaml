@@ -1080,7 +1080,10 @@ let entry_point ~context =
   let code =
     let* f =
       register_import
-        ~name:"caml_initialize_effects"
+        ~name:
+          (if Config.Flag.effects ()
+           then "caml_cps_initialize_effects"
+           else "caml_initialize_effects")
         (Fun { W.params = [ W.Ref { nullable = true; typ = Extern } ]; result = [] })
     in
     let suspender = Code.Var.fresh () in
