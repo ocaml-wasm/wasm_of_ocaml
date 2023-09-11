@@ -194,7 +194,7 @@ let rec expression_effects e acc =
   | Pop _ -> effect_add (Pop, false) acc
   | UnOp (_, e')
   | LocalTee (_, e')
-  | I31New e'
+  | RefI31 e'
   | I31Get (_, e')
   | ArrayLen e'
   | StructGet (_, _, _, e')
@@ -270,9 +270,9 @@ let rec rewrite_expression e =
       let* l = rewrite_expressions l in
       let* e' = rewrite_expression e' in
       effect (Call, true) (Wa_ast.Call_ref (typ, e', l))
-  | I31New e' ->
+  | RefI31 e' ->
       let* e' = rewrite_expression e' in
-      return (Wa_ast.I31New e')
+      return (Wa_ast.RefI31 e')
   | I31Get (s, e') ->
       let* e' = rewrite_expression e' in
       return (Wa_ast.I31Get (s, e'))

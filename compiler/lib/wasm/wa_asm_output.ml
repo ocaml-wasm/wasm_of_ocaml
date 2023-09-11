@@ -307,7 +307,7 @@ module Output () = struct
     | Pop _ -> empty
     | RefFunc _
     | Call_ref _
-    | I31New _
+    | RefI31 _
     | I31Get _
     | ArrayNew _
     | ArrayNewFixed _

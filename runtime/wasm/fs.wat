@@ -39,13 +39,13 @@
    (func (export "caml_sys_chdir")
       (param (ref eq)) (result (ref eq))
       (call $chdir (call $unwrap (call $caml_jsstring_of_string (local.get 0))))
-      (i31.new (i32.const 0)))
+      (ref.i31 (i32.const 0)))
 
    (func (export "caml_sys_mkdir")
       (param (ref eq)) (param (ref eq)) (result (ref eq))
       ;; ZZZ
       (call $log_js (string.const "caml_sys_mkdir"))
-      (i31.new (i32.const 0)))
+      (ref.i31 (i32.const 0)))
 
    (func (export "caml_sys_read_directory")
       (param (ref eq)) (result (ref eq))
@@ -56,14 +56,14 @@
    (func (export "caml_sys_remove")
       (param (ref eq)) (result (ref eq))
       (call $unlink (call $unwrap (call $caml_jsstring_of_string (local.get 0))))
-      (i31.new (i32.const 0)))
+      (ref.i31 (i32.const 0)))
 
    (func (export "caml_sys_rename")
       (param $o (ref eq)) (param $n (ref eq)) (result (ref eq))
       (call $rename
          (call $unwrap (call $caml_jsstring_of_string (local.get $o)))
          (call $unwrap (call $caml_jsstring_of_string (local.get $n))))
-      (i31.new (i32.const 0)))
+      (ref.i31 (i32.const 0)))
 
    (func (export "caml_sys_file_exists")
       (param (ref eq)) (result (ref eq))
@@ -97,10 +97,10 @@
       (local.set $ch
          (call $caml_ml_open_descriptor_in
             (call $caml_sys_open (local.get $name)
-               (array.new_fixed $block 3 (i31.new (i32.const 0))
-                  (i31.new (i32.const 0)) ;; Open_rdonly
-                  (i31.new (i32.const 0)))
-               (i31.new (i32.const 438))))) ;; 0o666
+               (array.new_fixed $block 3 (ref.i31 (i32.const 0))
+                  (ref.i31 (i32.const 0)) ;; Open_rdonly
+                  (ref.i31 (i32.const 0)))
+               (ref.i31 (i32.const 438))))) ;; 0o666
       (local.set $len
          (i31.get_u
             (ref.cast (ref i31) (call $caml_ml_channel_size (local.get $ch)))))
@@ -110,5 +110,5 @@
       (local.get $res))
 
    (func (export "caml_fs_init") (result (ref eq))
-      (i31.new (i32.const 0)))
+      (ref.i31 (i32.const 0)))
 )

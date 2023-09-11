@@ -59,8 +59,9 @@
       (func $caml_failwith_tag (result (ref eq))))
    (import "stdlib" "caml_named_value"
       (func $caml_named_value (param anyref) (result (ref null eq))))
-   (import "effect" "caml_trampoline_ref"
-      (global $caml_trampoline_ref (mut (ref null $function_1))))
+   (import "obj" "caml_callback_1"
+      (func $caml_callback_1
+         (param (ref eq)) (param (ref eq)) (result (ref eq))))
    (import "obj" "caml_is_closure"
       (func $caml_is_closure (param (ref eq)) (result i32)))
    (import "obj" "caml_is_last_arg"
@@ -89,12 +90,12 @@
 
    (func (export "caml_js_equals")
       (param (ref eq)) (param (ref eq)) (result (ref eq))
-      (i31.new (call $equals
+      (ref.i31 (call $equals
                   (call $unwrap (local.get 0)) (call $unwrap (local.get 1)))))
 
    (func (export "caml_js_strict_equals")
       (param (ref eq)) (param (ref eq)) (result (ref eq))
-      (i31.new (call $strict_equals
+      (ref.i31 (call $strict_equals
                   (call $unwrap (local.get 0)) (call $unwrap (local.get 1)))))
 
    ;; ZZZ We should generate JavaScript code instead of using 'eval'
@@ -122,7 +123,7 @@
             (struct.get $float 0 (ref.cast (ref $float) (local.get 0))))))
 
    (func (export "caml_js_to_bool") (param (ref eq)) (result (ref eq))
-      (i31.new
+      (ref.i31
          (call $to_bool (struct.get $js 0 (ref.cast (ref $js) (local.get 0))))))
 
    (func (export "caml_js_from_bool") (param (ref eq)) (result (ref eq))
@@ -130,18 +131,8 @@
          (call $from_bool (i31.get_s (ref.cast (ref i31) (local.get 0))))))
 
   (func (export "caml_js_pure_expr")
-     (param (ref eq)) (result (ref eq))
-     (drop (block $cps (result (ref eq))
-        (return_call_ref $function_1
-           (i31.new (i32.const 0))
-           (local.get 0)
-           (struct.get $closure 0
-              (br_on_cast_fail $cps (ref eq) (ref $closure) (local.get 0))))))
-     (return_call_ref $function_1
-        (local.get 0)
-        (array.new_fixed $block 2 (i31.new (i32.const 0))
-           (i31.new (i32.const 0)))
-        (ref.as_non_null (global.get $caml_trampoline_ref))))
+     (param $f (ref eq)) (result (ref eq))
+     (return_call $caml_callback_1 (local.get $f) (ref.i31 (i32.const 0))))
 
    (func (export "caml_js_fun_call")
       (param $f (ref eq)) (param $args (ref eq)) (result (ref eq))
@@ -185,7 +176,7 @@
             (local.set 1 (call $caml_jsbytes_of_string (local.get 1)))))
       (call $set (call $unwrap (local.get 0)) (call $unwrap (local.get 1))
          (call $unwrap (local.get 2)))
-      (i31.new (i32.const 0)))
+      (ref.i31 (i32.const 0)))
 
    (func (export "caml_js_delete")
       (param (ref eq)) (param (ref eq)) (result (ref eq))
@@ -193,11 +184,11 @@
          (then
             (local.set 1 (call $caml_jsbytes_of_string (local.get 1)))))
       (call $delete (call $unwrap (local.get 0)) (call $unwrap (local.get 1)))
-      (i31.new (i32.const 0)))
+      (ref.i31 (i32.const 0)))
 
    (func (export "caml_js_instanceof")
       (param (ref eq)) (param (ref eq)) (result (ref eq))
-      (i31.new (call $instanceof
+      (ref.i31 (call $instanceof
                   (call $unwrap (local.get 0)) (call $unwrap (local.get 1)))))
 
    (func (export "caml_js_typeof")
@@ -220,7 +211,7 @@
       (param $o (ref eq)) (param $f (ref eq)) (result (ref eq))
       (call $iter_props
          (call $unwrap (local.get $o)) (call $unwrap (local.get $f)))
-      (i31.new (i32.const 0)))
+      (ref.i31 (i32.const 0)))
 
    (func (export "caml_js_object")
       (param (ref eq)) (result (ref eq))
@@ -275,7 +266,7 @@
          (ref.as_non_null (extern.externalize (call $unwrap (local.get 0)))))
       (local.set $l (call $array_length (local.get $a)))
       (local.set $a'
-         (array.new $block (i31.new (i32.const 0))
+         (array.new $block (ref.i31 (i32.const 0))
             (i32.add (local.get $l) (i32.const 1))))
       (local.set $i (i32.const 0))
       (loop $loop
@@ -293,7 +284,7 @@
       (local $a' (ref $block)) (local $l i32) (local $i i32)
       (local.set $l (call $array_length (local.get $a)))
       (local.set $a'
-         (array.new $block (i31.new (i32.const 0))
+         (array.new $block (ref.i31 (i32.const 0))
             (i32.add (local.get $l) (i32.const 1))))
       (local.set $i (i32.const 0))
       (loop $loop
@@ -360,62 +351,29 @@
          (then
             (loop $loop
                (local.set $f (local.get $acc))
-               (local.set $arg
-                  (call $wrap
-                     (call $get (local.get $args) (i31.new (local.get $i)))))
-               (block $done
-                  (drop (block $cps (result (ref eq))
-                     (local.set $acc
-                        (call_ref $function_1
-                           (local.get $arg)
-                           (local.get $acc)
-                           (struct.get $closure 0
-                              (br_on_cast_fail $cps (ref eq) (ref $closure)
-                                 (local.get $acc)))))
-                     (br $done)))
-                  (local.set $acc
-                     (call_ref $function_1
-                        (local.get $acc)
-                        (array.new_fixed $block 2 (i31.new (i32.const 0))
-                           (local.get $arg))
-                        (ref.as_non_null (global.get $caml_trampoline_ref)))))
+               (local.set $acc
+                  (call $caml_callback_1 (local.get $acc)
+                     (call $wrap
+                        (call $get (local.get $args)
+                           (ref.i31 (local.get $i))))))
                (local.set $i (i32.add (local.get $i) (i32.const 1)))
                (br_if $loop
                   (i32.eqz (call $caml_is_last_arg (local.get $f))))))
          (else
             (local.set $i (i32.const 0))
-            (drop (block $done (result (ref eq))
+            (block $done
                (loop $loop
                   (if (i32.lt_u (local.get $i) (local.get $count))
                      (then
-                        (local.set $arg
-                           (call $wrap
-                              (call $get (local.get $args)
-                                 (i31.new (local.get $i)))))
-                        (block $continue
-                           (drop (block $cps (result (ref eq))
-                              (local.set $acc
-                                 (call_ref $function_1
-                                    (local.get $arg)
-                                    (local.get $acc)
-                                    (struct.get $closure 0
-                                       (br_on_cast_fail $cps
-                                          (ref eq) (ref $closure)
-                                          (local.get $acc)))))
-                              (br $continue)))
-                           (local.set $acc
-                              (call_ref $function_1
-                                 (br_on_cast_fail $done
-                                    (ref eq) (ref $cps_closure)
-                                    (local.get $acc))
-                                 (array.new_fixed $block 2
-                                    (i31.new (i32.const 0))
-                                    (local.get $arg))
-                                 (ref.as_non_null
-                                    (global.get $caml_trampoline_ref)))))
+                        (br_if $done
+                           (i32.eqz (call $caml_is_closure (local.get $acc))))
+                        (local.set $acc
+                           (call $caml_callback_1 (local.get $acc)
+                              (call $wrap
+                                 (call $get (local.get $args)
+                                    (ref.i31 (local.get $i))))))
                         (local.set $i (i32.add (local.get $i) (i32.const 1)))
-                        (br $loop))))
-               (i31.new (i32.const 0))))
+                        (br $loop)))))
             (if (local.get $kind)
                (then
                   (if (call $caml_is_closure (local.get $acc))
@@ -593,12 +551,12 @@
          (ref.as_non_null (extern.externalize (call $unwrap (local.get 0)))))
       (local.set $len (call $array_length (local.get $a)))
       (local.set $i (i32.const 0))
-      (local.set $l (i31.new (i32.const 0)))
+      (local.set $l (ref.i31 (i32.const 0)))
       (loop $loop
          (if (i32.lt_u (local.get $i) (local.get $len))
             (then
                (local.set $l
-                  (array.new_fixed $block 3 (i31.new (i32.const 0))
+                  (array.new_fixed $block 3 (ref.i31 (i32.const 0))
                      (call $wrap
                         (call $array_get (local.get $a) (local.get $i)))
                      (local.get $l)))
@@ -612,11 +570,11 @@
       ;; ZZZ special case for stack overflows?
       (block $undef
          (return
-            (array.new_fixed $block 3 (i31.new (i32.const 0))
+            (array.new_fixed $block 3 (ref.i31 (i32.const 0))
                (br_on_null $undef
                   (call $caml_named_value (string.const "jsError")))
                (call $wrap (local.get $exn)))))
-      (array.new_fixed $block 3 (i31.new (i32.const 0))
+      (array.new_fixed $block 3 (ref.i31 (i32.const 0))
          (call $caml_failwith_tag)
          (call $caml_string_of_jsstring
             (call $wrap
@@ -630,22 +588,22 @@
       (local $exn (ref $block))
       (local.set $exn (ref.cast (ref $block) (local.get $0)))
       (if (ref.eq (array.get $block (local.get $exn) (i32.const 0))
-                  (i31.new (i32.const 0)))
+                  (ref.i31 (i32.const 0)))
          (then
             (if (ref.eq (array.get $block (local.get $exn) (i32.const 1))
                    (call $caml_named_value (string.const "jsError")))
                (then
                   (return
-                     (array.new_fixed $block 2 (i31.new (i32.const 0))
+                     (array.new_fixed $block 2 (ref.i31 (i32.const 0))
                         (array.get $block (local.get $exn) (i32.const 2))))))))
-      (i31.new (i32.const 0)))
+      (ref.i31 (i32.const 0)))
 
    (func (export "caml_js_error_of_exception")
       (param (ref eq)) (result (ref eq))
       (local $exn (ref $block))
       (local.set $exn (ref.cast (ref $block) (local.get $0)))
       (if (ref.eq (array.get $block (local.get $exn) (i32.const 0))
-                  (i31.new (i32.const 0)))
+                  (ref.i31 (i32.const 0)))
          (then
             (if (ref.eq (array.get $block (local.get $exn) (i32.const 1))
                    (call $caml_named_value (string.const "jsError")))

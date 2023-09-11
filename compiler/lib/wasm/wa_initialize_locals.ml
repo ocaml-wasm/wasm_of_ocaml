@@ -24,7 +24,7 @@ let rec scan_expression ctx e =
   | Load (_, e')
   | Load8 (_, _, e')
   | MemoryGrow (_, e')
-  | I31New e'
+  | RefI31 e'
   | I31Get (_, e')
   | ArrayLen e'
   | StructGet (_, _, _, e')
@@ -106,6 +106,6 @@ let f ~param_count ~locals instrs =
     locals;
   scan_instructions ctx instrs;
   List.map
-    ~f:(fun i -> Wa_ast.LocalSet (i, I31New (Const (I32 0l))))
+    ~f:(fun i -> Wa_ast.LocalSet (i, RefI31 (Const (I32 0l))))
     (IntSet.elements !(ctx.uninitialized))
   @ instrs

@@ -37,7 +37,7 @@ let rec scan_expression ctx e =
   | Load (_, e')
   | Load8 (_, _, e')
   | MemoryGrow (_, e')
-  | I31New e'
+  | RefI31 e'
   | I31Get (_, e')
   | ArrayLen e'
   | StructGet (_, _, _, e')
@@ -198,7 +198,7 @@ let rec rewrite_expression ctx e =
       let l = rewrite_expressions ctx l in
       let e' = rewrite_expression ctx e' in
       Call_ref (typ, e', l)
-  | I31New e' -> I31New (rewrite_expression ctx e')
+  | RefI31 e' -> RefI31 (rewrite_expression ctx e')
   | I31Get (s, e') -> I31Get (s, rewrite_expression ctx e')
   | ArrayNew (symb, e', e'') ->
       ArrayNew (symb, rewrite_expression ctx e', rewrite_expression ctx e'')
