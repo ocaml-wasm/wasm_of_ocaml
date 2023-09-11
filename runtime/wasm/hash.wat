@@ -25,7 +25,7 @@
          (field $fixed_length (ref null $fixed_length))
          (field $serialize (ref null $serialize))
          (field $deserialize (ref null $deserialize))))
-   (type $custom (sub (struct (field (ref $custom_operations)))))
+   (type $custom (sub open (struct (field (ref $custom_operations)))))
 
    (func $caml_hash_mix_int (export "caml_hash_mix_int")
       (param $h i32) (param $d i32) (result i32)

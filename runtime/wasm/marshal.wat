@@ -125,7 +125,7 @@
          (field $fixed_length (ref null $fixed_length))
          (field $serialize (ref null $serialize))
          (field $deserialize (ref null $deserialize))))
-   (type $custom (sub (struct (field (ref $custom_operations)))))
+   (type $custom (sub open (struct (field (ref $custom_operations)))))
 
    (global $Intext_magic_number_small i32 (i32.const 0x8495A6BE))
    (global $Intext_magic_number_big i32 (i32.const 0x8495A6BF))

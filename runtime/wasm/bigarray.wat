@@ -114,7 +114,7 @@
          (field $fixed_length (ref null $fixed_length))
          (field $serialize (ref null $serialize))
          (field $deserialize (ref null $deserialize))))
-   (type $custom (sub (struct (field (ref $custom_operations)))))
+   (type $custom (sub open (struct (field (ref $custom_operations)))))
 
    (global $bigarray_ops (export "bigarray_ops") (ref $custom_operations)
       (struct.new $custom_operations

@@ -25,9 +25,9 @@
          (field $fixed_length (ref null $fixed_length))
          (field $serialize (ref null $serialize))
          (field $deserialize (ref null $deserialize))))
-   (type $custom (sub (struct (field (ref $custom_operations)))))
+   (type $custom (sub open (struct (field (ref $custom_operations)))))
    (type $custom_with_id
-      (sub $custom
+      (sub open $custom
          (struct
             (field (ref $custom_operations))
             (field $id i64))))

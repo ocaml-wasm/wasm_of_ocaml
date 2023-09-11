@@ -94,4 +94,63 @@
 
    (func (export "caml_get_global_data") (param (ref eq)) (result (ref eq))
       (global.get $caml_global_data))
+
+   (import "sys" "ocaml_exit" (tag $ocaml_exit (param i32)))
+   (import "fail" "ocaml_exception" (tag $ocaml_exception (param (ref eq))))
+   (import "bindings" "exit" (func $exit (param i32)))
+   (import "stdlib" "caml_named_value"
+      (func $caml_named_value (param anyref) (result (ref null eq))))
+
+   (type $func (func))
+   (type $function_1 (func (param (ref eq) (ref eq)) (result (ref eq))))
+   (type $closure (sub open (struct (field (ref $function_1)))))
+   (type $function_2
+      (func (param (ref eq) (ref eq) (ref eq)) (result (ref eq))))
+   (type $closure_2
+      (sub open $closure
+         (struct (field (ref $function_1)) (field (ref $function_2)))))
+
+   (func (export "caml_main") (param $start (ref $func))
+      (local $exn (ref eq))
+      (local $handle_uncaught_exception (ref eq)) (local $do_at_exit (ref eq))
+      (try
+         (do
+            (call_ref $func (local.get $start)))
+         (catch $ocaml_exit
+            (call $exit (pop i32)))
+         (catch $ocaml_exception
+            (local.set $exn (pop (ref eq)))
+            (block $exit
+               (block $not_registered
+                  (local.set $handle_uncaught_exception
+                     (br_on_null $not_registered
+                        (call $caml_named_value
+                           (string.const "Printexc.handle_uncaught_exception"))))
+                  ;; ZZZ CPS
+                  (drop (call_ref $function_2
+                     (local.get $exn) (i31.new (i32.const 0))
+                     (local.get $handle_uncaught_exception)
+                     (struct.get $closure_2 1
+                        (ref.cast (ref $closure_2)
+                           (local.get $handle_uncaught_exception)))))
+                  (br $exit))
+               (block $null
+                  (local.set $do_at_exit
+                     (br_on_null $null
+                        (call $caml_named_value
+                           (string.const "Pervasives.do_at_exit"))))
+                  (drop (call_ref $function_1
+                     (i31.new (i32.const 0))
+                     (local.get $do_at_exit)
+                     (struct.get $closure 0
+                        (ref.cast (ref $closure) (local.get $do_at_exit))))))
+(;
+                console.error (
+                    "Fatal error: exception " +
+                        wasmModule.instance.exports.caml_format_exception(exn) +
+                        "\n")
+;)
+)
+(call $exit (i32.const 2)))))
+
 )

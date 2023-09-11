@@ -46,7 +46,7 @@
          (field $fixed_length (ref null $fixed_length))
          (field $serialize (ref null $serialize))
          (field $deserialize (ref null $deserialize))))
-   (type $custom (sub (struct (field (ref $custom_operations)))))
+   (type $custom (sub open (struct (field (ref $custom_operations)))))
 
    (global $dummy_block (ref $block)
       (array.new $block (i31.new (i32.const 0)) (i32.const 0)))

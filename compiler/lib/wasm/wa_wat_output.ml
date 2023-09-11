@@ -496,7 +496,7 @@ let type_field { name; typ; supertype; final } =
       ; index name
       ; List
           (Atom "sub"
-          :: ((if final then [ Atom "final" ] else [])
+          :: ([ Atom (if final then "final" else "open") ]
              @ (match supertype with
                | Some supertype -> [ index supertype ]
                | None -> [])
