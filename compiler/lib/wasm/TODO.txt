@@ -342,12 +342,6 @@ Performance
 
 =============
 
-read at current fd offset
-seek: adjusts the fd offset
-(after a seek, read from current offset)
-
-=========================
-
 export PATH=toto:/tmp/node-v21.0.0-v8-canary202307207f6d94de9e-linux-x64/bin:/home/jerome/V8/depot_tools:/home/jerome/.opam/4.14.0/bin:/home/jerome/sources/binaryen/bin:/home/jerome/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/snap/bin
 
 cd ~/sources/bonsai/_build/default/web_ui/not_connected_warning_box/test
@@ -394,7 +388,3 @@ Dune
 
 - compile both to js and wasm
 - set node options + variable for node
-
-==========================
-
-Move exception handling to webassembly / change caml_named_value api
