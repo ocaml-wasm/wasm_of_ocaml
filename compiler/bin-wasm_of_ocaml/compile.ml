@@ -138,7 +138,7 @@ let optimize in_file out_file =
     @ [ (*"--traps-never-happen"
           ;*)
         "-O2"
-      ; "--skip-pass=inlining-optimizing"
+(*      ; "--skip-pass=inlining-optimizing"*)
       ; Filename.quote in_file
       ; "-o"
       ; Filename.quote out_file
