@@ -75,12 +75,12 @@ let common_binaryen_options =
   ; "--enable-bulk-memory"
   ; "--enable-nontrapping-float-to-int"
   ; "--enable-strings"
-  ; "-g"
   ]
 
 let link runtime_files input_file output_file =
   command
     (("wasm-merge" :: common_binaryen_options)
+    @ (if Config.Flag.pretty () then [ "-g" ] else [])
     @ List.flatten
         (List.map
            ~f:(fun runtime_file -> [ Filename.quote runtime_file; "env" ])
@@ -132,19 +132,23 @@ let dead_code_elimination in_file out_file =
       ]);
   filter_unused_primitives primitives usage_file
 
-let optimize in_file out_file =
-  command
-    (("wasm-opt" :: common_binaryen_options)
-    @ [ (*"--traps-never-happen"
-          ;*)
-        "-O2"
-(*      ; "--skip-pass=inlining-optimizing"*)
-      ; Filename.quote in_file
-      ; "-o"
-      ; Filename.quote out_file
-      ])
+let optimization_options =
+  [| [ "-O1" ]; [ "-O2"; "--skip-pass=inlining-optimizing" ]; [ "-O3" ] |]
 
-let link_and_optimize runtime_wasm_files wat_file output_file =
+let optimize ~profile in_file out_file =
+  let level =
+    match profile with
+    | None -> 1
+    | Some p -> fst (List.find ~f:(fun (_, p') -> Poly.equal p p') Driver.profiles)
+  in
+  command
+    ("wasm-opt"
+    :: (common_binaryen_options
+       @ optimization_options.(level - 1)
+       @ [ "--traps-never-happen"; Filename.quote in_file; "-o"; Filename.quote out_file ]
+       ))
+
+let link_and_optimize ~profile runtime_wasm_files wat_file output_file =
   with_intermediate_file (Filename.temp_file "runtime" ".wasm")
   @@ fun runtime_file ->
   write_file runtime_file Wa_runtime.wasm_runtime;
@@ -154,7 +158,7 @@ let link_and_optimize runtime_wasm_files wat_file output_file =
   with_intermediate_file (Filename.temp_file "wasm-dce" ".wasm")
   @@ fun temp_file' ->
   let primitives = dead_code_elimination temp_file temp_file' in
-  optimize temp_file' output_file;
+  optimize ~profile temp_file' output_file;
   primitives
 
 let escape_string s =
@@ -313,7 +317,9 @@ let run { Cmd_arg.common; profile; runtime_files; input_file; output_file; param
        gen_file wasm_file
        @@ fun tmp_wasm_file ->
        output_gen wat_file (output code ~standalone:true);
-       let primitives = link_and_optimize runtime_wasm_files wat_file tmp_wasm_file in
+       let primitives =
+         link_and_optimize ~profile runtime_wasm_files wat_file tmp_wasm_file
+       in
        build_js_runtime primitives wasm_file (fst output_file)
    | `Cmo _ | `Cma _ -> assert false);
    close_ic ());
