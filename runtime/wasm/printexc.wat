@@ -121,6 +121,8 @@
                        (then
                           (call $add_char (local.get $buf)
                              (i32.const 44)) ;; ','
+                          (call $add_char (local.get $buf)
+                             (i32.const 32)) ;; ' '
                           (br $loop))))
                  (call $add_char (local.get $buf) (i32.const 41)))) ;; '\)'
             (local.set $s

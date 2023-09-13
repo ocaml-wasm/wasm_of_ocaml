@@ -28,7 +28,10 @@
    (type $string (array (mut i8)))
 
    (type $assoc
-      (struct (field (ref $string)) (field (ref eq)) (field (ref null $assoc))))
+      (struct
+         (field (ref $string))
+         (field (ref eq))
+         (field (mut (ref null $assoc)))))
 
    (type $assoc_array (array (field (mut (ref null $assoc)))))
 
@@ -87,6 +90,48 @@
                (struct.new $assoc
                   (ref.cast (ref $string) (local.get 0))
                   (local.get 1) (local.get $r)))))
+      (ref.i31 (i32.const 0)))
+
+   (func (export "caml_unregister_named_value")
+      (param $name (ref eq)) (result (ref eq))
+      (local $h i32)
+      (local $r (ref null $assoc)) (local $a (ref $assoc))
+      (local.set $h
+         (i32.rem_u
+            (i31.get_s
+               (ref.cast (ref i31)
+                  (call $caml_string_hash
+                     (ref.i31 (i32.const 0)) (local.get $name))))
+            (global.get $Named_value_size)))
+      (local.set $r
+         (array.get $assoc_array
+            (global.get $named_value_table) (local.get $h)))
+      (block $done
+         (local.set $a (br_on_null $done (local.get $r)))
+         (local.set $r (struct.get $assoc 2 (local.get $a)))
+         (if (i31.get_u
+                (ref.cast (ref i31)
+                    (call $caml_string_equal
+                       (local.get $name)
+                       (struct.get $assoc 0 (local.get $a)))))
+            (then
+               (array.set $assoc_array
+                  (global.get $named_value_table) (local.get $h)
+                  (local.get $r))
+               (br $done)))
+         (loop $loop
+            (local.set $a (br_on_null $done (local.get $r)))
+            (if (i31.get_u
+                   (ref.cast (ref i31)
+                       (call $caml_string_equal
+                          (local.get $name)
+                          (struct.get $assoc 0 (local.get $a)))))
+               (then
+                  (struct.set $assoc 2 (local.get $r)
+                     (struct.get $assoc 2 (local.get $a)))
+                  (br $done)))
+            (local.set $r (struct.get $assoc 2 (local.get $a)))
+            (br $loop)))
       (ref.i31 (i32.const 0)))
 
    (global $caml_global_data (export "caml_global_data") (mut (ref $block))
@@ -150,6 +195,6 @@
                            (call $caml_string_cat
                               (call $caml_format_exception (local.get $exn))
                               (array.new_fixed $string 1
-                                 (i32.const 10))))))) ;; `\n`
-               (call $exit (i32.const 2))))))
+                                 (i32.const 10)))))))) ;; `\n`
+               (call $exit (i32.const 2)))))
 )
