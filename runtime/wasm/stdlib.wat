@@ -156,7 +156,19 @@
    (data $handle_uncaught_exception "Printexc.handle_uncaught_exception")
    (data $do_at_exit "Pervasives.do_at_exit")
 
-   (func (export "caml_main") (param $start (ref func))
+   (global $uncaught_exception (mut externref) (ref.null extern))
+
+   (import "bindings" "throw" (func $throw (param externref)))
+
+   (func $reraise_exception (result (ref eq))
+      (call $throw (global.get $uncaught_exception))
+      (ref.i31 (i32.const 0)))
+
+   (func (export "caml_handle_uncaught_exception") (param $exn externref)
+      (global.set $uncaught_exception (local.get $exn))
+      (call $caml_main (ref.func $reraise_exception)))
+
+   (func $caml_main (export "caml_main") (param $start (ref func))
       (local $exn (ref eq))
       (try
          (do

@@ -1,12 +1,16 @@
 [
   {
     "name": "root",
-    "reaches": ["init"],
+    "reaches": ["init","exn"],
     "root": true
   },
   {
     "name": "init",
     "export": "_initialize"
+  },
+  {
+    "name": "exn",
+    "export": "caml_handle_uncaught_exception"
   },
   {
     "name": "callback",
