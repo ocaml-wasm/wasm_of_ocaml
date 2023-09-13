@@ -278,10 +278,8 @@ ZZZ bin_prot: floatarray
 
 - update runtime code to new syntax
 - improve dune support
-- catch file system errors
 - benchmarks: effects, js_of_ocaml benchmarks
 - marshaling: use JavaScript maps
-- wasm-opt options depending on --opt
 - unbox float arrays
 - minify JS runtime
 - eliom

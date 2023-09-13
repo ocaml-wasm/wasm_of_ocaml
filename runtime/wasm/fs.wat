@@ -73,7 +73,7 @@
                         (call $caml_jsstring_of_string (local.get $name)))))))
          (catch $javascript_exception
             (call $caml_handle_sys_error (pop externref))
-            (return (i31.new (i32.const 0))))))
+            (return (ref.i31 (i32.const 0))))))
 
    (func (export "caml_sys_remove")
       (param $name (ref eq)) (result (ref eq))
@@ -83,6 +83,12 @@
                (call $unwrap (call $caml_jsstring_of_string (local.get $name)))))
          (catch $javascript_exception
             (call $caml_handle_sys_error (pop externref))))
+      (ref.i31 (i32.const 0)))
+
+   (func (export "caml_sys_is_directory")
+      (param $name (ref eq)) (result (ref eq))
+      ;; ZZZ
+      (call $log_js (string.const "caml_sys_is_directory"))
       (ref.i31 (i32.const 0)))
 
    (func (export "caml_sys_rename")

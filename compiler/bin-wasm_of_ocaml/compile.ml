@@ -180,6 +180,13 @@ let escape_string s =
   Buffer.contents b
 
 let build_js_runtime primitives wasm_file output_file =
+  (*ZZZ
+    let init_fun =
+      match Parse_js.parse (Parse_js.Lexer.of_string Wa_runtime.js_runtime) with
+      | [ (Expression_statement f, _) ] -> f
+      | _ -> assert false
+    in
+  *)
   let always_required_js, primitives =
     let l =
       StringSet.fold

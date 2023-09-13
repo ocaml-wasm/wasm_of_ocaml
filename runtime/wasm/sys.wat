@@ -51,9 +51,17 @@
             (call $caml_raise_not_found)))
       (return_call $caml_string_of_jsstring (call $wrap (local.get $res))))
 
+   (global $argv (mut eqref) (ref.null eq))
+
    (func (export "caml_sys_argv") (param (ref eq)) (result (ref eq))
-      ;; ZZZ
-      (call $caml_js_to_string_array (call $argv)))
+      (if (ref.is_null (global.get $argv))
+         (then
+            (global.set $argv (call $caml_js_to_string_array (call $argv)))))
+      (ref.as_non_null (global.get $argv)))
+
+   (func (export "caml_sys_modify_argv") (param $argv (ref eq)) (result (ref eq))
+      (global.set $argv (local.get $argv))
+      (ref.i31 (i32.const 0)))
 
    (func (export "caml_sys_executable_name")
       (param (ref eq)) (result (ref eq))
@@ -143,7 +151,15 @@
 
    (func (export "caml_sys_isatty")
       (param (ref eq)) (result (ref eq))
+      ;; ZZZ
+      (call $log_js (string.const "caml_sys_isatty"))
       (ref.i31 (i32.const 0)))
+
+   (func (export "caml_sys_is_regular_file")
+      (param (ref eq)) (result (ref eq))
+      ;; ZZZ
+      (call $log_js (string.const "caml_sys_is_regular_file"))
+      (ref.i31 (i32.const 1)))
 
    (func (export "caml_runtime_variant") (param (ref eq)) (result (ref eq))
       (array.new_fixed $string 0))
