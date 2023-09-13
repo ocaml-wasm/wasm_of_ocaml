@@ -149,6 +149,21 @@
          (i31.get_s (ref.cast (ref i31) (local.get $len))))
       (ref.i31 (i32.const 0)))
 
+   (func (export "caml_floatarray_unsafe_get")
+      (param $a (ref eq)) (param $i (ref eq)) (result (ref eq))
+      (array.get $block (ref.cast (ref $block) (local.get $a))
+         (i32.add (i31.get_s (ref.cast (ref i31) (local.get $i)))
+            (i32.const 1))))
+
+   (func (export "caml_floatarray_unsafe_set")
+      (param $a (ref eq)) (param $i (ref eq)) (param $v (ref eq))
+      (result (ref eq))
+      (array.set $block (ref.cast (ref $block) (local.get $a))
+         (i32.add (i31.get_s (ref.cast (ref i31) (local.get $i)))
+            (i32.const 1))
+         (local.get $v))
+      (ref.i31 (i32.const 0)))
+
    (func (export "caml_array_fill")
       (param $a (ref eq)) (param $i (ref eq)) (param $len (ref eq))
       (param $v (ref eq)) (result (ref eq))

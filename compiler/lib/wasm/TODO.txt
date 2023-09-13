@@ -227,7 +227,6 @@ Performance improvements:
   can call it directly.
 - float arrays
 - use unboxed primitives for int64/int32/nativeint
-- no nested exception handlers (?)
 
 ===================================
 
@@ -389,3 +388,7 @@ Dune
 
 - compile both to js and wasm
 - set node options + variable for node
+
+====
+
+ZZZ bin_prot: floatarray
