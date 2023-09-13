@@ -175,20 +175,6 @@ signature. Remove null check if the table is non-nullable.
 
 =======================
 
-Final types can be used for struct/array casts as well
-==>
-[wasm-gc] Final types
-
-We add final types to wasm-gc.
-- We introduce a `kWasmSubtypeFinalCode` as an alternative to
-  `kWasmSubtypeCode`.
-- Behind a flag, we interpret types behind this code as final, as well
-  as types outside a subtype definition by default.
-- For final types, type checks for call_indirect and ref.test etc. are
-  reduced to simple type identity checks.
-
-====================
-
 We have unused globals (small constants / known closures)
 ===> eliminated by binaryen
 
@@ -205,12 +191,6 @@ Float unboxing: declare primitive type (or parse the runtime code to get the fun
 
 ============================
 
-Use WASI for system functions
-
-NativeString ==> stringref const
-
-============================
-
 Rethrow?
 
 ============================
@@ -219,14 +199,6 @@ Js_of_ocaml fixes:
 ==> Condition.wait should throw (never makes sense)
 ==> weak/ephemerons
 ==> Dom_html.Keyboard_code.of_event is weird
-
-===============================
-
-Performance improvements:
-- Refine exact calls: when there is a single function called, then we
-  can call it directly.
-- float arrays
-- use unboxed primitives for int64/int32/nativeint
 
 ===================================
 
@@ -239,24 +211,6 @@ C API
 
 ====================================================
 
-Compilation process
-===================
-
-wasm_of_ocaml foo.bc ==> foo.js / foo.wasm
-   - compile to a temp file (.wat file with -S option)
-minify js runtime
-
-===
-
-TODO:
-
-Implement runtime code
-- file system access
-- marshalling
-- weak pointer api
-  ==> Use Javascript weak pointer implementation
-...
-
 Separate compilation (use wasm-merge for linking?)
 
 Optimizations
@@ -267,47 +221,7 @@ Optimizations
 - objects (method calls)
 - propagate more information from ocaml
   (extern statements / big array information / unsafe operation information)
-
-=================
-
-Remaining runtime code:
-- printing errors (needs basic implementation of stderr on browsers)
-- marshaling
-- filesystem / IOs
-- dynlink / toplevel / separate compilation
-- jslib_js_of_ocaml
-
-Less important:
-- graphics
-- nat
-
-Files:
-  dynlink
-  fs
-  graphics
-  io
-  jslib_js_of_ocaml
-  marshal
-  md5 (not channel)
-  nat
-  runtime_events
-  stdlib
-  sys
-  toplevel
-  unix (gettimeofday / time / gmtime)
-
-- node bindings (I/Os)
-- virtual filesystem
-- toplevel
-
-=========================
-
-TODO
-
-- dune support
-  ==> link (wasm_runtime) wat/wast/wasm files  (jsoo_runtime)
-  ==> wasm_files (javascript_files)
-  ==> node options ===> (node_flags ...)
+- use unboxed primitives for int64/int32/nativeint
 
 ============================
 
@@ -327,46 +241,17 @@ NativeString ==> string.const
 
 =============================
 
-marshaling: use JavaScript maps
-
-================
-
-
 ??? time_stamp_counter, bigstring_marshal_kernel,
 
 ====
 
-Basic output in browsers (stdout / stderr going to the console)
-Performance
-
-=============
-
 export PATH=toto:/tmp/node-v21.0.0-v8-canary202307207f6d94de9e-linux-x64/bin:/home/jerome/V8/depot_tools:/home/jerome/.opam/4.14.0/bin:/home/jerome/sources/binaryen/bin:/home/jerome/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/snap/bin
 export PATH=toto:/tmp/node-v21.0.0-v8-canary20230906bca67b72ce-linux-x64/bin:/home/jerome/V8/depot_tools:/home/jerome/.opam/4.14.0/bin:/home/jerome/sources/binaryen/bin:/home/jerome/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/snap/bin
 
-cd ~/sources/bonsai/_build/default/web_ui/not_connected_warning_box/test
-
-perf record node --experimental-wasm-stringref --experimental-wasm-gc --experimental-wasm-stack-switching .bonsai_web_ui_not_connected_warning_box_test.inline-tests/inline_test_runner_bonsai_web_ui_not_connected_warning_box_test.bc.js inline-test-runner bonsai_web_ui_not_connected_warning_box_test -source-tree-root ../../.. -diff-cmd -
-
-cd ~/sources/bonsai/_build/default/web_ui/not_connected_warning_box/test/.bonsai_web_ui_not_connected_warning_box_test.inline-tests
-wasm-opt  -O2 -all -o toto.wasm before.wasm
-
 =======
 
-TODO
-====
-
-JS:
-- solve performance issue (minimize locals?)
-  ==> --optimize-casts --coalesce-locals --vacuum  --remove-unused-brs
-      (somehow, we avoid a turbofan compilation)
 Release:
 - many PRs (jsoo bindings, dune, brr, gen_js_api, ...)
-- Basic output in browsers (stdout / stderr going to the console)
-
-===
-
-- dependency on bonsai_web_ui_gallery
 
 =====
 
@@ -376,8 +261,6 @@ find . -name "*.wat" | xargs rm
 zip -r examples.zip `find . -name "*.wasm" | cut -d '/' -f 2 | sort`
 
 =========================
-
-filesystem errors
 
 zarith 1.13
 
@@ -392,3 +275,15 @@ Dune
 ====
 
 ZZZ bin_prot: floatarray
+
+- update runtime code to new syntax
+- improve dune support
+- catch file system errors
+- benchmarks: effects, js_of_ocaml benchmarks
+- marshaling: use JavaScript maps
+- wasm-opt options depending on --opt
+- unbox float arrays
+- minify JS runtime
+- eliom
+- separate compilation / toplevel
+- use unboxed primitives for int64/int32/nativeint

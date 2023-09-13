@@ -1,7 +1,6 @@
 #!/usr/bin/env -S node --experimental-wasm-stringref --experimental-wasm-gc
-(async function (eval_function, js) {
+((eval_function) => async (src, js)=> {
     "use strict";
-    const src = 'CODE';
     function loadRelative(src) {
       const path = require('path');
       const f = path.join(path.dirname(require.main.filename),src);
@@ -324,5 +323,5 @@
         {promising: 'first'}
     )
     await _initialize();
-})(((joo_global_object,globalThis)=>(x)=>eval(x))(globalThis,globalThis),
+})(((joo_global_object,globalThis)=>(x)=>eval(x))(globalThis,globalThis))('CODE',
    PRIMITIVES);
