@@ -220,7 +220,7 @@ Optimizations
 - more direct calls when we known which function is called
 - objects (method calls)
 - propagate more information from ocaml
-  (extern statements / big array information / unsafe operation information)
+  (extern statements / big array information / unsafe operation information / eqaul on int32 / ...)
 - use unboxed primitives for int64/int32/nativeint
 
 ============================
