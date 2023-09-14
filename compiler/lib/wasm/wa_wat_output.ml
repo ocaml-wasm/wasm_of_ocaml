@@ -247,6 +247,12 @@ let expression_or_instructions ctx in_function =
     | LocalTee (i, e') ->
         [ List (Atom "local.tee" :: Atom (string_of_int i) :: expression e') ]
     | GlobalGet nm -> [ List [ Atom "global.get"; symbol nm ] ]
+    | Select (ty, e, e', e'') ->
+        [ List
+            (Atom "select"
+            :: List [ Atom "result"; value_type ty ]
+            :: (expression e @ expression e' @ expression e''))
+        ]
     | BlockExpr (ty, l) -> [ List (Atom "block" :: (block_type ty @ instructions l)) ]
     | Call_indirect (typ, e, l) ->
         [ List

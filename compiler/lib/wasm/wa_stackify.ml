@@ -225,6 +225,11 @@ let rec rewrite_expression e =
   | BlockExpr (typ, l) ->
       let* l = rewrite_block l in
       return (Wa_ast.BlockExpr (typ, l))
+  | Select (ty, e1, e2, e3) ->
+      let* e1 = rewrite_expression e1 in
+      let* e2 = rewrite_expression e2 in
+      let* e3 = rewrite_expression e3 in
+      return (Wa_ast.Select (ty, e1, e2, e3))
   | Pop _ -> effect (Pop, false) e
   | UnOp (op, e') ->
       let* e' = rewrite_expression e' in

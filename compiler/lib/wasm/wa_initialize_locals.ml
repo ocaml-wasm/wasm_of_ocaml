@@ -45,6 +45,10 @@ let rec scan_expression ctx e =
   | LocalTee (i, e') ->
       scan_expression ctx e';
       mark_initialized ctx i
+  | Select (_, e1, e2, e3) ->
+      scan_expression ctx e1;
+      scan_expression ctx e2;
+      scan_expression ctx e3
   | Call_indirect (_, e', l) | Call_ref (_, e', l) ->
       scan_expressions ctx l;
       scan_expression ctx e'

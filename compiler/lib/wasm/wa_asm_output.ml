@@ -293,6 +293,11 @@ module Output () = struct
     | LocalGet i -> line (string "local.get " ^^ integer i)
     | LocalTee (i, e') -> expression e' ^^ line (string "local.tee " ^^ integer i)
     | GlobalGet nm -> line (string "global.get " ^^ symbol nm 0)
+    | Select (ty, e, e', e'') ->
+        expression e
+        ^^ expression e'
+        ^^ expression e''
+        ^^ line (value_type ty ^^ string ".select")
     | BlockExpr (ty, l) ->
         line (string "block" ^^ block_type ty)
         ^^ indent (concat_map instruction l)

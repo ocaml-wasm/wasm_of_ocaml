@@ -131,6 +131,7 @@ type expression =
   | LocalGet of int
   | LocalTee of int * expression
   | GlobalGet of symbol
+  | Select of value_type * expression * expression * expression
   | BlockExpr of func_type * instruction list
   | Call_indirect of func_type * expression * expression list
   | Call of var * expression list

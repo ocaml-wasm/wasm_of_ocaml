@@ -59,6 +59,10 @@ let rec scan_expression ctx e =
       scan_expression ctx e';
       ctx.position <- ctx.position + 1;
       handle_assignment ctx i
+  | Select (_, e1, e2, e3) ->
+      scan_expression ctx e1;
+      scan_expression ctx e2;
+      scan_expression ctx e3
   | Call_indirect (_, e', l) | Call_ref (_, e', l) ->
       scan_expressions ctx l;
       scan_expression ctx e'
@@ -181,6 +185,11 @@ let rec rewrite_expression ctx e =
         match e' with
         | LocalGet v'' when v' = v'' -> e'
         | _ -> LocalTee (v', e'))
+  | Select (ty, e1, e2, e3) ->
+      let e1 = rewrite_expression ctx e1 in
+      let e2 = rewrite_expression ctx e2 in
+      let e3 = rewrite_expression ctx e3 in
+      Select (ty, e1, e2, e3)
   | BlockExpr (typ, l) ->
       let l = rewrite_instructions ctx l in
       BlockExpr (typ, l)
