@@ -66,26 +66,29 @@ let output_gen output_file f =
   Code.Var.set_stable (Config.Flag.stable_var ());
   Filename.gen_file output_file f
 
-let common_binaryen_options =
-  [ "--enable-gc"
-  ; "--enable-multivalue"
-  ; "--enable-exception-handling"
-  ; "--enable-reference-types"
-  ; "--enable-tail-call"
-  ; "--enable-bulk-memory"
-  ; "--enable-nontrapping-float-to-int"
-  ; "--enable-strings"
-  ]
+let common_binaryen_options () =
+  let l =
+    [ "--enable-gc"
+    ; "--enable-multivalue"
+    ; "--enable-exception-handling"
+    ; "--enable-reference-types"
+    ; "--enable-tail-call"
+    ; "--enable-bulk-memory"
+    ; "--enable-nontrapping-float-to-int"
+    ; "--enable-strings"
+    ]
+  in
+  if Config.Flag.pretty () then "-g" :: l else l
 
 let link runtime_files input_file output_file =
   command
-    (("wasm-merge" :: common_binaryen_options)
-    @ (if Config.Flag.pretty () then [ "-g" ] else [])
-    @ List.flatten
-        (List.map
-           ~f:(fun runtime_file -> [ Filename.quote runtime_file; "env" ])
-           runtime_files)
-    @ [ Filename.quote input_file; "exec"; "-o"; Filename.quote output_file ])
+    ("wasm-merge"
+    :: (common_binaryen_options ()
+       @ List.flatten
+           (List.map
+              ~f:(fun runtime_file -> [ Filename.quote runtime_file; "env" ])
+              runtime_files)
+       @ [ Filename.quote input_file; "exec"; "-o"; Filename.quote output_file ]))
 
 let generate_dependencies primitives =
   Yojson.Basic.to_string
@@ -121,15 +124,16 @@ let dead_code_elimination in_file out_file =
   let primitives = Linker.get_provided () in
   write_file deps_file (generate_dependencies primitives);
   command
-    (("wasm-metadce" :: common_binaryen_options)
-    @ [ "--graph-file"
-      ; Filename.quote deps_file
-      ; Filename.quote in_file
-      ; "-o"
-      ; Filename.quote out_file
-      ; ">"
-      ; Filename.quote usage_file
-      ]);
+    ("wasm-metadce"
+    :: (common_binaryen_options ()
+       @ [ "--graph-file"
+         ; Filename.quote deps_file
+         ; Filename.quote in_file
+         ; "-o"
+         ; Filename.quote out_file
+         ; ">"
+         ; Filename.quote usage_file
+         ]));
   filter_unused_primitives primitives usage_file
 
 let optimization_options =
@@ -143,7 +147,7 @@ let optimize ~profile in_file out_file =
   in
   command
     ("wasm-opt"
-    :: (common_binaryen_options
+    :: (common_binaryen_options ()
        @ optimization_options.(level - 1)
        @ [ "--traps-never-happen"; Filename.quote in_file; "-o"; Filename.quote out_file ]
        ))
