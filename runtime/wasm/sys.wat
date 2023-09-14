@@ -149,18 +149,6 @@
          (ref.i31 (i32.const 32))
          (ref.i31 (i32.const 0))))
 
-   (func (export "caml_sys_isatty")
-      (param (ref eq)) (result (ref eq))
-      ;; ZZZ
-      (call $log_js (string.const "caml_sys_isatty"))
-      (ref.i31 (i32.const 0)))
-
-   (func (export "caml_sys_is_regular_file")
-      (param (ref eq)) (result (ref eq))
-      ;; ZZZ
-      (call $log_js (string.const "caml_sys_is_regular_file"))
-      (ref.i31 (i32.const 1)))
-
    (func (export "caml_runtime_variant") (param (ref eq)) (result (ref eq))
       (array.new_fixed $string 0))
 

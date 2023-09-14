@@ -8,6 +8,8 @@
       (func $readdir (param anyref) (result (ref extern))))
    (import "bindings" "file_exists"
       (func $file_exists (param anyref) (result (ref eq))))
+   (import "bindings" "is_regular_file"
+      (func $is_regular_file (param anyref) (result i32)))
    (import "bindings" "rename" (func $rename (param anyref) (param anyref)))
    (import "jslib" "wrap" (func $wrap (param anyref) (result (ref eq))))
    (import "jslib" "unwrap" (func $unwrap (param (ref eq)) (result anyref)))
@@ -106,6 +108,12 @@
       (param $name (ref eq)) (result (ref eq))
       (return_call $file_exists
          (call $unwrap (call $caml_jsstring_of_string (local.get $name)))))
+
+   (func (export "caml_sys_is_regular_file")
+      (param $name (ref eq)) (result (ref eq))
+      (ref.i31
+         (call $is_regular_file
+            (call $unwrap (call $caml_jsstring_of_string (local.get $name))))))
 
    (data $no_such_file ": No such file or directory")
 

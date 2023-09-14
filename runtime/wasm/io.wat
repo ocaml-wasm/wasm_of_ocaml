@@ -10,6 +10,7 @@
    (import "bindings" "open"
       (func $open (param anyref) (param i32) (param i32) (result i32)))
    (import "bindings" "close" (func $close (param i32)))
+   (import "bindings" "isatty" (func $isatty (param i32) (result i32)))
    (import "bindings" "write"
       (func $write
          (param i32) (param (ref extern)) (param i32) (param i32) (param i64)
@@ -27,6 +28,7 @@
          (param i32) (param (ref extern)) (param i32) (param i32)
          (param nullexternref) (result i32)))
    (import "bindings" "file_size" (func $file_size (param i32) (result i64)))
+   (import "bindings" "terminfo_rows" (func $terminfo_rows (result i32)))
    (import "bindings" "register_channel"
       (func $register_channel (param (ref eq))))
    (import "bindings" "unregister_channel"
@@ -51,6 +53,8 @@
       (func $Int64_val (param (ref eq)) (result i64)))
    (import "fail" "javascript_exception"
       (tag $javascript_exception (param externref)))
+   (import "fail" "caml_raise_sys_error"
+      (func $caml_raise_sys_error (param (ref eq))))
    (import "sys" "caml_handle_sys_error"
       (func $caml_handle_sys_error (param externref)))
 
@@ -194,12 +198,23 @@
       (ref.i31 (local.get $fd)))
 
    (func (export "caml_sys_close") (param (ref eq)) (result (ref eq))
+      (local $fd i32)
+      (local.set $fd (i31.get_u (ref.cast (ref i31) (local.get 0))))
       (try
          (do
-            (call $close (i31.get_u (ref.cast (ref i31) (local.get 0)))))
+            (if (i32.ne (local.get $fd) (i32.const -1))
+               (then
+                  (call $close (local.get $fd)))))
          (catch $javascript_exception
             (call $caml_handle_sys_error (pop externref))))
       (ref.i31 (i32.const 0)))
+
+   (func (export "caml_sys_isatty")
+      (param $ch (ref eq)) (result (ref eq))
+      (ref.i31
+         (call $isatty
+            (struct.get $channel $fd
+               (ref.cast (ref $channel) (local.get $ch))))))
 
    (func (export "caml_ml_set_channel_name")
       (param (ref eq)) (param (ref eq)) (result (ref eq))
@@ -828,4 +843,22 @@
    (func (export "caml_ml_get_channel_offset") (param (ref eq)) (result i64)
       (array.get $offset_array (global.get $fd_offsets)
          (struct.get $channel $fd (ref.cast (ref $channel) (local.get 0)))))
+
+   (data $bad_descr "Bad file descriptor")
+
+   (func (export "caml_channel_descriptor")
+      (param $ch (ref eq)) (result (ref eq))
+      (local $fd i32)
+      (local.set $fd
+         (struct.get $channel $fd (ref.cast (ref $channel) (local.get $ch))))
+      (if (i32.eq (local.get $fd) (i32.const -1))
+         (then
+            (call $caml_raise_sys_error
+               (array.new_data $string $bad_descr
+                  (i32.const 0) (i32.const 19)))))
+      (ref.i31 (local.get $fd)))
+
+   (func (export "caml_terminfo_rows")
+      (param (ref eq)) (result (ref eq))
+      (ref.i31 (call $terminfo_rows)))
 )

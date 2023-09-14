@@ -272,6 +272,7 @@
          write:(fd,b,o,l,p)=>fs?fs.writeSync(fd,b,o,l,p==null?p:Number(p)):(console[fd==2?'error':'log'](typeof b=='string'?b:new TextDecoder().decode(b.slice(o,o+l))),l),
          read:(fd,b,o,l,p)=>fs.readSync(fd,b,o,l,p),
          file_size:(fd)=>fs.fstatSync(fd,{bigint:true}).size,
+         isatty:(fd)=>require('tty').isatty(fd),
          register_channel,
          unregister_channel,
          channel_list,
@@ -289,7 +290,9 @@
          unlink:(p)=>fs.unlinkSync(p),
          readdir:(p)=>fs.readdirSync(p),
          file_exists:(p)=>+fs.existsSync(p),
+         is_regular_file:(p)=>fs.statSync(p).isFile(),
          rename:(o,n)=>fs.renameSync(o, n),
+         terminfo_rows:()=>process.stdout.rows||-1,
          throw:(e)=>{throw e},
          start_fiber:(x)=>start_fiber(x),
          suspend_fiber:
