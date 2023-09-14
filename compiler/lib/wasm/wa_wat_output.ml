@@ -27,6 +27,8 @@ let heap_type (ty : heap_type) =
   | Func -> Atom "func"
   | Extern -> Atom "extern"
   | Eq -> Atom "eq"
+  | Struct -> Atom "struct"
+  | Array -> Atom "array"
   | I31 -> Atom "i31"
   | Type t -> index t
 

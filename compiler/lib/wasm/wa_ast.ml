@@ -12,6 +12,8 @@ type heap_type =
   | Func
   | Extern
   | Eq
+  | Struct
+  | Array
   | I31
   | Type of var
 
