@@ -216,6 +216,9 @@ Separate compilation (use wasm-merge for linking?)
 Optimizations
 - more efficient JavaScript bindings
 - try to eliminate some casts / boxing
+- revise bound-checking:
+  => no separate checkbound (so that we can compute subexpressions only once)
+  => CSE of casts / array.len
 - more direct calls when we known which function is called
 - objects (method calls)
 - propagate more information from ocaml
@@ -247,6 +250,8 @@ NativeString ==> string.const
 export PATH=toto:/tmp/node-v21.0.0-v8-canary202307207f6d94de9e-linux-x64/bin:/home/jerome/V8/depot_tools:/home/jerome/.opam/4.14.0/bin:/home/jerome/sources/binaryen/bin:/home/jerome/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/snap/bin
 export PATH=toto:/tmp/node-v21.0.0-v8-canary20230906bca67b72ce-linux-x64/bin:/home/jerome/V8/depot_tools:/home/jerome/.opam/4.14.0/bin:/home/jerome/sources/binaryen/bin:/home/jerome/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/snap/bin
 
+opam reinstall -j 8 alcotest async_js base base_bigstring bigstringaf bin_prot core core_kernel core_unix cstruct cstruct-async cstruct-lwt cstruct-sexp cstruct-unix ppx_expect ppx_inline_test string_dict time_now zarith_stubs_js
+
 =======
 
 Release:
@@ -277,6 +282,127 @@ Dune
 - improve dune support
 - benchmarks: effects, js_of_ocaml benchmarks
 - minify JS runtime
-- eliom
 - separate compilation / toplevel
 - use unboxed primitives for int64/int32/nativeint
+
+- no longer use stringref (for now)
+- eliom
+- use br_if to handle bound errors
+
+=====
+
+string ==> JS
+-------------
+write string to buffer
+if fits, just use the text decoder
+
+otherwise, push a portion of the string
+decode this portion
+repeat until end of string
+concat result
+
+JS ==> string
+-------------
+
+var start= 0, len = s.length;
+while (1) {
+   var {read,written} = encodeInto(s.slice(start),buff);
+   len -= read;
+   if (!len) return written;
+   extractString(written);
+   start += read;
+}
+wasm: string segments are pushed, then concatenated together
+with the last segment
+
+alternative:
+   measure length; allocate string; copy to buffer, then to string; return string
+or:
+   write to buffer; if fits, returns; otherwise, measure length, allocate string
+   and start copying
+
+===============
+
+Benchmarks
+==========
+*   --experimental-wasm-skip-bounds-checks --experimental-wasm-skip-null-checks --experimental-wasm-assume-ref-cast-succeeds
+
+==================
+
+(type $closure_3
+   (sub open $closure
+      (struct (field $curry (ref $function_1)) (field $f (ref $function_3)))))
+
+(type $curry_3_2
+  (sub final $closure
+    (struct
+      (field (ref $function_1))
+      (field $env (ref $curry_3_3))
+      (field $arg2 (ref eq)))))
+
+(type $curry_3_3
+  (sub final $closure
+    (struct (field (ref $function_1))
+      (field $initial_closure (ref $closure_3))
+      (field $arg1 (ref eq)))))
+
+(func $curry (param $arg1 (ref eq)) (param $initial_closure (ref eq))
+  (result (ref eq))
+  (struct.new $curry_3_3
+     (ref.func $curry_3_2)
+     (ref.cast (ref $closure_3) (local.get $initial_closure))
+     (local.get $arg1)))
+
+(func $curry_3_2 (param $arg2 (ref eq)) (param $env (ref eq)) (result (ref eq))
+  (struct.new $curry_3_2
+     (ref.func $curry_app_3)
+     (ref.cast (ref $curry_3_3) (local.get $env))
+     (local.get $arg2)))
+
+(func $curry_app_3 (param $arg3 (ref eq)) (param $env (ref eq)) (result (ref eq))
+  (local (ref $curry_3_3))
+  (local $initial_closure (ref $closure_3))
+  (local.set 2
+    (struct.get $curry_3_2 $env
+      (ref.cast (ref $curry_3_2) (local.get $env))))
+  (local.set $initial_closure
+     (struct.get $curry_3_3 $initial_closure (local.get 2)))
+  (return_call_ref $function_3_ch_
+    (struct.get $curry_3_3 $arg1 (local.get 2))
+    (struct.get $curry_3_2 $arg2
+      (ref.cast (ref $curry_3_2) (local.get $env)))
+    (local.get 0) (local.get $initial_closure))
+    (struct.get $closure_3 $f (local.get 4))))
+
+  (func $apply_3 (param (ref eq) (ref eq) (ref eq) (ref eq))
+    (result (ref eq))
+    (local (ref $closure_3) (ref eq) (ref eq) (ref eq) (ref eq) (ref eq)
+      (ref eq))
+    (drop
+      (block (result (ref eq))
+        (return_call_ref $function_3 (local.get 0) (local.get 1)
+          (local.get 2)
+          (local.tee 4
+            (br_on_cast_fail 0 (ref eq) (ref $closure_3) (local.get 3)))
+          (struct.get $closure_3 1 (local.get 4)))))
+    (local.set 6
+      (call_ref $function_1 (local.get 0) (local.tee 5 (local.get 3))
+        (struct.get $closure 0
+          (ref.cast (ref $closure) (local.get 5)))))
+    (local.set 8
+      (call_ref $function_1 (local.get 1) (local.tee 7 (local.get 6))
+        (struct.get $closure 0
+          (ref.cast (ref $closure) (local.get 7)))))
+    (return_call_ref $function_1 (local.get 2)
+      (local.tee 9 (local.get 8))
+      (struct.get $closure 0 (ref.cast (ref $closure) (local.get 9)))))
+
+=========================
+
+Wasm GC getting finalized. Soon available by default on Chrome.
+
+Js_of_ocaml successful project to make OCaml program run on a browser.
+
+Goal: compile programs to Wasm with minimal changes
+
+
