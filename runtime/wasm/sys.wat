@@ -171,12 +171,14 @@
       (param (ref eq)) (result (ref eq))
       (ref.i31 (global.get $caml_runtime_warnings)))
 
+   (data $toString "toString")
+
    (func $caml_handle_sys_error (export "caml_handle_sys_error")
       (param $exn externref)
       (call $caml_raise_sys_error
          (call $caml_string_of_jsstring
             (call $caml_js_meth_call
                (call $wrap (extern.internalize (local.get $exn)))
-               (call $wrap (string.const "toString"))
+               (array.new_data $string $toString (i32.const 0) (i32.const 8))
                (array.new_fixed $block 1 (ref.i31 (i32.const 0)))))))
 )

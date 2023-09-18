@@ -150,15 +150,20 @@
             (array.new_fixed $string 2 (i32.const 37) (i32.const 100))
             (ref.i31 (local.get 0)))))
 
+   (data $State "State ")
+   (data $read_token ": read token ")
+
    (func $print_token
       (param $tables (ref $block)) (param $state i32) (param $tok (ref eq))
       (local $b (ref $block))
       (local $v (ref eq))
       (if (ref.test (ref i31) (local.get $tok))
          (then
-            (call $output_str (string.const "State "))
+            (call $output
+               (array.new_data $string $State (i32.const 0) (i32.const 6)))
             (call $output_int (local.get $state))
-            (call $output_str (string.const ": read token "))
+            (call $output
+               (array.new_data $string $read_token (i32.const 0) (i32.const 13)))
             (call $output
                (call $token_name
                   (array.get $block (local.get $tables)
@@ -166,9 +171,11 @@
                   (i31.get_u (ref.cast (ref i31) (local.get $tok)))))
             (call $output_nl))
          (else
-            (call $output_str (string.const "State "))
+            (call $output
+               (array.new_data $string $State (i32.const 0) (i32.const 6)))
             (call $output_int (local.get $state))
-            (call $output_str (string.const ": read token "))
+            (call $output
+               (array.new_data $string $read_token (i32.const 0) (i32.const 13)))
             (local.set $b (ref.cast (ref $block) (local.get $tok)))
             (call $output
                (call $token_name
@@ -177,7 +184,7 @@
                   (i31.get_u
                      (ref.cast (ref i31)
                         (array.get $block (local.get $b) (i32.const 0))))))
-            (call $output_str (string.const "("))
+            (call $output (array.new_fixed $string 1 (i32.const 40))) ;; "("
             (local.set $v (array.get $block (local.get $b) (i32.const 1)))
             (if (ref.test (ref i31) (local.get $v))
                (then
@@ -193,8 +200,9 @@
                            (i32.const 37) (i32.const 103))
                         (local.get $v))))
             (else
-               (call $output_str (string.const "_"))))))))
-            (call $output_str (string.const ")"))
+               (call $output
+                  (array.new_fixed $string 1 (i32.const 95))))))))) ;; '_'
+            (call $output (array.new_fixed $string 1 (i32.const 41))) ;; ")"
             (call $output_nl))))
 
    (func (export "caml_parse_engine")
@@ -489,7 +497,9 @@
              ;; shift_recover:
              (if (global.get $caml_parser_trace)
                 (then
-                   (call $output_str (string.const "State "))
+                   (call $output
+                      (array.new_data $string $State
+                         (i32.const 0) (i32.const 6)))
                    (call $output_int (local.get $state))
                    (call $output_str (string.const ": shift to state "))
                    (call $output_int
@@ -535,7 +545,8 @@
            ;; reduce:
            (if (global.get $caml_parser_trace)
               (then
-                 (call $output_str (string.const "State "))
+                 (call $output
+                    (array.new_data $string $State (i32.const 0) (i32.const 6)))
                  (call $output_int (local.get $state))
                  (call $output_str (string.const ": reduce by rule "))
                  (call $output_int (local.get $n))
