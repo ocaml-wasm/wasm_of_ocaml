@@ -405,4 +405,42 @@ Js_of_ocaml successful project to make OCaml program run on a browser.
 
 Goal: compile programs to Wasm with minimal changes
 
+==============
 
+Objectives
+  => Js_of_ocaml
+     => easy to use
+     => easy to maintain
+  => Maximal compatibility with Js_of_ocaml
+
+Benchmarks:
+- performance
+  => ocamlc / microbenchmarks / camlboy
+  => overhead of casts
+- code size
+
+Taking advantage of JavaScript
+  => math
+  => float conversions
+  => (Weak)Map, Weak
+  => Bigint
+
+Interfacing with JavaScript
+
+Wish list
+  => type imports
+  => conversion between JS strings and array of bytes
+     => go through memory
+        ==> no standard way to reserve some memory
+        ==> performance (several copies)
+     => stringref
+        ==> style in phase 1
+     => JS String Builtins
+  => typed arrays / buffers
+     ==> I/Os
+     ==> Camlboy writing to a framebuffer
+  => faster exceptions
+
+Effects
+  => JS Promise API (quote Pierre)
+  => (partial) CPS transformation
