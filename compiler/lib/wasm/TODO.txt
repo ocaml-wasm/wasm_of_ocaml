@@ -321,6 +321,18 @@ or:
    write to buffer; if fits, returns; otherwise, measure length, allocate string
    and start copying
 
+  const mem16 = new Uint16Array(wasmExports.memory.buffer, address, length);
+  const str = String.fromCharCode.apply(null, mem16);
+
+  const mem16 = new Uint16Array(wasmExports.memory.buffer, dstAddr, srcLength);
+  let arrayIndex = 0;
+  let srcIndex = srcOffset;
+  while (arrayIndex < srcLength) {
+      mem16.set([src.charCodeAt(srcIndex)], arrayIndex);
+      srcIndex++;
+      arrayIndex++;
+  }
+
 ===============
 
 Benchmarks
@@ -422,13 +434,25 @@ Benchmarks:
 Taking advantage of JavaScript
   => math
   => float conversions
-  => (Weak)Map, Weak
+  => (Weak)Map, Weak ==> ephemerons, marshalling
   => Bigint
 
+Linking with JavaScript
+  => wasm-dce + Js_of_ocaml linker
+
 Interfacing with JavaScript
+  => javascript objects are boxed
+     => wrap/unwrap
+     => physical equality no longer working
+     => integers mapped to integers (cool!), but need a conversion between JS and OCaml floats
+  => a few functions like caml_js_get / caml_js_meth_call
+     (technique already used by Js_of_ocaml)
+  => eventually, generate JS code (Js_of_ocaml generates inline JavaScript code)
 
 Wish list
-  => type imports
+  => type imports + typed wasm-merge
+     => do not duplicate some abstract types
+     => check coherence
   => conversion between JS strings and array of bytes
      => go through memory
         ==> no standard way to reserve some memory
@@ -439,8 +463,20 @@ Wish list
   => typed arrays / buffers
      ==> I/Os
      ==> Camlboy writing to a framebuffer
-  => faster exceptions
+  => faster exceptions (zero-cost exceptions are slow)
 
 Effects
   => JS Promise API (quote Pierre)
   => (partial) CPS transformation
+
+
+
+Wasm_of_ocaml: compiling OCaml bytecode to WebAssembly
+Js_of_ocaml is a industrial-strength compiler that translates OCaml code into JavaScript. We will present how we are adapting it to produce WebAssembly. Beside the compilation process, we will cover a few key other points. First, how we interface with JavaScript, allowing to compile existing code with minimal changes. Second, we will show how we are relying on JavaScript to supplement some currently missing functionalities in WebAssembly. We are able to run substantial programs such as CAMLBOY, a Gameboy emulator, and the OCaml compiler itself. We will thus share some initial performance results.
+
+
+how we interface with JavaScript, allowing to compile existing code with minimal changes. Second, we will show how we are relying on JavaScript to supplement some currently missing functionalities in WebAssembly
+
+===========
+
+Js.export???

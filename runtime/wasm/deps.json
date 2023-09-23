@@ -1,7 +1,7 @@
 [
   {
     "name": "root",
-    "reaches": ["init","exn"],
+    "reaches": ["init","exn","mem"],
     "root": true
   },
   {
@@ -11,6 +11,10 @@
   {
     "name": "exn",
     "export": "caml_handle_uncaught_exception"
+  },
+  {
+    "name": "mem",
+    "export": "caml_buffer"
   },
   {
     "name": "callback",

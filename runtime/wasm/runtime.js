@@ -9,8 +9,6 @@
     const isNode = globalThis?.process?.versions?.node;
     const code = isNode?loadRelative(src):fetch(src);
 
-    var caml_callback, caml_alloc_tm;
-
     let math =
         {cos:Math.cos, sin:Math.sin, tan:Math.tan,
          acos:Math.acos, asin:Math.asin, atan:Math.atan,
@@ -71,6 +69,9 @@
        }
     }
 
+    const decoder = new TextDecoder;
+    const encoder = new TextEncoder;
+
     let bindings =
         {jstag:WebAssembly.JSTag,
          identity:(x)=>x,
@@ -93,6 +94,13 @@
          array_length:(a)=>a.length,
          array_get:(a,i)=>a[i],
          array_set:(a,i,v)=>a[i]=v,
+         read_string:(l, stream)=>
+           decoder.decode(new Uint8Array(buffer, 0, l), {stream}),
+         write_string:(s)=> {
+           let {read, written} =
+             encoder.encodeInto(s, new Uint8Array(buffer,0,buffer.length));
+           return written;
+         },
          ta_create:(k,sz)=> new(typed_arrays[k])(sz),
          ta_normalize:(a)=>
            a instanceof Uint32Array?
@@ -314,8 +322,8 @@
           isNode?await WebAssembly.instantiate(await code, imports)
                 :await WebAssembly.instantiateStreaming(code,imports)
 
-    var {caml_callback,caml_alloc_tm, caml_start_fiber,
-         caml_handle_uncaught_exception, _initialize} =
+    var {caml_callback, caml_alloc_tm, caml_start_fiber,
+         caml_handle_uncaught_exception, caml_buffer:{buffer}, _initialize} =
         wasmModule.instance.exports;
 
     start_fiber = wrap_fun(
