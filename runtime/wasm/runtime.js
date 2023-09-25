@@ -110,8 +110,7 @@
          read_string:(l, stream)=>
            decoder.decode(new Uint8Array(buffer, 0, l), {stream}),
          write_string:(s)=>{
-           let {read, written} =
-             encoder.encodeInto(s, new Uint8Array(buffer,0,buffer.length));
+           let {read, written} = encoder.encodeInto(s, out_buffer);
            return written;
          },
          compare_strings:(s1,s2)=>(s1<s2)?-1:+(s1>s2),
@@ -340,6 +339,8 @@
     var {caml_callback, caml_alloc_tm, caml_start_fiber,
          caml_handle_uncaught_exception, caml_buffer:{buffer}, _initialize} =
         wasmModule.instance.exports;
+
+    var out_buffer = new Uint8Array(buffer,0,buffer.length)
 
     start_fiber = wrap_fun(
         {parameters: ['eqref'], results: ['externref']},
