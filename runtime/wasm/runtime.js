@@ -109,7 +109,7 @@
          array_set:(a,i,v)=>a[i]=v,
          read_string:(l, stream)=>
            decoder.decode(new Uint8Array(buffer, 0, l), {stream}),
-         write_string:(s)=> {
+         write_string:(s)=>{
            let {read, written} =
              encoder.encodeInto(s, new Uint8Array(buffer,0,buffer.length));
            return written;
