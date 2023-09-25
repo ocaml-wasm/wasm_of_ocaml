@@ -110,8 +110,14 @@
          read_string:(l, stream)=>
            decoder.decode(new Uint8Array(buffer, 0, l), {stream}),
          write_string:(s)=>{
-           let {read, written} = encoder.encodeInto(s, out_buffer);
-           return written;
+           var start = 0, len = s.length;
+           while (1) {
+             let {read,written} = encoder.encodeInto(s.slice(start), out_buffer);
+             len -= read;
+             if (!len) return written;
+             caml_extract_string(written);
+             start += read;
+           }
          },
          compare_strings:(s1,s2)=>(s1<s2)?-1:+(s1>s2),
          hash_string,
