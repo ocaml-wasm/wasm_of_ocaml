@@ -72,6 +72,19 @@
     const decoder = new TextDecoder;
     const encoder = new TextEncoder;
 
+    function hash_int(h,d) {
+      d = Math.imul(d, 0xcc9e2d51|0);
+      d = (d << 15) | (d >>> 17); // ROTL32(d, 15);
+      d = Math.imul(d, 0x1b873593);
+      h ^= d;
+      h = (h << 13) | (h >>> 19);   //ROTL32(h, 13);
+      return (((h + (h << 2))|0) + (0xe6546b64|0))|0;
+    }
+    function hash_string(h,s) {
+      for (var i = 0; i < s.length; i++) h = hash_int(h,s.charCodeAt(i));
+      return h ^ s.length;
+    }
+
     let bindings =
         {jstag:WebAssembly.JSTag,
          identity:(x)=>x,
@@ -101,6 +114,8 @@
              encoder.encodeInto(s, new Uint8Array(buffer,0,buffer.length));
            return written;
          },
+         compare_strings:(s1,s2)=>(s1<s2)?-1:+(s1>s2),
+         hash_string,
          ta_create:(k,sz)=> new(typed_arrays[k])(sz),
          ta_normalize:(a)=>
            a instanceof Uint32Array?
@@ -277,7 +292,7 @@
            fs.openSync(p,open_flags.reduce((f,v,i)=>(flags&(1<<i))?(f|v):f,0),
                        perm),
          close:(fd)=>fs.closeSync(fd),
-         write:(fd,b,o,l,p)=>fs?fs.writeSync(fd,b,o,l,p==null?p:Number(p)):(console[fd==2?'error':'log'](typeof b=='string'?b:new TextDecoder().decode(b.slice(o,o+l))),l),
+         write:(fd,b,o,l,p)=>fs?fs.writeSync(fd,b,o,l,p==null?p:Number(p)):(console[fd==2?'error':'log'](typeof b=='string'?b:decoder.decode(b.slice(o,o+l))),l),
          read:(fd,b,o,l,p)=>fs.readSync(fd,b,o,l,p),
          file_size:(fd)=>fs.fstatSync(fd,{bigint:true}).size,
          isatty:(fd)=>require('tty').isatty(fd),

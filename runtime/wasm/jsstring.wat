@@ -5,6 +5,13 @@
       (func $read_string (param i32) (param i32) (result anyref)))
    (import "bindings" "write_string"
       (func $write_string (param anyref) (result i32)))
+   (import "bindings" "compare_strings"
+      (func $compare_strings
+         (param (ref string)) (param (ref string)) (result i32)))
+   (import "bindings" "hash_string"
+      (func $hash_string (param i32) (param (ref string)) (result i32)))
+   (import "hash" "caml_hash_mix_int"
+      (func $caml_hash_mix_int (param i32) (param i32) (result i32)))
 
    (type $string (array (mut i8)))
    (type $js (struct (field anyref)))
@@ -14,14 +21,13 @@
 (;
    (func $jsstring_of_substring (export "jsstring_of_substring")
       (param $s (ref $string)) (param $pos i32) (param $len i32)
-      (result (ref eq))
-      (struct.new $js
-         (string.new_lossy_utf8_array (local.get $s) (local.get $pos)
-            (i32.add (local.get $pos) (local.get $len)))))
+      (result (ref string))
+      (string.new_lossy_utf8_array (local.get $s) (local.get $pos)
+         (i32.add (local.get $pos) (local.get $len))))
 ;)
    (func $jsstring_of_substring (export "jsstring_of_substring")
       (param $s (ref $string)) (param $pos i32) (param $len i32)
-      (result (ref eq))
+      (result anyref)
       (local $i i32)
       (loop $loop
          (if (i32.lt_u (local.get $i) (local.get $len))
@@ -31,8 +37,7 @@
                      (i32.add (local.get $pos) (local.get $i))))
                (local.set $i (i32.add (local.get $i) (i32.const 1)))
                (br $loop))))
-      (struct.new $js
-         (call $read_string (local.get $len) (i32.const 0))))
+      (return_call $read_string (local.get $len) (i32.const 0)))
 
 (;
    (func $string_of_jsstring (export "string_of_jsstring")
@@ -64,4 +69,19 @@
                (local.set $i (i32.add (local.get $i) (i32.const 1)))
                (br $loop))))
       (local.get $s'))
+
+(;
+   (func (export "jsstring_compare")
+      (param $s (ref string)) (param $s' (ref string)) (result i32)
+      (string.compare (local.get $s) (local.get $s')))
+;)
+   (export "jsstring_compare" (func $compare_strings))
+
+(;
+   (func (export "jsstring_hash")
+      (param $h i32) (param $s (ref string)) (result i32)
+      (return_call $caml_hash_mix_int (local.get $h)
+         (string.hash (local.get $s))))
+;)
+   (export "jsstring_hash" (func $hash_string))
 )

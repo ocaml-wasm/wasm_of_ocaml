@@ -15,6 +15,9 @@
    (import "string" "caml_string_compare"
       (func $caml_string_compare
         (param (ref eq)) (param (ref eq)) (result (ref eq))))
+   (import "jsstring" "jsstring_compare"
+      (func $jsstring_compare
+         (param (ref string)) (param (ref string)) (result i32)))
 
    (type $block (array (mut (ref eq))))
    (type $string (array (mut i8)))
@@ -468,7 +471,7 @@
                            (local.get $v2))))
                   (drop (block $not_jsstring (result anyref)
                      (local.set $res
-                        (string.compare
+                        (call $jsstring_compare
                            (br_on_cast_fail $not_jsstring anyref (ref string)
                               (local.get $js1))
                            (br_on_cast_fail $not_jsstring anyref (ref string)
