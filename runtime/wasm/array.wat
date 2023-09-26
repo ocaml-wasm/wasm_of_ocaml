@@ -47,6 +47,20 @@
       (if (i32.eqz (local.get $sz)) (then (return (global.get $empty_array))))
       (array.new $float_array (f64.const 0) (local.get $sz)))
 
+   (func (export "caml_floatarray_unsafe_get")
+      (param $a (ref eq)) (param $i (ref eq)) (result (ref eq))
+      (struct.new $float
+         (array.get $float_array (ref.cast (ref $float_array) (local.get $a))
+            (i31.get_s (ref.cast (ref i31) (local.get $i))))))
+
+   (func (export "caml_floatarray_unsafe_set")
+      (param $a (ref eq)) (param $i (ref eq)) (param $v (ref eq))
+      (result (ref eq))
+      (array.set $float_array (ref.cast (ref $float_array) (local.get $a))
+         (i31.get_s (ref.cast (ref i31) (local.get $i)))
+         (struct.get $float 0 (ref.cast (ref $float) (local.get $v))))
+      (ref.i31 (i32.const 0)))
+
    (func (export "caml_array_sub")
       (param $a (ref eq)) (param $i (ref eq)) (param $vlen (ref eq))
       (result (ref eq))

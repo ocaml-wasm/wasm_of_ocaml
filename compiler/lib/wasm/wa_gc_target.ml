@@ -552,20 +552,27 @@ module Memory = struct
     block_expr
       { params = []; result = [ I32 ] }
       (let* () = store a e in
-       let* e' =
-         Arith.(
-           (let* a = load a in
-            return (W.ArrayLen (W.RefCast ({ nullable = false; typ = Array }, a))))
-           - let* one = Arith.const 1l in
-             let* zero = Arith.const 0l in
-             let* block = Type.block_type in
-             let* test =
+       let* () =
+         drop
+           (block_expr
+              { params = []; result = [ I32 ] }
+              (let* block = Type.block_type in
                let* a = load a in
-               return (W.RefTest ({ nullable = false; typ = Type block }, a))
-             in
-             return (W.Select (I32, one, zero, test)))
+               let* e =
+                 Arith.(
+                   return
+                     (W.ArrayLen
+                        (W.Br_on_cast_fail
+                           ( 0
+                           , { nullable = false; typ = Eq }
+                           , { nullable = false; typ = Type block }
+                           , a )))
+                   - const 1l)
+               in
+               instr (Br (1, Some e))))
        in
-       instr (W.Push e'))
+       let* e = float_array_length (load a) in
+       instr (W.Push e))
 
   let array_get e e' = wasm_array_get e Arith.(Value.int_val e' + const 1l)
 

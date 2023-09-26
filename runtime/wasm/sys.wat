@@ -29,6 +29,8 @@
       (func $array_get (param (ref extern)) (param i32) (result anyref)))
    (import "fail" "javascript_exception"
       (tag $javascript_exception (param externref)))
+   (import "jsstring" "jsstring_test"
+      (func $jsstring_test (param anyref) (result i32)))
 
    (type $block (array (mut (ref eq))))
    (type $string (array (mut i8)))
@@ -46,7 +48,7 @@
       (local.set $res
          (call $getenv
             (call $unwrap (call $caml_jsstring_of_string (local.get 0)))))
-      (if (i32.eqz (ref.test (ref string) (local.get $res)))
+      (if (i32.eqz (call $jsstring_test (local.get $res)))
          (then
             (call $caml_raise_not_found)))
       (return_call $caml_string_of_jsstring (call $wrap (local.get $res))))
