@@ -1,8 +1,10 @@
 (module
    (import "obj" "object_tag" (global $object_tag i32))
    (import "obj" "forward_tag" (global $forward_tag i32))
+   (import "jsstring" "jsstring_test"
+      (func $jsstring_test (param anyref) (result i32)))
    (import "jsstring" "jsstring_hash"
-      (func $jsstring_hash (param i32) (param (ref string)) (result i32)))
+      (func $jsstring_hash (param i32) (param anyref) (result i32)))
 
    (type $block (array (mut (ref eq))))
    (type $string (array (mut i8)))
@@ -277,10 +279,11 @@
                         (struct.get $js 0
                            (br_on_cast_fail $not_jsstring (ref eq) (ref $js)
                               (local.get $v))))
+                     (drop (br_if $not_jsstring
+                        (ref.i31 (i32.const 0))
+                        (i32.eqz (call $jsstring_test (local.get $str)))))
                      (local.set $h
-                        (call $jsstring_hash (local.get $h)
-                           (br_on_cast_fail $not_jsstring anyref (ref string)
-                              (local.get $str))))
+                        (call $jsstring_hash (local.get $h) (local.get $str)))
                      (ref.i31 (i32.const 0))))
                   ;; closures and continuations and other js values are ignored
                   (br $loop)))))

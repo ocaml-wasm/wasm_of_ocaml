@@ -1,7 +1,7 @@
 [
   {
     "name": "root",
-    "reaches": ["init","exn","mem"],
+    "reaches": ["init","exn","mem","strings"],
     "root": true
   },
   {
@@ -15,6 +15,10 @@
   {
     "name": "mem",
     "export": "caml_buffer"
+  },
+  {
+    "name": "strings",
+    "export": "caml_extract_string"
   },
   {
     "name": "callback",

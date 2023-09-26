@@ -278,6 +278,7 @@ Dune
 
 ====
 
+- interface with JavaScript: improve performances
 - update runtime code to new syntax
 - improve dune support
 - benchmarks: effects, js_of_ocaml benchmarks
@@ -287,7 +288,7 @@ Dune
 
 - no longer use stringref (for now)
 - eliom
-- use br_if to handle bound errors
+- use br_if to handle bound errors / division by zero
 
 =====
 
@@ -454,11 +455,14 @@ Wish list
      => do not duplicate some abstract types
      => check coherence
   => conversion between JS strings and array of bytes
+     => TextEncoder/TextDecoder / LossyUtf8
      => go through memory
         ==> no standard way to reserve some memory
         ==> performance (several copies)
+            from JS : 15% slower at most (but missing fast path in stringref)
+            to JS : 2 to 5 times slower
      => stringref
-        ==> style in phase 1
+        ==> still in phase 1
      => JS String Builtins
   => typed arrays / buffers
      ==> I/Os

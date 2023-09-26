@@ -69,7 +69,7 @@
        }
     }
 
-    const decoder = new TextDecoder;
+    const decoder = new TextDecoder('utf-8', {ignoreBOM: 1});
     const encoder = new TextEncoder;
 
     function hash_int(h,d) {
@@ -107,8 +107,11 @@
          array_length:(a)=>a.length,
          array_get:(a,i)=>a[i],
          array_set:(a,i,v)=>a[i]=v,
-         read_string:(l, stream)=>
+         read_string:(l)=>
+           decoder.decode(new Uint8Array(buffer, 0, l)),
+         read_string_stream:(l, stream)=>
            decoder.decode(new Uint8Array(buffer, 0, l), {stream}),
+         append_string:(s1,s2)=>s1+s2,
          write_string:(s)=>{
            var start = 0, len = s.length;
            while (1) {
@@ -121,6 +124,7 @@
          },
          compare_strings:(s1,s2)=>(s1<s2)?-1:+(s1>s2),
          hash_string,
+         is_string:(v)=>+(typeof v==="string"),
          ta_create:(k,sz)=> new(typed_arrays[k])(sz),
          ta_normalize:(a)=>
            a instanceof Uint32Array?
@@ -343,10 +347,12 @@
                 :await WebAssembly.instantiateStreaming(code,imports)
 
     var {caml_callback, caml_alloc_tm, caml_start_fiber,
-         caml_handle_uncaught_exception, caml_buffer:{buffer}, _initialize} =
+         caml_handle_uncaught_exception, caml_buffer,
+         caml_extract_string, _initialize} =
         wasmModule.instance.exports;
 
-    var out_buffer = new Uint8Array(buffer,0,buffer.length)
+    var buffer = caml_buffer?.buffer
+    var out_buffer = buffer&&new Uint8Array(buffer,0,buffer.length)
 
     start_fiber = wrap_fun(
         {parameters: ['eqref'], results: ['externref']},
