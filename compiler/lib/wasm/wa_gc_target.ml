@@ -555,7 +555,7 @@ module Memory = struct
        let* () =
          drop
            (block_expr
-              { params = []; result = [ I32 ] }
+              { params = []; result = [ Type.value ] }
               (let* block = Type.block_type in
                let* a = load a in
                let* e =

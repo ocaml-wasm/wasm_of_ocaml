@@ -63,6 +63,7 @@ and scan_instruction ctx i =
   | Wa_ast.Drop e
   | GlobalSet (_, e)
   | Br (_, Some e)
+  | Br_if (_, e)
   | Br_table (e, _, _)
   | Throw (_, e)
   | Return (Some e)

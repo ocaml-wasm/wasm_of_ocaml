@@ -402,6 +402,11 @@ and rewrite_instruction i =
         (let* e = rewrite_expression e in
          let* () = flush_all in
          return (Wa_ast.Br (label, Some e)))
+  | Br_if (label, e) ->
+      instruction
+        (let* e = rewrite_expression e in
+         let* () = flush_all in
+         return (Wa_ast.Br_if (label, e)))
   | Br_table (e, l, label) ->
       instruction
         (let* e = rewrite_expression e in

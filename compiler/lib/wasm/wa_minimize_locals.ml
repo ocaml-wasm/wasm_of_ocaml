@@ -79,6 +79,7 @@ and scan_instruction ctx i =
   | Wa_ast.Drop e
   | GlobalSet (_, e)
   | Br (_, Some e)
+  | Br_if (_, e)
   | Br_table (e, _, _)
   | Throw (_, e)
   | Return (Some e)
@@ -268,6 +269,7 @@ and rewrite_instruction ctx i =
       let catch_all = Option.map ~f:(fun l -> rewrite_instructions ctx l) catch_all in
       Try (typ, body, catches, catch_all)
   | Br (label, Some e) -> Br (label, Some (rewrite_expression ctx e))
+  | Br_if (label, e) -> Br_if (label, rewrite_expression ctx e)
   | Br_table (e, l, label) -> Br_table (rewrite_expression ctx e, l, label)
   | Return (Some e) -> Return (Some (rewrite_expression ctx e))
   | Throw (i, e) -> Throw (i, rewrite_expression ctx e)

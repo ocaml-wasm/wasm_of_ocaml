@@ -400,6 +400,7 @@ let expression_or_instructions ctx in_function =
             | None -> []
             | Some e -> expression e))
         ]
+    | Br_if (i, e) -> [ List (Atom "br_if" :: Atom (string_of_int i) :: expression e) ]
     | Return e ->
         [ List
             (Atom "return"
