@@ -250,12 +250,6 @@ module Type = struct
         let* cl_typ = closure_type ~usage:`Alloc ~cps arity in
         let* common = closure_common_fields ~cps in
         let* fun_ty' = function_type ~cps arity in
-        let env_fields =
-          List.init
-            ~f:(fun _ ->
-              { W.mut = false; typ = W.Value (Ref { nullable = false; typ = Eq }) })
-            ~len:n
-        in
         return
           { supertype = Some cl_typ
           ; final = true
@@ -275,7 +269,12 @@ module Type = struct
                         ; typ = Value (Ref { nullable = false; typ = Type fun_ty' })
                         }
                       ])
-                @ env_fields)
+                @ List.init
+                    ~f:(fun _ ->
+                      { W.mut = false
+                      ; typ = W.Value (Ref { nullable = false; typ = Eq })
+                      })
+                    ~len:n)
           })
 
   let rec_env_type ~function_count ~free_variable_count =
