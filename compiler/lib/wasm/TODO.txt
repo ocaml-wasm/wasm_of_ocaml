@@ -286,8 +286,9 @@ Dune
 - separate compilation / toplevel
 - use unboxed primitives for int64/int32/nativeint
 
+- github action?
+
 - eliom
-- use br_if to handle bound errors / division by zero
 
 ===============
 
@@ -305,6 +306,9 @@ Goal: compile programs to Wasm with minimal changes
 
 ==============
 
+
+Wasm_of_ocaml: compiling OCaml bytecode to WasmGC
+
 Wasm_of_ocaml: compiling OCaml bytecode to WebAssembly
 Js_of_ocaml is a industrial-strength compiler that translates OCaml code into JavaScript. We will present how we are adapting it to produce WebAssembly. Beside the compilation process, we will cover a few key other points. First, how we interface with JavaScript, allowing to compile existing code with minimal changes. Second, we will show how we are relying on JavaScript to supplement some currently missing functionalities in WebAssembly. We are able to run substantial programs such as CAMLBOY, a Gameboy emulator, and the OCaml compiler itself. We will thus share some initial performance results.
 
@@ -321,3 +325,16 @@ Failing tests:
 - polymorphic comparison (more strict)
 - fun_call (different type)
 
+=====
+
+- v8::internal::compiler::Pipeline::GenerateCodeForWasmFunction
+   - 93,62% v8::internal::compiler::GraphReducer::ReduceNode
+      - 93,59% v8::internal::compiler::GraphReducer::ReduceTop
+         - 93,38% v8::internal::compiler::GraphReducer::Reduce
+            - 54,93% v8::internal::compiler::CsaLoadElimination::ReduceEffectPhi
+               + 54,91% v8::internal::compiler::CsaLoadElimination::HalfState::IntersectWith<unsigned int>
+            - 28,42% v8::internal::compiler::WasmLoadElimination::ReduceEffectPhi
+               + 28,41% v8::internal::compiler::WasmLoadElimination::HalfState::IntersectWith
+            + 9,43% v8::internal::compiler::WasmLoadElimination::UpdateState
+   + 3,35% v8::internal::compiler::PipelineImpl::SelectInstructions
+   + 1,47% v8::internal::compiler::PipelineImpl::ComputeScheduledGraph
