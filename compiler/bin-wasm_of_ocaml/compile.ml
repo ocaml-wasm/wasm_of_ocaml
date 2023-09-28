@@ -137,7 +137,7 @@ let dead_code_elimination in_file out_file =
   filter_unused_primitives primitives usage_file
 
 let optimization_options =
-  [| [ "-O1" ]
+  [| (*[ "-O1" ]*) [ "-O2"; "--skip-pass=inlining-optimizing" ]
    ; [ "-O2"; "--skip-pass=inlining-optimizing" ]
    ; [ "-O3"; "--heap2local"; "--simplify-locals"; "--vacuum" ]
   |]
