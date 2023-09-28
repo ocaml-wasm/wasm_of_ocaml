@@ -16,11 +16,11 @@
    (type $block (array (mut (ref eq))))
    (type $string (array (mut i8)))
    (type $function_1 (func (param (ref eq) (ref eq)) (result (ref eq))))
-   (type $closure (sub open (struct (;(field i32);) (field (ref $function_1)))))
+   (type $closure (sub (struct (;(field i32);) (field (ref $function_1)))))
    (type $function_3
       (func (param (ref eq) (ref eq) (ref eq) (ref eq)) (result (ref eq))))
    (type $closure_3
-      (sub open $closure
+      (sub $closure
          (struct (field (ref $function_1)) (field (ref $function_3)))))
 
    ;; Apply a function f to a value v, both contained in a pair (f, v)
@@ -48,7 +48,7 @@
    ;; Capturing the current continuation
 
    (type $cont_func (func (param (ref $pair)) (param (ref eq))))
-   (type $cont (sub open (struct (field $cont_func (ref $cont_func)))))
+   (type $cont (sub (struct (field $cont_func (ref $cont_func)))))
 
    (type $called_with_continuation
       (func (param (ref $cont)) (param (ref eq))))
@@ -97,7 +97,7 @@
          (field $effect (ref eq))))
 
    (type $generic_fiber
-      (sub open (struct (field $handlers (mut (ref $handlers))))))
+      (sub (struct (field $handlers (mut (ref $handlers))))))
 
    (type $fiber
       (sub final $generic_fiber
@@ -393,10 +393,10 @@
    (type $function_4
       (func (param (ref eq) (ref eq) (ref eq) (ref eq) (ref eq))
          (result (ref eq))))
-   (type $cps_closure (sub open (struct (field (ref $function_2)))))
-   (type $cps_closure_0 (sub open (struct (field (ref $function_1)))))
+   (type $cps_closure (sub (struct (field (ref $function_2)))))
+   (type $cps_closure_0 (sub (struct (field (ref $function_1)))))
    (type $cps_closure_3
-      (sub open $cps_closure
+      (sub $cps_closure
          (struct (field (ref $function_2)) (field (ref $function_4)))))
 
    (type $iterator
