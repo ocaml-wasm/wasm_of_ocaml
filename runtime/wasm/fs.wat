@@ -1,5 +1,5 @@
 (module
-   (import "bindings" "log" (func $log_js (param anyref)))
+   (import "jslib" "log_str" (func $log_str (param (ref $string))))
    (import "bindings" "getcwd" (func $getcwd (result anyref)))
    (import "bindings" "chdir" (func $chdir (param anyref)))
    (import "bindings" "mkdir" (func $mkdir (param anyref) (param i32)))
@@ -87,10 +87,14 @@
             (call $caml_handle_sys_error (pop externref))))
       (ref.i31 (i32.const 0)))
 
+   (data $caml_sys_is_directory "caml_sys_is_directory")
+
    (func (export "caml_sys_is_directory")
       (param $name (ref eq)) (result (ref eq))
       ;; ZZZ
-      (call $log_js (string.const "caml_sys_is_directory"))
+      (call $log_str
+         (array.new_data $string $caml_sys_is_directory
+            (i32.const 0) (i32.const 21)))
       (ref.i31 (i32.const 0)))
 
    (func (export "caml_sys_rename")
@@ -133,10 +137,14 @@
          (local.get $msg) (local.get $len) (i32.const 0) (i32.const 27))
       (call $caml_raise_sys_error (local.get $msg)))
 
+   (data $caml_read_file_content "caml_read_file_content")
+
    (func (export "caml_read_file_content")
       (param $name (ref eq)) (result (ref eq))
       (local $ch (ref eq)) (local $len i32) (local $res (ref $string))
-      (call $log_js (string.const "caml_read_file_content"))
+      (call $log_str
+         (array.new_data $string $caml_read_file_content
+            (i32.const 0) (i32.const 22)))
       ;; ZZZ
       (call $caml_raise_no_such_file (local.get $name))
       (local.set $ch
