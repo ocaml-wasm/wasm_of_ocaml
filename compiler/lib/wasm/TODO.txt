@@ -247,8 +247,7 @@ NativeString ==> string.const
 
 ====
 
-export PATH=toto:/tmp/node-v21.0.0-v8-canary202307207f6d94de9e-linux-x64/bin:/home/jerome/V8/depot_tools:/home/jerome/.opam/4.14.0/bin:/home/jerome/sources/binaryen/bin:/home/jerome/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/snap/bin
-export PATH=toto:/tmp/node-v21.0.0-v8-canary20230906bca67b72ce-linux-x64/bin:/home/jerome/V8/depot_tools:/home/jerome/.opam/4.14.0/bin:/home/jerome/sources/binaryen/bin:/home/jerome/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/snap/bin
+export PATH=toto:/tmp/node-v21.0.0-v8-canary20230927fa59f85d60-linux-x64/bin:/home/jerome/V8/depot_tools:/home/jerome/.opam/4.14.0/bin:/home/jerome/sources/binaryen/bin:/home/jerome/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/snap/bin
 
 opam reinstall -j 8 alcotest async_js base base_bigstring bigstringaf bin_prot core core_kernel core_unix cstruct cstruct-async cstruct-lwt cstruct-sexp cstruct-unix ppx_expect ppx_inline_test string_dict time_now zarith_stubs_js
 

@@ -1,4 +1,3 @@
-#!/usr/bin/env -S node --experimental-wasm-stringref --experimental-wasm-gc
 ((eval_function) => async (src, js)=> {
     "use strict";
     function loadRelative(src) {
