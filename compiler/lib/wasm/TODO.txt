@@ -285,8 +285,6 @@ Dune
 - separate compilation / toplevel
 - use unboxed primitives for int64/int32/nativeint
 
-- github action?
-
 - eliom
 
 ===============
@@ -337,3 +335,12 @@ Failing tests:
             + 9,43% v8::internal::compiler::WasmLoadElimination::UpdateState
    + 3,35% v8::internal::compiler::PipelineImpl::SelectInstructions
    + 1,47% v8::internal::compiler::PipelineImpl::ComputeScheduledGraph
+
+================
+
+    New eliom compilation process
+22dbf307f153599e5f860771fe49bb3aa108dbc9
+    [dune] Recompile on database change
+b589c8bf5da7179da971c0637eaa88a825b0e5bf
+    Switch to dune
+31ccf51c5bffabcb7bdf03e9e567c6af82e3d961
