@@ -285,7 +285,13 @@ Dune
 - separate compilation / toplevel
 - use unboxed primitives for int64/int32/nativeint
 
+- to_js_array for float arrays
+
+- typed arrays
+
 - eliom
+  ==> generic conversion to json
+      (implemented in OCaml!)
 
 ===============
 
