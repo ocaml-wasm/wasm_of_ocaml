@@ -292,6 +292,11 @@ Dune
 - eliom
   ==> generic conversion to json
       (implemented in OCaml!)
+      ==> int64 / int32 / nativeint ??
+
+- ignore -no-source-map
+
+- path to wasm file???
 
 ===============
 
@@ -327,6 +332,7 @@ Failing tests:
 - hash (expected)
 - polymorphic comparison (more strict)
 - fun_call (different type)
+- json
 
 =====
 
@@ -350,3 +356,11 @@ Failing tests:
 b589c8bf5da7179da971c0637eaa88a825b0e5bf
     Switch to dune
 31ccf51c5bffabcb7bdf03e9e567c6af82e3d961
+
+=============
+
+- dead code elimination
+- effects PR
+- blog post
+- PR Garrigue
+
