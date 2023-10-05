@@ -41,7 +41,7 @@
 
 let kSplayTreeSize = 8000
 
-let kSplayTreeModifications = 80
+let kSplayTreeModifications = 160
 
 let kSplayTreePayloadDepth = 5
 

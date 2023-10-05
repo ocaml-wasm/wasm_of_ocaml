@@ -7,6 +7,9 @@ GRAPHSPR = size.pdf size-optim.pdf compiletime.pdf
 # graphs showing the impact of supporting effects
 GRAPHSEFF = time-effects.pdf size-effects.pdf size-bzip2-effects.pdf
 
+# wasm performance
+GRAPHSWASM = time-wasm.pdf
+
 # For full benchs:
 all: _perf graphsnopr graphspr graphseff _noperf
 
@@ -15,6 +18,8 @@ graphsnopr: _noprecomp $(GRAPHSNOPR)
 graphspr: __precomp $(GRAPHSPR)
 
 graphseff: __precomp $(GRAPHSEFF)
+
+graphswasm: _noprecomp $(GRAPHSWASM)
 
 # For fast benchs:
 test: _perf fastrun $(GRAPHS) _noperf
@@ -50,6 +55,11 @@ __run:
 __run_effects:
 	$(RUN) -fast -nobyteopt -effects
 	touch __run_effects
+
+__run_wasm:
+	make _noprecomp
+	$(RUN) -nobyteopt -wasm
+	touch __run_wasm
 
 fastrun:
 	make _noprecomp
@@ -210,6 +220,17 @@ size-bzip2-effects.svg: __run_effects
 	 -append js_of_ocaml \
 	 -append ocamlc \
 	 -max 1.1 -min 0.95 -svg 7 650 150 -edgecaption -ylabel Size \
+	 > $@
+
+time-wasm.svg: __run_wasm
+	$(REPORT) -config report-time-wasm.config \
+	 -omit binary_trees \
+	 -omit fannkuch_redux \
+	 -omit fannkuch_redux_2 \
+	 -omit loop \
+	 -omit takc \
+	 -omit taku \
+	 -max 1.2 -svg 7 500 150 -edgecaption -ylabel "Execution time" \
 	 > $@
 
 compiletime.svg: __run __precomp __missingcompiletimes

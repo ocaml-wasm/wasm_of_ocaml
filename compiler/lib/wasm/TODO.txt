@@ -289,7 +289,7 @@ Dune
 
 - typed arrays
 
-- ignore -no-source-map
+- Js.export
 
 ===============
 
@@ -356,4 +356,3 @@ b589c8bf5da7179da971c0637eaa88a825b0e5bf
 - effects PR
 - blog post
 - PR Garrigue
-

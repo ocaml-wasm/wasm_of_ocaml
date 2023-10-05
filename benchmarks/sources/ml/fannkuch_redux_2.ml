@@ -84,7 +84,7 @@ let fannkuch n =
       with Exit -> ()
   done
 
-let n = 10
+let n = 9
 
 let pf = fannkuch n
 

@@ -164,6 +164,8 @@ module Spec : sig
   val js_of_ocaml_call : t
 
   val js_of_ocaml_effects : t
+
+  val wasm_of_ocaml : t
 end = struct
   type t =
     { dir : string
@@ -227,6 +229,8 @@ end = struct
   let js_of_ocaml_call = create "nooptcall" ".js"
 
   let js_of_ocaml_effects = create "effects" ".js"
+
+  let wasm_of_ocaml = create "wasm" ".js"
 end
 
 let rec mkdir d =

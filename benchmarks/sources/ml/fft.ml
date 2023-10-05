@@ -176,4 +176,9 @@ let _ =
   for _ = 1 to 16 do
     test !np;
     np := !np * 2
+  done;
+  let np = ref 16 in
+  for _ = 1 to 16 do
+    test !np;
+    np := !np * 2
   done

@@ -212,6 +212,7 @@ let _ =
   let compile_only = ref false in
   let full = ref false in
   let effects = ref false in
+  let wasm = ref false in
   let conf_file = ref "run.config" in
   let nobyteopt = ref false in
   let param = ref Param.default in
@@ -222,6 +223,7 @@ let _ =
     [ "-compile", Arg.Set compile_only, " only compiles"
     ; "-all", Arg.Set full, " run all benchmarks"
     ; "-effects", Arg.Set effects, " only run with and without effect handler support"
+    ; "-wasm", Arg.Set wasm, " run native, JS and Wasm code"
     ; "-config", Arg.Set_string conf_file, "<file> use <file> as a config file"
     ; "-fast", Arg.Unit fast_run, " perform less iterations"
     ; "-ffast", Arg.Unit ffast_run, " perform very few iterations"
@@ -240,6 +242,7 @@ let _ =
   let nobyteopt = !nobyteopt in
   let full = !full in
   let effects = !effects in
+  let wasm = !wasm in
   let param = !param in
   let interpreters = read_config conf_file in
   let compile = compile param ~comptime:true in
@@ -250,6 +253,8 @@ let _ =
          opts
          (if effects then "--enable=effects" else "--disable=effects"))
   in
+  let compile_wasoo opts = compile (Format.sprintf "wasm_of_ocaml -q %s" opts) in
+
   Format.eprintf "Compile@.";
   compile "ocamlc" src Spec.ml code Spec.byte;
   compile "ocamlopt" src Spec.ml code Spec.opt;
@@ -261,6 +266,7 @@ let _ =
   compile_jsoo "--disable compact" code Spec.byte code Spec.js_of_ocaml_compact;
   compile_jsoo "--disable optcall" code Spec.byte code Spec.js_of_ocaml_call;
   compile_jsoo ~effects:true "" code Spec.byte code Spec.js_of_ocaml_effects;
+  if wasm then compile_wasoo "" code Spec.byte code Spec.wasm_of_ocaml;
   compile "ocamlc -unsafe" src Spec.ml code Spec.byte_unsafe;
   compile "ocamlopt" src Spec.ml code Spec.opt_unsafe;
   compile_jsoo "" code Spec.byte_unsafe code Spec.js_of_ocaml_unsafe;
@@ -308,10 +314,8 @@ let _ =
   gen_size param code Spec.js_of_ocaml_effects sizes Spec.js_of_ocaml_effects;
   if compile_only then exit 0;
   Format.eprintf "Measure@.";
-  if not nobyteopt
-  then (
-    measure param code times Spec.opt "";
-    measure param code times Spec.byte "");
+  if (not nobyteopt) || wasm then measure param code times Spec.opt "";
+  if not nobyteopt then measure param code times Spec.byte "";
   let compilers, suites =
     if full
     then
@@ -332,6 +336,12 @@ let _ =
         | i :: _ -> [ i ]
         | [] -> [])
       , [ Some Spec.js_of_ocaml; Some Spec.js_of_ocaml_effects ] )
+    else if wasm
+    then
+      ( (match interpreters with
+        | i :: _ -> [ i ]
+        | [] -> [])
+      , [ Some Spec.js_of_ocaml; Some Spec.wasm_of_ocaml ] )
     else
       ( (match interpreters with
         | i :: _ -> [ i ]
