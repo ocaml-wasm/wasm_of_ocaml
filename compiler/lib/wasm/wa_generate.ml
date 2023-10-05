@@ -642,7 +642,7 @@ module Generate (Target : Wa_target_sig.S) = struct
 
   let needed_handlers (p : program) pc =
     Code.traverse
-      { fold = fold_children }
+      { fold = fold_children_skip_try_body }
       (fun pc n ->
         let block = Addr.Map.find pc p.blocks in
         List.fold_left
@@ -694,6 +694,29 @@ module Generate (Target : Wa_target_sig.S) = struct
         let* () = handler in
         instr (W.Return (Some (RefI31 (Const (I32 0l)))))
     else body ~result_typ ~fall_through ~context
+
+  let wrap_with_handlers p pc ~result_typ ~fall_through ~context body =
+    let need_zero_divide_handler, need_bound_error_handler = needed_handlers p pc in
+    wrap_with_handler
+      need_bound_error_handler
+      bound_error_pc
+      (let* f =
+         register_import ~name:"caml_bound_error" (Fun { params = []; result = [] })
+       in
+       instr (CallInstr (f, [])))
+      (wrap_with_handler
+         need_zero_divide_handler
+         zero_divide_pc
+         (let* f =
+            register_import
+              ~name:"caml_raise_zero_divide"
+              (Fun { params = []; result = [] })
+          in
+          instr (CallInstr (f, [])))
+         body)
+      ~result_typ
+      ~fall_through
+      ~context
 
   let translate_function p ctx name_opt toplevel_name params ((pc, _) as cont) acc =
     let stack_info =
@@ -863,8 +886,11 @@ module Generate (Target : Wa_target_sig.S) = struct
                 ~result_typ
                 ~fall_through
                 ~context:(extend_context fall_through context)
-                (fun ~result_typ ~fall_through ~context ->
-                  translate_branch result_typ fall_through pc cont context stack_ctx)
+                (wrap_with_handlers
+                   p
+                   (fst cont)
+                   (fun ~result_typ ~fall_through ~context ->
+                     translate_branch result_typ fall_through pc cont context stack_ctx))
                 x
                 (fun ~result_typ ~fall_through ~context ->
                   translate_branch result_typ fall_through pc cont' context stack_ctx)
@@ -933,32 +959,14 @@ module Generate (Target : Wa_target_sig.S) = struct
           (let* () = build_initial_env in
            let stack_ctx = Stack.start_function ~context:ctx.global_context stack_info in
            let* () = Stack.perform_spilling stack_ctx `Function in
-           let need_zero_divide_handler, need_bound_error_handler =
-             needed_handlers p pc
-           in
-           wrap_with_handler
-             need_bound_error_handler
-             bound_error_pc
-             (let* f =
-                register_import
-                  ~name:"caml_bound_error"
-                  (Fun { params = []; result = [] })
-              in
-              instr (CallInstr (f, [])))
-             (wrap_with_handler
-                need_zero_divide_handler
-                zero_divide_pc
-                (let* f =
-                   register_import
-                     ~name:"caml_raise_zero_divide"
-                     (Fun { params = []; result = [] })
-                 in
-                 instr (CallInstr (f, [])))
-                (fun ~result_typ ~fall_through ~context ->
-                  translate_branch result_typ fall_through (-1) cont context stack_ctx))
+           wrap_with_handlers
+             p
+             pc
              ~result_typ:[ Value.value ]
              ~fall_through:`Return
-             ~context:[])
+             ~context:[]
+             (fun ~result_typ ~fall_through ~context ->
+               translate_branch result_typ fall_through (-1) cont context stack_ctx))
     in
     let body = post_process_function_body ~param_count ~locals body in
     W.Function
