@@ -1,0 +1,46 @@
+ocamlc
+======
+30% faster
+
+Size
+             |    JS   |   Wasm         | Wasm (-O2 twice)
+uncompressed | 1937055 | 2441862 (+26%) |    2403313 (+24%)
+bzip2        |  466632 |  516703 (+10%) |     508673  (+9%)
+
+(depends on binaryen options)
+
+Be Sport
+========
+
+Size
+             |    JS   |   Wasm
+uncompressed | 3827108 | 6846836 (+80%)
+bzip2        |  989089 | 1251620 (+25%)
+
+CAMLBENCH
+=========
+
+330fps ==> 480fps  (30% faster)
+1180 ==> 1850fps   (35% faster)
+
+===================================
+
+Bonsai benchmarks
+
+Js_of_ocaml benchmarks
+===> exceptions are extremely slow
+===> 2.3 times slower that with the OCaml native code compiler
+===> about 30% faster than JavaScript
+
+Cost of bound/cast checks
+on ocamlc
+===> 7% in all
+===> 5% cast checks
+===> 2% bound checks
+ (not clear it is worthwile to replace bound checks by subtyping checks)
+
+=============
+
+stringref
+
+plot [:1e6] "to_js.txt" using 1:($3/$2) with lines, "to_js_ascii.txt" using 1:($3/$2) with lines, 1
