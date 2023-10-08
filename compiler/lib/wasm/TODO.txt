@@ -285,11 +285,7 @@ Dune
 - separate compilation / toplevel
 - use unboxed primitives for int64/int32/nativeint
 
-- caml_js_from_array / caml_js_to_array for float arrays
-
 - typed arrays
-
-- Js.export
 
 ===============
 
@@ -319,7 +315,6 @@ how we interface with JavaScript, allowing to compile existing code with minimal
 ===========
 
 Failing tests:
-- Js.export (to be fixed...)
 - /static  (not yet implemented)
 - nat (need to change num)
 - hash (expected)
