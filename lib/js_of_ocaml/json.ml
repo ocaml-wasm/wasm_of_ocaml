@@ -145,6 +145,8 @@ class type obj =
   end
 
 let mlInt64_constr =
+  Js.Unsafe.pure_expr
+  @@ fun () ->
   let dummy_int64 = 1L in
   let dummy_obj : obj t = Obj.magic dummy_int64 in
   dummy_obj##.constructor
