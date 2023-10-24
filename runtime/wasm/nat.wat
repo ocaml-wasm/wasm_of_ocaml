@@ -58,6 +58,11 @@
          (array.new $data (i32.const 0)
             (i31.get_u (ref.cast (ref i31) (local.get $sz))))))
 
+   (func (export "length_nat") (param $nat (ref eq)) (result (ref eq))
+      (ref.i31
+         (array.len
+            (struct.get $nat $data (ref.cast (ref $nat) (local.get $nat))))))
+
    (func (export "incr_nat")
       (param $nat (ref eq)) (param $vofs (ref eq)) (param $vlen (ref eq))
       (param $carry_in (ref eq)) (result (ref eq))
