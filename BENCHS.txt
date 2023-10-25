@@ -44,3 +44,19 @@ on ocamlc
 stringref
 
 plot [:1e6] "to_js.txt" using 1:($3/$2) with lines, "to_js_ascii.txt" using 1:($3/$2) with lines, 1
+
+========================
+
+Bonsai benchmark (library for building interactive browser-based UI)
+================
+
+100 benchmarks
+
+Arithmetic mean
+   Javascript: 1.98ms
+   Wasm (stringref): 1.66ms
+   Wasm (buffer): 2.24ms
+
+===> Should convert strings only once
+
+grep -v ZZZ bonsai-wasm-stringref.txt | cut -c 98-111  | tail +5 | head -n -4 | sed -n 'p;n' | sed 's/_//g' | ocaml ~/tmp/count.ml 
