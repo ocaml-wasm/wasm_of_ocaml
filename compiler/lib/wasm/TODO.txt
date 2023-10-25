@@ -277,15 +277,21 @@ Dune
 
 ====
 
+- make it easier to debug
+  ==> sourcemap / dwarf
+  ==> variable names
 - interface with JavaScript: improve performances
 - update runtime code to new syntax
-- improve dune support
 - benchmarks: effects, js_of_ocaml benchmarks
 - minify JS runtime
 - separate compilation / toplevel
 - use unboxed primitives for int64/int32/nativeint
 
+- improve dune support
+
 - typed arrays
+
+==> Wasm GC available in Chrome beta
 
 ===============
 
@@ -351,3 +357,25 @@ b589c8bf5da7179da971c0637eaa88a825b0e5bf
 - effects PR
 - blog post
 - PR Garrigue
+
+=============================
+
+Release plans
+=============
+- Make it possible to release libraries
+  - dune support
+  - js_of_ocaml release
+- Merge with Js_of_ocaml
+  - rebase
+
+==============
+
+Issue on
+https://github.com/WebAssembly/js-string-builtins/blob/main/proposals/js-string-builtins/Overview.md
+
+Understand type arrays: specific primitive?
+==> caml_js_ta_get/set
+
+Pass more tests
+
+Suport constant JavaScript strings
