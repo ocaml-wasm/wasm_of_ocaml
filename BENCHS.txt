@@ -54,8 +54,11 @@ Bonsai benchmark (library for building interactive browser-based UI)
 
 Arithmetic mean
    Javascript: 1.98ms
+   Javascript (opt): 1.86ms
    Wasm (stringref): 1.66ms
    Wasm (buffer): 2.24ms
+   Wasm (const): 1.66ms
+   Wasm (stringref+const): 1.38ms
 
 ===> Should convert strings only once
 

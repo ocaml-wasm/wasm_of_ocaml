@@ -376,6 +376,9 @@ https://github.com/WebAssembly/js-string-builtins/blob/main/proposals/js-string-
 Understand type arrays: specific primitive?
 ==> caml_js_ta_get/set
 
-Pass more tests
+Pass more tests?
+   grep -lR  @tags".*"js . | xargs -n 1 dirname | sort | uniq
+Deploy tests
 
-Suport constant JavaScript strings
+Optimize meth call / new / fun call (avoid allocating intermediate array + many roundtrip with JS)
+How can we avoid wrapping / unwrapping?
