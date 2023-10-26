@@ -80,6 +80,15 @@ let specialize_instr ~target info i =
                       :: Array.to_list a ) )
           | _ -> i)
       | _ -> i)
+  | Let (x, Prim (Extern "caml_js_meth_call", [ o; m; a ])), `Wasm -> (
+      match the_string_of info m with
+      | Some m when Javascript.is_ident m ->
+          Let
+            ( x
+            , Prim
+                ( Extern "caml_js_meth_call"
+                , [ o; Pc (NativeString (Native_string.of_string m)); a ] ) )
+      | _ -> i)
   | Let (x, Prim (Extern "caml_js_new", [ c; a ])), `JavaScript -> (
       match the_def_of info a with
       | Some (Block (_, a, _)) ->
