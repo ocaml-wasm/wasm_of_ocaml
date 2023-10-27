@@ -20,6 +20,7 @@ type context =
   ; mutable init_code : Wa_ast.instruction list
   ; mutable string_count : int
   ; mutable strings : string list
+  ; mutable string_index : int StringMap.t
   ; mutable fragments : Javascript.expression StringMap.t
   }
 

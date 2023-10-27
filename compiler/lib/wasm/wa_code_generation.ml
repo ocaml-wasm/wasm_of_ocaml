@@ -36,6 +36,7 @@ type context =
   ; mutable init_code : W.instruction list
   ; mutable string_count : int
   ; mutable strings : string list
+  ; mutable string_index : int StringMap.t
   ; mutable fragments : Javascript.expression StringMap.t
   }
 
@@ -56,6 +57,7 @@ let make_context () =
   ; init_code = []
   ; string_count = 0
   ; strings = []
+  ; string_index = StringMap.empty
   ; fragments = StringMap.empty
   }
 
@@ -179,10 +181,13 @@ let register_init_code code st =
 
 let register_string s st =
   let context = st.context in
-  let n = context.string_count in
-  context.string_count <- 1 + context.string_count;
-  context.strings <- s :: context.strings;
-  n, st
+  try StringMap.find s context.string_index, st
+  with Not_found ->
+    let n = context.string_count in
+    context.string_count <- 1 + context.string_count;
+    context.strings <- s :: context.strings;
+    context.string_index <- StringMap.add s n context.string_index;
+    n, st
 
 let register_fragment name f st =
   let context = st.context in
