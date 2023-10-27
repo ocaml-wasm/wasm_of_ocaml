@@ -1377,7 +1377,32 @@ let () =
               , AUnknown ))
       in
       let l = List.map ~f:transl_prim_arg l in
-      JavaScript.invoke_fragment name l)
+      JavaScript.invoke_fragment name l);
+  register "caml_js_get" (fun transl_prim_arg l ->
+      match l with
+      | [ x; Code.Pc (NativeString (Utf prop)) ] ->
+          let name =
+            let (Utf8 name) = prop in
+            Printf.sprintf "get_%s" name
+          in
+          let* () =
+            register_fragment name (fun () ->
+                let o = Utf8_string.of_string_exn "o" in
+                EArrow
+                  ( J.fun_
+                      [ J.ident o ]
+                      [ Return_statement (Some (J.dot (EVar (J.ident o)) prop)), N ]
+                      N
+                  , AUnknown ))
+          in
+          let l = List.map ~f:transl_prim_arg [ x ] in
+          JavaScript.invoke_fragment name l
+      | [ _; _ ] ->
+          let* f = register_import ~name:"caml_js_get" (Fun (Type.func_type 1)) in
+          let l = List.map ~f:transl_prim_arg l in
+          let* l = expression_list (fun e -> e) l in
+          return (W.Call (f, l))
+      | _ -> assert false)
 
 let externref = W.Ref { nullable = true; typ = Extern }
 
