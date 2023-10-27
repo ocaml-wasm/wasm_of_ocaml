@@ -380,5 +380,9 @@ Pass more tests?
    grep -lR  @tags".*"js . | xargs -n 1 dirname | sort | uniq
 Deploy tests
 
-Optimize meth call / new / fun call (avoid allocating intermediate array + many roundtrip with JS)
-How can we avoid wrapping / unwrapping?
+How can we avoid some JavaScript wrapping / unwrapping?
+
+Uniquify strings
+
+caml_js_object
+eval

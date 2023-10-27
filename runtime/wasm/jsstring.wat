@@ -17,6 +17,7 @@
 
    (type $string (array (mut i8)))
 
+(;
    (memory (export "caml_buffer") 1)
 
    (global $buffer_size i32 (i32.const 65536))
@@ -134,8 +135,7 @@
    (export "jsstring_compare" (func $compare_strings))
    (export "jsstring_hash" (func $hash_string))
    (export "jsstring_test" (func $is_string))
-
-(;
+;)
    ;; stringref implementation
 
    (import "hash" "caml_hash_mix_int"
@@ -174,5 +174,4 @@
 
    (func (export "jsstring_test") (param $s anyref) (result i32)
       (ref.test (ref string) (local.get $s)))
-;)
 )

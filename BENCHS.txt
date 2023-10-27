@@ -58,7 +58,9 @@ Arithmetic mean
    Wasm (stringref): 1.66ms
    Wasm (buffer): 2.24ms
    Wasm (const): 1.66ms
+   Wasm (opt): 1.57ms
    Wasm (stringref+const): 1.38ms
+   Wasm (stringref+opt): 1.24ms
 
 ===> Should convert strings only once
 
