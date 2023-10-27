@@ -1380,7 +1380,7 @@ let () =
       JavaScript.invoke_fragment name l);
   register "caml_js_get" (fun transl_prim_arg l ->
       match l with
-      | [ x; Code.Pc (NativeString (Utf prop)) ] ->
+      | [ x; Code.Pc (NativeString (Utf prop)) ] when J.is_ident' prop ->
           let name =
             let (Utf8 name) = prop in
             Printf.sprintf "get_%s" name
@@ -1395,10 +1395,40 @@ let () =
                       N
                   , AUnknown ))
           in
-          let l = List.map ~f:transl_prim_arg [ x ] in
-          JavaScript.invoke_fragment name l
+          JavaScript.invoke_fragment name [ transl_prim_arg x ]
       | [ _; _ ] ->
           let* f = register_import ~name:"caml_js_get" (Fun (Type.func_type 1)) in
+          let l = List.map ~f:transl_prim_arg l in
+          let* l = expression_list (fun e -> e) l in
+          return (W.Call (f, l))
+      | _ -> assert false);
+  register "caml_js_set" (fun transl_prim_arg l ->
+      match l with
+      | [ x; Code.Pc (NativeString (Utf prop)); y ] when J.is_ident' prop ->
+          let name =
+            let (Utf8 name) = prop in
+            Printf.sprintf "set_%s" name
+          in
+          let* () =
+            register_fragment name (fun () ->
+                let o = Utf8_string.of_string_exn "o" in
+                let v = Utf8_string.of_string_exn "v" in
+                EArrow
+                  ( J.fun_
+                      [ J.ident o; J.ident v ]
+                      [ ( Return_statement
+                            (Some
+                               (J.EBin
+                                  (J.Eq, J.dot (EVar (J.ident o)) prop, EVar (J.ident v))))
+                        , N )
+                      ]
+                      N
+                  , AUnknown ))
+          in
+          let l = List.map ~f:transl_prim_arg [ x; y ] in
+          JavaScript.invoke_fragment name l
+      | [ _; _; _ ] ->
+          let* f = register_import ~name:"caml_js_set" (Fun (Type.func_type 2)) in
           let l = List.map ~f:transl_prim_arg l in
           let* l = expression_list (fun e -> e) l in
           return (W.Call (f, l))
