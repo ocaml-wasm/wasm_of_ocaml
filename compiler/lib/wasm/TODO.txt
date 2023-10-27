@@ -382,7 +382,6 @@ Deploy tests
 
 How can we avoid some JavaScript wrapping / unwrapping?
 
-Uniquify strings
-
 caml_js_object
 eval
+caml_js_get + constant string?
