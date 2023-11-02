@@ -225,7 +225,7 @@
                   (call $caml_named_value
                      (array.new_data $string $already_resumed
                         (i32.const 0) (i32.const 35)))))))
-      (call $capture_continuation
+      (return_call $capture_continuation
          (ref.func $do_resume)
           (struct.new $pair
              (local.get $stack)

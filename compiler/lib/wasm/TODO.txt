@@ -384,3 +384,30 @@ How can we avoid some JavaScript wrapping / unwrapping?
 
 caml_js_object
 eval
+
+=======================================
+
+
+Handle<Map> CreateArrayMap(Isolate* isolate) {
+  const wasm::ArrayType* type = new ArrayType (kWasmI8, true);
+  const int inobject_properties = 0;
+  const int instance_size = kVariableSizeSentinel;
+  // Wasm Arrays don't have a static instance size.
+  const int cached_instance_size = 0;
+  const InstanceType instance_type = WASM_ARRAY_TYPE;
+  const ElementsKind elements_kind = TERMINAL_FAST_ELEMENTS_KIND;
+  Handle<WasmTypeInfo> type_info = isolate->factory()->NewWasmTypeInfo(
+      reinterpret_cast<Address>(type), NULL, cached_instance_size,
+      NULL, 0);
+  Handle<Map> map = isolate->factory()->NewMap(
+      instance_type, instance_size, elements_kind, inobject_properties);
+  map->set_wasm_type_info(*type_info);
+  map->SetInstanceDescriptors(isolate,
+                              *isolate->factory()->empty_descriptor_array(), 0);
+  map->set_is_extensible(false);
+  WasmArray::EncodeElementSizeInMap(type->element_type().value_kind_size(),
+                                    *map);
+  return map;
+}
+
+See also WasmJSFunction::New in wasm/wasm-objects.cc
