@@ -138,33 +138,6 @@ Curryfication improvements
 
 ==============================
 
-Exception
-=========
-
-     res=f(...)
-     if !res return res  (* Or jump to exception handler *)
-
-     (No test necessary for tail calls)
-
-     Store actual exception in a global variable
-
-Trampoline
-==========
-
-     while(1) {
-       res = f()
-       if (res) return res
-       if (exception pending) return res
-       f = load_continuation()
-     }
-
-     if (depth < 40) f(x1, ..., xn)
-     else { store (fun () -> f(x1, ..., xn)); return 0 }
-
-     ===> create thunk functions
-
-======================
-
 Use one table by arity
 ===> function references / not supported by LLVM
 ===>
@@ -177,13 +150,6 @@ signature. Remove null check if the table is non-nullable.
 
 We have unused globals (small constants / known closures)
 ===> eliminated by binaryen
-
-===========================
-
-Bindings:
-   generate specialized JavaScript functions
-      (for instance to create a literal object)
-   optimize away unwrap(wrap(...))
 
 ===========================
 
@@ -291,8 +257,6 @@ Dune
 
 - typed arrays
 
-==> Wasm GC available in Chrome beta
-
 ===============
 
 Benchmarks
@@ -300,25 +264,6 @@ Benchmarks
 *   --experimental-wasm-skip-bounds-checks --experimental-wasm-skip-null-checks --experimental-wasm-assume-ref-cast-succeeds
 
 ==================
-
-Wasm GC getting finalized. Soon available by default on Chrome.
-
-Js_of_ocaml successful project to make OCaml program run on a browser.
-
-Goal: compile programs to Wasm with minimal changes
-
-==============
-
-
-Wasm_of_ocaml: compiling OCaml bytecode to WasmGC
-
-Wasm_of_ocaml: compiling OCaml bytecode to WebAssembly
-Js_of_ocaml is a industrial-strength compiler that translates OCaml code into JavaScript. We will present how we are adapting it to produce WebAssembly. Beside the compilation process, we will cover a few key other points. First, how we interface with JavaScript, allowing to compile existing code with minimal changes. Second, we will show how we are relying on JavaScript to supplement some currently missing functionalities in WebAssembly. We are able to run substantial programs such as CAMLBOY, a Gameboy emulator, and the OCaml compiler itself. We will thus share some initial performance results.
-
-
-how we interface with JavaScript, allowing to compile existing code with minimal changes. Second, we will show how we are relying on JavaScript to supplement some currently missing functionalities in WebAssembly
-
-===========
 
 Failing tests:
 - /static  (not yet implemented)
@@ -328,30 +273,7 @@ Failing tests:
 - fun_call (different type)
 - json
 
-=====
-
-- v8::internal::compiler::Pipeline::GenerateCodeForWasmFunction
-   - 93,62% v8::internal::compiler::GraphReducer::ReduceNode
-      - 93,59% v8::internal::compiler::GraphReducer::ReduceTop
-         - 93,38% v8::internal::compiler::GraphReducer::Reduce
-            - 54,93% v8::internal::compiler::CsaLoadElimination::ReduceEffectPhi
-               + 54,91% v8::internal::compiler::CsaLoadElimination::HalfState::IntersectWith<unsigned int>
-            - 28,42% v8::internal::compiler::WasmLoadElimination::ReduceEffectPhi
-               + 28,41% v8::internal::compiler::WasmLoadElimination::HalfState::IntersectWith
-            + 9,43% v8::internal::compiler::WasmLoadElimination::UpdateState
-   + 3,35% v8::internal::compiler::PipelineImpl::SelectInstructions
-   + 1,47% v8::internal::compiler::PipelineImpl::ComputeScheduledGraph
-
 ================
-
-    New eliom compilation process
-22dbf307f153599e5f860771fe49bb3aa108dbc9
-    [dune] Recompile on database change
-b589c8bf5da7179da971c0637eaa88a825b0e5bf
-    Switch to dune
-31ccf51c5bffabcb7bdf03e9e567c6af82e3d961
-
-=============
 
 - dead code elimination
 - effects PR
@@ -382,32 +304,48 @@ Deploy tests
 
 How can we avoid some JavaScript wrapping / unwrapping?
 
-caml_js_object
 eval
+caml_js_delete
 
-=======================================
+====
 
 
-Handle<Map> CreateArrayMap(Isolate* isolate) {
-  const wasm::ArrayType* type = new ArrayType (kWasmI8, true);
-  const int inobject_properties = 0;
-  const int instance_size = kVariableSizeSentinel;
-  // Wasm Arrays don't have a static instance size.
-  const int cached_instance_size = 0;
-  const InstanceType instance_type = WASM_ARRAY_TYPE;
-  const ElementsKind elements_kind = TERMINAL_FAST_ELEMENTS_KIND;
-  Handle<WasmTypeInfo> type_info = isolate->factory()->NewWasmTypeInfo(
-      reinterpret_cast<Address>(type), NULL, cached_instance_size,
-      NULL, 0);
-  Handle<Map> map = isolate->factory()->NewMap(
-      instance_type, instance_size, elements_kind, inobject_properties);
-  map->set_wasm_type_info(*type_info);
-  map->SetInstanceDescriptors(isolate,
-                              *isolate->factory()->empty_descriptor_array(), 0);
-  map->set_is_extensible(false);
-  WasmArray::EncodeElementSizeInMap(type->element_type().value_kind_size(),
-                                    *map);
-  return map;
-}
+real	0m22,126s
+real	0m21,890s
 
-See also WasmJSFunction::New in wasm/wasm-objects.cc
+~86%
+
+real	0m16,482s
+
+==> 25%
+
+
+real	0m12,482s
+
+real	0m6,4     (cache)
+
+real    0m5.526s  (sampling)
+
+real	0m5,085s  (is_catchable_by_wasm)
+
+real    0m3.95s  (remove frame iterator)
+
+===> optimize FrameFinder
+
+
+out/x64.release/d8 --test test/mjsunit/mjsunit.js test/mjsunit/wasm/externref.js --random-seed=-167637331 --nohard-abort --testing-d8-test-runner --expose-wasm --expose-gc --allow-natives-syntax
+
+==================
+
+real	0m4,458s
+real	0m3.95s
+
+real	0m14,776s
+real	0m12,852s
+
+https://chromium-review.googlesource.com/c/v8/v8/+/2113375/3..5/src/execution/isolate-inl.h#b89
+
+----
+
+before: 87% ==> 19s
+after: 62%  ==> 2.4s
