@@ -314,7 +314,7 @@ real	0m22,126s
 real	0m21,890s
 
 ~86%
-
+GGG
 real	0m16,482s
 
 ==> 25%
@@ -349,3 +349,24 @@ https://chromium-review.googlesource.com/c/v8/v8/+/2113375/3..5/src/execution/is
 
 before: 87% ==> 19s
 after: 62%  ==> 2.4s
+
+
+(6.884+6.571+6.660+6.572+6.649+6.549)/6
+==> 6.65
+
+(5.570+5.512+5.469+5.531+5.642+5.557)/6
+==> 5.55
+
+
+#ifdef DEBUG
+  intptr_t marker =
+      Memory<intptr_t>(fp() + CommonFrameConstants::kContextOrFrameTypeOffset);
+  DCHECK(StackFrame::MarkerToType(marker) == WASM);
+#endif
+
+effect olivier
+internship?
+
+================
+
+for i in *; do (echo ZZZ $i; cd $i; git diff); done |& less
