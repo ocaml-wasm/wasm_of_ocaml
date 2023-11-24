@@ -15,7 +15,7 @@ The generated code works with Chrome 11.9, [node V8 canary](https://nodejs.org/d
 The following commands will perform a minimal installation:
 ```
 opam pin add 'https://github.com/ocaml-wasm/dune.git#wasm'
-opam pin add https://github.com/ocaml-wasm/wasm_of_ocaml.git
+opam pin add --cli=2.1 --with-version 5.3.0 https://github.com/ocaml-wasm/wasm_of_ocaml.git
 opam install wasm_of_ocaml-compiler
 ```
 If you have cloned this repository, you can use `opam pin add -n --with-version 5.3.0 .` instead of `opam pin add https://github.com/ocaml-wasm/wasm_of_ocaml.git`.
