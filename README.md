@@ -20,10 +20,11 @@ In particular, the output code requires the following [Wasm extensions](https://
 
 The following commands will perform a minimal installation:
 ```
-opam pin add dune.3.11 https://github.com/ocaml-wasm/dune.git
-opam pin add -n --with-version 5.3.0 .
+opam pin add 'https://github.com/ocaml-wasm/dune.git#wasm'
+opam pin add --cli=2.1 --with-version 5.3.0 https://github.com/ocaml-wasm/wasm_of_ocaml.git
 opam install wasm_of_ocaml-compiler
 ```
+If you have cloned this repository, you can use `opam pin add -n --with-version 5.3.0 .` instead of `opam pin add https://github.com/ocaml-wasm/wasm_of_ocaml.git`.
 You may want to install additional packages. For instance:
 
 ```
