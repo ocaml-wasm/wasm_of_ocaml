@@ -25,11 +25,11 @@ let do_pin = StringSet.of_list [ "base"; "ppx_expect"; "ppx_inline_test"; "time_
 let aliases = [ "ocaml-cstruct", "cstruct" ]
 
 let dune_workspace =
-  {|(lang dune 3.11)
+  {|(lang dune 3.13)
 (env
  (_
   (env-vars (TESTING_FRAMEWORK inline-test))
-  (js_of_ocaml (target wasm))
+  (js_of_ocaml (targets wasm))
   (flags :standard -warn-error -8-32-34-49-52-55 -w -67-69)))
 |}
 
@@ -186,12 +186,6 @@ let forked_packages =
 
 let is_forked p = StringSet.mem p forked_packages
 
-let print_packages s =
-  StringSet.iter
-    (fun p ->
-      Format.eprintf "  %s%s@." p (if StringSet.mem p forked_packages then "*" else ""))
-    s
-
 let exec_async ~delay cmd =
   let p =
     Unix.open_process_out (Printf.sprintf "sleep %f; %s" (float delay /. 10.) cmd)
@@ -243,10 +237,6 @@ let () =
     List.fold_left traverse StringSet.empty roots
     |> StringSet.partition (fun p -> List.mem_assoc p packages)
   in
-  prerr_endline "JS";
-  print_packages js;
-  prerr_endline "OTHERS";
-  print_packages others;
   pin_packages js;
   install_others others;
   sync_exec (fun i () -> clone i "ocaml-uri" "https://github.com/mirage/ocaml-uri") [ () ];
@@ -254,7 +244,7 @@ let () =
     (fun i nm ->
       clone
         i
-        ?branch:(if is_forked nm then Some "wasm-latest" else None)
+        ?branch:(if is_forked nm then Some "wasm" else None)
         nm
         (Printf.sprintf
            "https://github.com/%s/%s"
