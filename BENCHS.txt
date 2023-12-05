@@ -65,3 +65,11 @@ Arithmetic mean
 ===> Should convert strings only once
 
 grep -v ZZZ bonsai-wasm-stringref.txt | cut -c 98-111  | tail +5 | head -n -4 | sed -n 'p;n' | sed 's/_//g' | ocaml ~/tmp/count.ml 
+
+
+   Javascript => 1.76
+   Javascript (-opt 3) => 1.62
+   Wasm => 0.95
+   Wasm (-opt 3) => 0.90
+   Wasm (stringref) ==> 0.84
+   Wasm (-opt 3 + stringref) ==> 0.80
