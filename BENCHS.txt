@@ -72,4 +72,12 @@ grep -v ZZZ bonsai-wasm-stringref.txt | cut -c 98-111  | tail +5 | head -n -4 | 
    Wasm => 0.95
    Wasm (-opt 3) => 0.90
    Wasm (stringref) ==> 0.84
+   Wasm (stringref + no check) ==> 0.68
    Wasm (-opt 3 + stringref) ==> 0.80
+   Wasm (-opt 3 + no check) ==> 0.74
+   Wasm (-opt 3 + stringref + no check) ==> 0.63
+   Javascript (CPS) => 12.4 (!)
+   Javascript (-opt3 + CPS) => 12.5
+   Wasm (CPS) => 1.63
+   Wasm (-opt 3 + CPS) => 1.61
+

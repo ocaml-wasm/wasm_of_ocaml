@@ -370,3 +370,8 @@ internship?
 ================
 
 for i in *; do (echo ZZZ $i; cd $i; git diff); done |& less
+
+================================
+
+Cost of casts for bonsai test
+Bonsai / CPS
