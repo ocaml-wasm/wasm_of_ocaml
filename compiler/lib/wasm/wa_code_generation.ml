@@ -38,6 +38,7 @@ type context =
   ; mutable strings : string list
   ; mutable string_index : int StringMap.t
   ; mutable fragments : Javascript.expression StringMap.t
+  ; mutable unit_name : string option
   }
 
 let make_context () =
@@ -59,6 +60,7 @@ let make_context () =
   ; strings = []
   ; string_index = StringMap.empty
   ; fragments = StringMap.empty
+  ; unit_name = None
   }
 
 type var =
@@ -123,8 +125,9 @@ let register_type nm gen_typ st =
        name)
   , st )
 
-let register_global name ?(constant = false) typ init st =
-  st.context.other_fields <- W.Global { name; typ; init } :: st.context.other_fields;
+let register_global name ?exported_name ?(constant = false) typ init st =
+  st.context.other_fields <-
+    W.Global { name; exported_name; typ; init } :: st.context.other_fields;
   (match name with
   | S _ -> ()
   | V name ->
@@ -202,6 +205,8 @@ let set_closure_env f env st =
 let get_closure_env f st = Var.Map.find f st.context.closure_envs, st
 
 let is_closure f st = Var.Map.mem f st.context.closure_envs, st
+
+let unit_name st = st.context.unit_name, st
 
 let var x st =
   try Var.Map.find x st.vars, st

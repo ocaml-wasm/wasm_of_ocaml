@@ -22,6 +22,7 @@ type context =
   ; mutable strings : string list
   ; mutable string_index : int StringMap.t
   ; mutable fragments : Javascript.expression StringMap.t
+  ; mutable unit_name : string option
   }
 
 val make_context : unit -> context
@@ -128,7 +129,12 @@ val register_import :
   ?import_module:string -> name:string -> Wa_ast.import_desc -> Wa_ast.var t
 
 val register_global :
-  Wa_ast.symbol -> ?constant:bool -> Wa_ast.global_type -> Wa_ast.expression -> unit t
+     Wa_ast.symbol
+  -> ?exported_name:string
+  -> ?constant:bool
+  -> Wa_ast.global_type
+  -> Wa_ast.expression
+  -> unit t
 
 val get_global : Code.Var.t -> Wa_ast.expression option t
 
@@ -151,6 +157,8 @@ val set_closure_env : Code.Var.t -> Code.Var.t -> unit t
 val get_closure_env : Code.Var.t -> Code.Var.t t
 
 val is_closure : Code.Var.t -> bool t
+
+val unit_name : string option t
 
 val need_apply_fun : cps:bool -> arity:int -> Code.Var.t t
 

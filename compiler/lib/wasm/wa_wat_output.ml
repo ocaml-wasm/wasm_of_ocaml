@@ -517,8 +517,11 @@ let field ctx f =
   match f with
   | Function { name; exported_name; typ; locals; body } ->
       [ funct ctx name exported_name typ locals body ]
-  | Global { name; typ; init } ->
-      [ List (Atom "global" :: symbol name :: global_type typ :: expression ctx init) ]
+  | Global { name; exported_name; typ; init } ->
+      [ List
+          ((Atom "global" :: symbol name :: export exported_name)
+          @ (global_type typ :: expression ctx init))
+      ]
   | Tag { name; typ } ->
       [ List [ Atom "tag"; index name; List [ Atom "param"; value_type typ ] ] ]
   | Import _ -> []

@@ -64,6 +64,7 @@ val from_exe :
 
 val from_cmo :
      target:[ `JavaScript | `Wasm ]
+  -> ?skip_variable_reset:bool
   -> ?includes:string list
   -> ?include_cmis:bool
   -> ?debug:bool
@@ -90,7 +91,7 @@ val from_string :
   -> string
   -> Code.program * Debug.t
 
-val predefined_exceptions : unit -> Code.program * Unit_info.t
+val predefined_exceptions : target:[ `JavaScript | `Wasm ] -> Code.program * Unit_info.t
 
 val link_info :
      target:[ `JavaScript | `Wasm ]

@@ -1,4 +1,4 @@
-((eval_function) => async (src, js, strings, fragments)=> {
+((eval_function) => async (src, js, generated)=> {
     "use strict";
     function loadRelative(src) {
       const path = require('path');
@@ -354,7 +354,7 @@
          map_delete:(m,x)=>m.delete(x),
          log:(x)=>console.log('ZZZZZ', x)
         }
-    const imports = {Math:math,bindings,env:{},js,strings,fragments}
+    const imports = Object.assign(generated, {Math:math,bindings,js})
     const wasmModule =
           isNode?await WebAssembly.instantiate(await code, imports)
                 :await WebAssembly.instantiateStreaming(code,imports)
@@ -385,5 +385,5 @@
             event.error&&caml_handle_uncaught_exception(event.error))
     }
     await _initialize();
-})(((joo_global_object,jsoo_exports,globalThis)=>(x)=>eval("("+x+")"))(globalThis,globalThis?.module?.exports||globalThis,globalThis))('CODE',
-   PRIMITIVES, STRINGS);
+})(((joo_global_object,jsoo_exports,globalThis)=>(x)=>eval("("+x+")"))(globalThis,globalThis?.module?.exports||globalThis,globalThis))(INSERT_HERE);
+

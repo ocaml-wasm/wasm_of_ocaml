@@ -179,7 +179,7 @@ let run
   let output (one : Parse_bytecode.one) ~standalone ~source_map ~linkall output_file =
     check_debug one;
     let init_pseudo_fs = fs_external && standalone in
-    let sm, _ =
+    let sm =
       match output_file with
       | `Stdout, fmt ->
           let instr =
@@ -191,7 +191,7 @@ let run
           in
           let code = Code.prepend one.code instr in
           Driver.f
-            ~target:(`JavaScript fmt)
+            ~target:(JavaScript fmt)
             ~standalone
             ?profile
             ~linkall
@@ -215,7 +215,7 @@ let run
           let code = Code.prepend one.code instr in
           let res =
             Driver.f
-              ~target:(`JavaScript fmt)
+              ~target:(JavaScript fmt)
               ~standalone
               ?profile
               ~linkall
@@ -251,7 +251,7 @@ let run
    then (
      let prims = Primitive.get_external () |> StringSet.elements in
      assert (List.length prims > 0);
-     let code, uinfo = Parse_bytecode.predefined_exceptions () in
+     let code, uinfo = Parse_bytecode.predefined_exceptions ~target:`JavaScript in
      let uinfo = { uinfo with primitives = uinfo.primitives @ prims } in
      let code : Parse_bytecode.one =
        { code

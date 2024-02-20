@@ -459,6 +459,13 @@ module Output () = struct
               ~f:(fun f -> line (string ".ascii \"+\"") ^^ len_string f)
               (Feature.get features)))
 
+  let export name exported_name =
+    match exported_name with
+    | None -> empty
+    | Some exported_name ->
+        line
+          (string ".export_name " ^^ symbol name 0 ^^ string "," ^^ string exported_name)
+
   let f ch fields =
     List.iter
       ~f:(fun f ->
@@ -488,7 +495,7 @@ module Output () = struct
           | Import { import_module; import_name; name; desc = Global typ } ->
               if typ.mut then Feature.require mutable_globals;
               Some (V name, typ, Some (import_module, import_name))
-          | Global { name; typ; init } ->
+          | Global { name; typ; init; _ } ->
               assert (Poly.equal init (Const (I32 0l)));
               Some (name, typ, None))
         fields
@@ -582,8 +589,11 @@ module Output () = struct
                               string ".int32 " ^^ symbol name offset
                           | DataSpace n -> string ".space " ^^ integer n))
                       contents)
-          | Global { name; _ } ->
-              indent (section_header "data" name ^^ define_symbol name)
+          | Global { name; exported_name; _ } ->
+              indent
+                (section_header "data" name
+                ^^ define_symbol name
+                ^^ export name exported_name)
               ^^ line (symbol name 0 ^^ string ":")
           | Tag { name; _ } ->
               indent (section_header "data" (V name) ^^ define_symbol (V name))
@@ -598,15 +608,7 @@ module Output () = struct
               indent
                 (section_header "text" (V name)
                 ^^ define_symbol (V name)
-                ^^
-                match exported_name with
-                | None -> empty
-                | Some exported_name ->
-                    line
-                      (string ".export_name "
-                      ^^ index name
-                      ^^ string ","
-                      ^^ string exported_name))
+                ^^ export (V name) exported_name)
               ^^ line (index name ^^ string ":")
               ^^ indent
                    (declare_func_type name typ None

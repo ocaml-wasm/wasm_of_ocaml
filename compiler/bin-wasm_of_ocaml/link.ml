@@ -1,0 +1,86 @@
+(* Js_of_ocaml compiler
+ * http://www.ocsigen.org/js_of_ocaml/
+ * Copyright (C) 2020 Hugo Heuzard
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as published by
+ * the Free Software Foundation, with linking exception;
+ * either version 2.1 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ *)
+
+open! Js_of_ocaml_compiler.Stdlib
+open Js_of_ocaml_compiler
+open Cmdliner
+
+type t =
+  { common : Jsoo_cmdline.Arg.t
+  ; js_files : string list
+  ; output_file : string
+  ; linkall : bool
+  }
+
+let options =
+  let output_file =
+    let doc = "Set output file name to [$(docv)]." in
+    Arg.(required & opt (some string) None & info [ "o" ] ~docv:"FILE" ~doc)
+  in
+  let no_sourcemap =
+    let doc = "Currently ignored (for compatibility with Js_of_ocaml)." in
+    Arg.(value & flag & info [ "no-sourcemap"; "no-source-map" ] ~doc)
+  in
+  let sourcemap =
+    let doc = "Currently ignored (for compatibility with Js_of_ocaml)." in
+    Arg.(value & flag & info [ "sourcemap"; "source-map" ] ~doc)
+  in
+  let sourcemap_inline_in_js =
+    let doc = "Currently ignored (for compatibility with Js_of_ocaml)." in
+    Arg.(value & flag & info [ "source-map-inline" ] ~doc)
+  in
+  let js_files =
+    let doc = "Link JavaScript files [$(docv)]." in
+    Arg.(value & pos_all string [] & info [] ~docv:"JS_FILES" ~doc)
+  in
+  let linkall =
+    let doc = "Link all compilation units." in
+    Arg.(value & flag & info [ "linkall" ] ~doc)
+  in
+  let build_t common _ _ _ output_file js_files linkall =
+    `Ok { common; output_file; js_files; linkall }
+  in
+  let t =
+    Term.(
+      const build_t
+      $ Jsoo_cmdline.Arg.t
+      $ no_sourcemap
+      $ sourcemap
+      $ sourcemap_inline_in_js
+      $ output_file
+      $ js_files
+      $ linkall)
+  in
+  Term.ret t
+
+let f { common; output_file; js_files; linkall } =
+  Jsoo_cmdline.Arg.eval common;
+  Wa_link.link ~js_launcher:Wa_runtime.js_runtime ~output_file ~linkall ~files:js_files
+
+let info =
+  Info.make
+    ~name:"link"
+    ~doc:"Js_of_ocaml linker"
+    ~description:
+      "js_of_ocaml-link is a JavaScript linker. It can concatenate multiple JavaScript \
+       files keeping sourcemap information."
+
+let command =
+  let t = Cmdliner.Term.(const f $ options) in
+  Cmdliner.Cmd.v info t

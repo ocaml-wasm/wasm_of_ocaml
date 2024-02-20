@@ -868,6 +868,10 @@
             (struct.get $channel $fd
                (ref.cast (ref $channel) (local.get $ch))))))
 
+   (func (export "caml_ml_set_binary_mode")
+      (param (ref eq) (ref eq)) (result (ref eq))
+      (ref.i31 (i32.const 0)))
+
    (data $bad_descr "Bad file descriptor")
 
    (func (export "caml_channel_descriptor")

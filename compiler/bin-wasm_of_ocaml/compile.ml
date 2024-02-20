@@ -25,178 +25,53 @@ let debug_mem = Debug.find "mem"
 
 let () = Sys.catch_break true
 
-let command cmdline =
-  let cmdline = String.concat ~sep:" " cmdline in
-  let res = Sys.command cmdline in
-  if res = 127 then raise (Sys_error cmdline);
-  assert (res = 0)
-(*ZZZ*)
-
-let gen_file file f =
-  let f_tmp =
-    Filename.temp_file_name
-      ~temp_dir:(Filename.dirname file)
-      (Filename.basename file)
-      ".tmp"
-  in
-  try
-    f f_tmp;
-    (try Sys.remove file with Sys_error _ -> ());
-    Sys.rename f_tmp file
-  with exc ->
-    (try Sys.remove f_tmp with Sys_error _ -> ());
-    raise exc
-
-let write_file name contents =
-  let ch = open_out name in
-  output_string ch contents;
-  close_out ch
-
-let remove_file filename =
-  try if Sys.file_exists filename then Sys.remove filename with Sys_error _msg -> ()
-
-let with_intermediate_file ?(keep = false) name f =
-  match f name with
-  | res ->
-      if not keep then remove_file name;
-      res
-  | exception e ->
-      remove_file name;
-      raise e
+let gen_unit_filename dir u =
+  Filename.concat dir (Printf.sprintf "%s.js" (Ocaml_compiler.Cmo_format.name u))
 
 let output_gen output_file f =
   Code.Var.set_pretty true;
   Code.Var.set_stable (Config.Flag.stable_var ());
   Filename.gen_file output_file f
 
-let common_binaryen_options () =
-  let l =
-    [ "--enable-gc"
-    ; "--enable-multivalue"
-    ; "--enable-exception-handling"
-    ; "--enable-reference-types"
-    ; "--enable-tail-call"
-    ; "--enable-bulk-memory"
-    ; "--enable-nontrapping-float-to-int"
-    ; "--enable-strings"
-    ]
-  in
-  if Config.Flag.pretty () then "-g" :: l else l
-
-let link runtime_files input_file output_file =
-  command
-    ("wasm-merge"
-    :: (common_binaryen_options ()
-       @ List.flatten
-           (List.map
-              ~f:(fun runtime_file -> [ Filename.quote runtime_file; "env" ])
-              runtime_files)
-       @ [ Filename.quote input_file; "exec"; "-o"; Filename.quote output_file ]))
-
-let generate_dependencies primitives =
-  Yojson.Basic.to_string
-    (`List
-      (StringSet.fold
-         (fun nm s ->
-           `Assoc
-             [ "name", `String ("js:" ^ nm)
-             ; "import", `List [ `String "js"; `String nm ]
-             ]
-           :: s)
-         primitives
-         (Yojson.Basic.Util.to_list (Yojson.Basic.from_string Wa_runtime.dependencies))))
-
-let filter_unused_primitives primitives usage_file =
-  let ch = open_in usage_file in
-  let s = ref primitives in
-  (try
-     while true do
-       let l = input_line ch in
-       match String.drop_prefix ~prefix:"unused: js:" l with
-       | Some nm -> s := StringSet.remove nm !s
-       | None -> ()
-     done
-   with End_of_file -> ());
-  !s
-
-let dead_code_elimination in_file out_file =
-  with_intermediate_file (Filename.temp_file "deps" ".json")
-  @@ fun deps_file ->
-  with_intermediate_file (Filename.temp_file "usage" ".txt")
-  @@ fun usage_file ->
-  let primitives = Linker.get_provided () in
-  write_file deps_file (generate_dependencies primitives);
-  command
-    ("wasm-metadce"
-    :: (common_binaryen_options ()
-       @ [ "--graph-file"
-         ; Filename.quote deps_file
-         ; Filename.quote in_file
-         ; "-o"
-         ; Filename.quote out_file
-         ; ">"
-         ; Filename.quote usage_file
-         ]));
-  filter_unused_primitives primitives usage_file
-
-let optimization_options =
-  [| [ "-O1"; "--skip-pass=inlining-optimizing" ]
-   ; [ "-O2"; "--skip-pass=inlining-optimizing" ]
-   ; [ "-O3" ]
-  |]
-
-let optimize ~profile in_file out_file =
-  let level =
-    match profile with
-    | None -> 1
-    | Some p -> fst (List.find ~f:(fun (_, p') -> Poly.equal p p') Driver.profiles)
-  in
-  command
-    ("wasm-opt"
-    :: (common_binaryen_options ()
-       @ optimization_options.(level - 1)
-       @ [ "--traps-never-happen"; Filename.quote in_file; "-o"; Filename.quote out_file ]
-       ))
-
-let link_and_optimize ~profile runtime_wasm_files wat_file output_file =
-  with_intermediate_file (Filename.temp_file "runtime" ".wasm")
+let link_and_optimize ~profile runtime_wasm_files wat_files output_file =
+  let debuginfo = Config.Flag.pretty () in
+  Wa_binaryen.with_intermediate_file (Filename.temp_file "runtime" ".wasm")
   @@ fun runtime_file ->
-  write_file runtime_file Wa_runtime.wasm_runtime;
-  with_intermediate_file (Filename.temp_file "wasm-merged" ".wasm")
+  Wa_binaryen.write_file ~name:runtime_file ~contents:Wa_runtime.wasm_runtime;
+  Wa_binaryen.with_intermediate_file (Filename.temp_file "wasm-merged" ".wasm")
   @@ fun temp_file ->
-  link (runtime_file :: runtime_wasm_files) wat_file temp_file;
-  with_intermediate_file (Filename.temp_file "wasm-dce" ".wasm")
+  Wa_binaryen.link
+    ~debuginfo
+    ~runtime_files:(runtime_file :: runtime_wasm_files)
+    ~input_files:wat_files
+    ~output_file:temp_file;
+  Wa_binaryen.with_intermediate_file (Filename.temp_file "wasm-dce" ".wasm")
   @@ fun temp_file' ->
-  let primitives = dead_code_elimination temp_file temp_file' in
-  optimize ~profile temp_file' output_file;
+  let primitives =
+    Wa_binaryen.dead_code_elimination
+      ~debuginfo
+      ~dependencies:Wa_runtime.dependencies
+      ~input_file:temp_file
+      ~output_file:temp_file'
+  in
+  Wa_binaryen.optimize ~debuginfo ~profile ~input_file:temp_file' ~output_file;
   primitives
 
-let escape_string s =
-  let l = String.length s in
-  let b = Buffer.create (String.length s + 2) in
-  for i = 0 to l - 1 do
-    let c = s.[i] in
-    match c with
-    (* https://github.com/ocsigen/js_of_ocaml/issues/898 *)
-    | '/' when i > 0 && Char.equal s.[i - 1] '<' -> Buffer.add_string b "\\/"
-    | '\000' .. '\031' | '\127' ->
-        Buffer.add_string b "\\x";
-        Buffer.add_char_hex b c
-    | '"' ->
-        Buffer.add_char b '\\';
-        Buffer.add_char b c
-    | c -> Buffer.add_char b c
-  done;
-  Buffer.contents b
+let link_runtime ~profile runtime_wasm_files output_file =
+  let debuginfo = Config.Flag.pretty () in
+  Wa_binaryen.with_intermediate_file (Filename.temp_file "runtime" ".wasm")
+  @@ fun runtime_file ->
+  Wa_binaryen.write_file ~name:runtime_file ~contents:Wa_runtime.wasm_runtime;
+  Wa_binaryen.with_intermediate_file (Filename.temp_file "wasm-merged" ".wasm")
+  @@ fun temp_file ->
+  Wa_binaryen.link
+    ~debuginfo
+    ~runtime_files:(runtime_file :: runtime_wasm_files)
+    ~input_files:[]
+    ~output_file:temp_file;
+  Wa_binaryen.optimize ~debuginfo ~profile ~input_file:temp_file ~output_file
 
-let build_js_runtime primitives (strings, fragments) wasm_file output_file =
-  (*ZZZ
-    let init_fun =
-      match Parse_js.parse (Parse_js.Lexer.of_string Wa_runtime.js_runtime) with
-      | [ (Expression_statement f, _) ] -> f
-      | _ -> assert false
-    in
-  *)
+let link_js_files ~primitives =
   let always_required_js, primitives =
     let l =
       StringSet.fold
@@ -221,72 +96,21 @@ let build_js_runtime primitives (strings, fragments) wasm_file output_file =
   let f = Pretty_print.to_buffer b' in
   Pretty_print.set_compact f (not (Config.Flag.pretty ()));
   ignore (Js_output.program f [ primitives ]);
-  let b'' = Buffer.create 1024 in
-  let f = Pretty_print.to_buffer b'' in
-  Pretty_print.set_compact f (not (Config.Flag.pretty ()));
-  ignore
-    (Js_output.program
-       f
-       [ ( Javascript.Expression_statement
-             (EArr
-                (List.map
-                   ~f:(fun s -> Javascript.Element (EStr (Utf8_string.of_string_exn s)))
-                   strings))
-         , Javascript.N )
-       ]);
-  let fragment_buffer = Buffer.create 1024 in
-  let f = Pretty_print.to_buffer fragment_buffer in
-  Pretty_print.set_compact f (not (Config.Flag.pretty ()));
-  ignore
-    (Js_output.program
-       f
-       [ ( Javascript.Expression_statement
-             (EObj
-                (List.map
-                   ~f:(fun (nm, f) ->
-                     let id = Utf8_string.of_string_exn nm in
-                     Javascript.Property (PNI id, f))
-                   fragments))
-         , Javascript.N )
-       ]);
-  let s = Wa_runtime.js_runtime in
-  let rec find pat i =
-    if String.equal (String.sub s ~pos:i ~len:(String.length pat)) pat
-    then i
-    else find pat (i + 1)
-  in
-  let i = find "CODE" 0 in
-  let j = find "PRIMITIVES" 0 in
-  let k = find "STRINGS" 0 in
-  let rec trim_semi s =
-    let l = String.length s in
-    if l = 0
-    then s
-    else
-      match s.[l - 1] with
-      | ';' | '\n' -> trim_semi (String.sub s ~pos:0 ~len:(l - 1))
-      | _ -> s
-  in
-  gen_file output_file
-  @@ fun tmp_output_file ->
-  write_file
-    tmp_output_file
-    (Buffer.contents b
-    ^ String.sub s ~pos:0 ~len:i
-    ^ escape_string (Filename.basename wasm_file)
-    ^ String.sub s ~pos:(i + 4) ~len:(j - i - 4)
-    ^ trim_semi (Buffer.contents b')
-    ^ String.sub s ~pos:(j + 10) ~len:(k - j - 10)
-    ^ trim_semi (Buffer.contents b'')
-    ^ ","
-    ^ trim_semi (Buffer.contents fragment_buffer)
-    ^ String.sub s ~pos:(k + 7) ~len:(String.length s - k - 7))
+  Buffer.contents b, Buffer.contents b'
 
-let run { Cmd_arg.common; profile; runtime_files; input_file; output_file; params } =
+let run
+    { Cmd_arg.common
+    ; profile
+    ; runtime_files
+    ; input_file
+    ; output_file
+    ; params
+    ; keep_unit_names
+    ; runtime_only
+    } =
   Jsoo_cmdline.Arg.eval common;
   Wa_generate.init ();
-  let output_file = fst output_file in
-  if debug_mem () then Debug.start_profiling output_file;
+  if debug_mem () then Debug.start_profiling (fst output_file);
   List.iter params ~f:(fun (s, v) -> Config.Param.set s v);
   let t = Timer.make () in
   let include_dirs = List.filter_map [ "+stdlib/" ] ~f:(fun d -> Findlib.find [] d) in
@@ -320,63 +144,224 @@ let run { Cmd_arg.common; profile; runtime_files; input_file; output_file; param
   if times () then Format.eprintf "  parsing js: %a@." Timer.print t1;
   if times () then Format.eprintf "Start parsing...@.";
   let need_debug = Config.Flag.debuginfo () in
-  let output (one : Parse_bytecode.one) ~standalone ch =
+  let compile ~context ~unit_name (one : Parse_bytecode.one) =
+    let standalone = Option.is_none unit_name in
     let code = one.code in
-    let _, strings =
-      Driver.f
-        ~target:(`Wasm ch)
-        ~standalone
-        ?profile
-        ~linkall:false
-        ~wrap_with_fun:`Iife
-        one.debug
-        code
+    let toplevel_name, js_code =
+      Driver.f ~target:(Wasm { unit_name; context }) ?profile one.debug code
     in
-    if times () then Format.eprintf "compilation: %a@." Timer.print t;
-    strings
+    if standalone then Wa_generate.add_start_function ~context ~to_link:[] toplevel_name;
+    js_code
   in
-  (let kind, ic, close_ic, include_dirs =
-     let ch = open_in_bin input_file in
-     let res = Parse_bytecode.from_channel ch in
-     let include_dirs = Filename.dirname input_file :: include_dirs in
-     res, ch, (fun () -> close_in ch), include_dirs
-   in
-   (match kind with
-   | `Exe ->
-       let t1 = Timer.make () in
-       (* The OCaml compiler can generate code using the
-          "caml_string_greaterthan" primitive but does not use it
-          itself. This is (was at some point at least) the only primitive
-          in this case.  Ideally, Js_of_ocaml should parse the .mli files
-          for primitives as well as marking this primitive as potentially
-          used. But the -linkall option is probably good enough. *)
-       let code =
-         Parse_bytecode.from_exe
-           ~target:`Wasm
-           ~includes:include_dirs
-           ~include_cmis:false
-           ~link_info:false
-           ~linkall:false
-           ~debug:need_debug
-           ic
+  let output (one : Parse_bytecode.one) ~unit_name ch =
+    let context = Wa_generate.start () in
+    let js_code = compile ~context ~unit_name one in
+    Wa_generate.output ch ~context;
+    if times () then Format.eprintf "compilation: %a@." Timer.print t;
+    js_code
+  in
+  (if runtime_only
+   then (
+     Wa_binaryen.gen_file (fst output_file)
+     @@ fun tmp_wasm_file ->
+     link_runtime ~profile runtime_wasm_files tmp_wasm_file;
+     let primitives =
+       tmp_wasm_file
+       |> (fun file -> Wa_link.Wasm_binary.read_imports ~file)
+       |> List.filter_map ~f:(fun { Wa_link.Wasm_binary.module_; name; _ } ->
+              if String.equal module_ "js" then Some name else None)
+       |> StringSet.of_list
+     in
+     let js_runtime = link_js_files ~primitives in
+     Wa_link.Custom_section.write
+       ~file:tmp_wasm_file
+       ~js_runtime
+       ~unit_data:[]
+       ~build_info:(Build_info.create `Runtime)
+       ())
+   else
+     let kind, ic, close_ic, include_dirs =
+       let input_file =
+         match input_file with
+         | None -> assert false
+         | Some f -> f
        in
-       if times () then Format.eprintf "  parsing: %a@." Timer.print t1;
-       gen_file (Filename.chop_extension output_file ^ ".wat")
-       @@ fun wat_file ->
-       let wasm_file =
-         if Filename.check_suffix output_file ".wasm.js"
-         then Filename.chop_extension output_file
-         else Filename.chop_extension output_file ^ ".wasm"
-       in
-       gen_file wasm_file
-       @@ fun tmp_wasm_file ->
-       let strings = output_gen wat_file (output code ~standalone:true) in
-       let primitives =
-         link_and_optimize ~profile runtime_wasm_files wat_file tmp_wasm_file
-       in
-       build_js_runtime primitives strings wasm_file output_file
-   | `Cmo _ | `Cma _ -> assert false);
-   close_ic ());
+       let ch = open_in_bin input_file in
+       let res = Parse_bytecode.from_channel ch in
+       let include_dirs = Filename.dirname input_file :: include_dirs in
+       res, ch, (fun () -> close_in ch), include_dirs
+     in
+     (match kind with
+     | `Exe ->
+         let t1 = Timer.make () in
+         (* The OCaml compiler can generate code using the
+            "caml_string_greaterthan" primitive but does not use it
+            itself. This is (was at some point at least) the only primitive
+            in this case.  Ideally, Js_of_ocaml should parse the .mli files
+            for primitives as well as marking this primitive as potentially
+            used. But the -linkall option is probably good enough. *)
+         let code =
+           Parse_bytecode.from_exe
+             ~target:`Wasm
+             ~includes:include_dirs
+             ~include_cmis:false
+             ~link_info:false
+             ~linkall:false
+             ~debug:need_debug
+             ic
+         in
+         if times () then Format.eprintf "  parsing: %a@." Timer.print t1;
+         let output_file = fst output_file in
+         Wa_binaryen.gen_file (Filename.chop_extension output_file ^ ".wat")
+         @@ fun wat_file ->
+         let wasm_file = Wa_link.associated_wasm_file ~js_output_file:output_file in
+         Wa_binaryen.gen_file wasm_file
+         @@ fun tmp_wasm_file ->
+         let generated_js = [ None, output_gen wat_file (output code ~unit_name:None) ] in
+         let primitives =
+           link_and_optimize ~profile runtime_wasm_files [ wat_file ] tmp_wasm_file
+         in
+         let prelude, primitives = link_js_files ~primitives in
+         Wa_link.build_js_runtime
+           ~js_launcher:Wa_runtime.js_runtime
+           ~prelude
+           ~primitives
+           ~generated_js
+           ~tmp_wasm_file
+           wasm_file
+           output_file
+     | `Cmo cmo ->
+         let output_file =
+           match output_file, keep_unit_names with
+           | (x, false), true -> gen_unit_filename (Filename.dirname x) cmo
+           | (x, _), false -> x
+           | (x, true), true
+             when String.length x > 0 && Char.equal x.[String.length x - 1] '/' ->
+               gen_unit_filename x cmo
+           | (_, true), true -> failwith "use [-o dirname/] or remove [--keep-unit-names]"
+         in
+         let t1 = Timer.make () in
+         let code =
+           Parse_bytecode.from_cmo
+             ~target:`Wasm
+             ~includes:include_dirs
+             ~debug:need_debug
+             cmo
+             ic
+         in
+         if times () then Format.eprintf "  parsing: %a@." Timer.print t1;
+         Wa_binaryen.gen_file (Filename.chop_extension output_file ^ ".wat")
+         @@ fun wat_file ->
+         let wasm_file = Filename.chop_extension output_file ^ ".wasm" in
+         Wa_binaryen.gen_file wasm_file
+         @@ fun tmp_wasm_file ->
+         let unit_info = Unit_info.of_cmo cmo in
+         let build_info = Build_info.create `Cmo in
+         let unit_name = StringSet.choose unit_info.provides in
+         let js_code = output_gen wat_file (output code ~unit_name:(Some unit_name)) in
+         Wa_binaryen.optimize
+           ~debuginfo:(Config.Flag.pretty ())
+           ~profile
+           ~input_file:wat_file
+           ~output_file:tmp_wasm_file;
+         Wa_link.Custom_section.write
+           ~file:tmp_wasm_file
+           ~unit_data:[ unit_info, js_code ]
+           ~build_info
+           ()
+     | `Cma cma when keep_unit_names ->
+         List.iter cma.lib_units ~f:(fun cmo ->
+             let output_file =
+               match output_file with
+               | x, false -> gen_unit_filename (Filename.dirname x) cmo
+               | x, true
+                 when String.length x > 0 && Char.equal x.[String.length x - 1] '/' ->
+                   gen_unit_filename x cmo
+               | _, true -> failwith "use [-o dirname/] or remove [--keep-unit-names]"
+             in
+             let t1 = Timer.make () in
+             let code =
+               Parse_bytecode.from_cmo
+                 ~target:`Wasm
+                 ~includes:include_dirs
+                 ~debug:need_debug
+                 cmo
+                 ic
+             in
+             if times ()
+             then
+               Format.eprintf
+                 "  parsing: %a (%s)@."
+                 Timer.print
+                 t1
+                 (Ocaml_compiler.Cmo_format.name cmo);
+             Wa_binaryen.gen_file (Filename.chop_extension output_file ^ ".wat")
+             @@ fun wat_file ->
+             let wasm_file = Filename.chop_extension output_file ^ ".wasm" in
+             Wa_binaryen.gen_file wasm_file
+             @@ fun tmp_wasm_file ->
+             let unit_info = Unit_info.of_cmo cmo in
+             let build_info = Build_info.create `Cmo in
+             let unit_name = StringSet.choose unit_info.provides in
+             let js_code =
+               output_gen wat_file (output code ~unit_name:(Some unit_name))
+             in
+             Wa_binaryen.optimize
+               ~debuginfo:(Config.Flag.pretty ())
+               ~profile
+               ~input_file:wat_file
+               ~output_file:tmp_wasm_file;
+             Wa_link.Custom_section.write
+               ~file:tmp_wasm_file
+               ~unit_data:[ unit_info, js_code ]
+               ~build_info
+               ())
+     | `Cma cma ->
+         let f ch =
+           Code.Var.reset ();
+           let context = Wa_generate.start () in
+           let infos =
+             List.fold_left cma.lib_units ~init:[] ~f:(fun infos cmo ->
+                 let t1 = Timer.make () in
+                 let code =
+                   Parse_bytecode.from_cmo
+                     ~target:`Wasm
+                     ~skip_variable_reset:true
+                     ~includes:include_dirs
+                     ~debug:need_debug
+                     cmo
+                     ic
+                 in
+                 if times ()
+                 then
+                   Format.eprintf
+                     "  parsing: %a (%s)@."
+                     Timer.print
+                     t1
+                     (Ocaml_compiler.Cmo_format.name cmo);
+                 let unit_info = Unit_info.of_cmo cmo in
+                 let unit_name = StringSet.choose unit_info.provides in
+                 let js_code = compile ~context ~unit_name:(Some unit_name) code in
+                 (unit_info, js_code) :: infos)
+           in
+           Wa_generate.output ch ~context;
+           List.rev infos
+         in
+         let output_file = fst output_file in
+         Wa_binaryen.gen_file (Filename.chop_extension output_file ^ ".wat")
+         @@ fun wat_file ->
+         let wasm_file = Filename.chop_extension output_file ^ ".wasm" in
+         Wa_binaryen.gen_file wasm_file
+         @@ fun tmp_wasm_file ->
+         let build_info = Build_info.create `Cma in
+         let unit_data = output_gen wat_file f in
+         Wa_binaryen.optimize
+           ~debuginfo:(Config.Flag.pretty ())
+           ~profile
+           ~input_file:wat_file
+           ~output_file:tmp_wasm_file;
+         Wa_link.Custom_section.write ~file:tmp_wasm_file ~unit_data ~build_info ());
+     close_ic ());
   Debug.stop_profiling ()
 
 let info name =

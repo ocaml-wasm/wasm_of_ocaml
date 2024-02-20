@@ -42,8 +42,8 @@ let rec constant_of_const ~target c : Code.constant =
           | `Wasm -> Int31.of_nativeint_warning_on_overflow i )
   | Const_immstring s -> String s
   | Const_float_array sl ->
-      let l = List.map ~f:(fun f -> Code.Float (float_of_string f)) sl in
-      Tuple (Obj.double_array_tag, Array.of_list l, Unknown)
+      let l = List.map ~f:(fun f -> float_of_string f) sl in
+      Float_array (Array.of_list l)
   | ((Const_pointer i) [@if ocaml_version < (4, 12, 0)]) ->
       Int
         (match target with
