@@ -1,11 +1,13 @@
 open! Stdlib
 
+let debug = Debug.find "binaryen"
+
 let command cmdline =
   let cmdline = String.concat ~sep:" " cmdline in
+  if debug () then Format.eprintf "+ %s@." cmdline;
   let res = Sys.command cmdline in
   if res = 127 then raise (Sys_error cmdline);
-  assert (res = 0)
-(*ZZZ better error message *)
+  if res <> 0 then failwith ("the following command terminated unsuccessfully: " ^ cmdline)
 
 let remove_file file = try Sys.remove file with Sys_error _ -> ()
 
