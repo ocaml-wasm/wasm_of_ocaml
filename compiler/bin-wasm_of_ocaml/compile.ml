@@ -43,11 +43,14 @@ let gen_file file f =
     f f_tmp;
     (try Sys.remove file with Sys_error _ -> ());
     Sys.rename f_tmp file
-  with exc -> (*    (try Sys.remove f_tmp with Sys_error _ -> ());*)
-              raise exc
+  with exc ->
+    (try Sys.remove f_tmp with Sys_error _ -> ());
+    raise exc
 
 let write_file name contents =
-  Filename.gen_file name @@ fun ch -> output_string ch contents
+  let ch = open_out name in
+  output_string ch contents;
+  close_out ch
 
 let remove_file filename =
   try if Sys.file_exists filename then Sys.remove filename with Sys_error _msg -> ()
@@ -139,7 +142,7 @@ let dead_code_elimination in_file out_file =
 let optimization_options =
   [| [ "-O1"; "--skip-pass=inlining-optimizing" ]
    ; [ "-O2"; "--skip-pass=inlining-optimizing" ]
-   ; [ "-O3"; "--heap2local"; "--simplify-locals"; "--vacuum" ]
+   ; [ "-O3" ]
   |]
 
 let optimize ~profile in_file out_file =
@@ -264,8 +267,10 @@ let build_js_runtime primitives (strings, fragments) wasm_file output_file =
       | ';' | '\n' -> trim_semi (String.sub s ~pos:0 ~len:(l - 1))
       | _ -> s
   in
+  gen_file output_file
+  @@ fun tmp_output_file ->
   write_file
-    output_file
+    tmp_output_file
     (Buffer.contents b
     ^ String.sub s ~pos:0 ~len:i
     ^ escape_string (Filename.basename wasm_file)
