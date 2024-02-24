@@ -32,7 +32,7 @@ module Custom_section : sig
   val write :
        file:string
     -> build_info:Build_info.t
-    -> ?js_runtime:string * string
+    -> ?js_runtime:string * Javascript.expression
     -> unit_data:(Unit_info.t * (string list * fragments)) list
     -> unit
     -> unit
@@ -43,7 +43,7 @@ val associated_wasm_file : js_output_file:string -> string
 val build_js_runtime :
      js_launcher:string
   -> prelude:string
-  -> primitives:string
+  -> primitives:Javascript.expression
   -> generated_js:
        (string option * (string list * (string * Javascript.expression) list)) list
   -> tmp_wasm_file:string

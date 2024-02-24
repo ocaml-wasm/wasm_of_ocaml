@@ -237,7 +237,12 @@ module Custom_section = struct
       | Some (prelude, primitives) ->
           [ js_prefix
             ^ Yojson.Safe.to_string
-                (`Assoc [ "prelude", `String prelude; "primitives", `String primitives ])
+                (`Assoc
+                  [ "prelude", `String prelude
+                  ; ( "primitives"
+                    , `String (Marshal.to_string (primitives : Javascript.expression) [])
+                    )
+                  ])
             ^ "\n"
           ]
     in
@@ -262,7 +267,7 @@ module Custom_section = struct
                     , (info
                        |> member "fragments"
                        |> to_string
-                       |> fun s -> Marshal.from_string s 0
+                       |> fun s : fragments -> Marshal.from_string s 0
                         : fragments) )
               in
               parse ((uinfo, js_code) :: acc) Unit_info.empty rem)
@@ -286,7 +291,10 @@ module Custom_section = struct
                   ( rem
                   , Some
                       ( data |> member "prelude" |> to_string
-                      , data |> member "primitives" |> to_string ) ))
+                      , data
+                        |> member "primitives"
+                        |> to_string
+                        |> fun s : Javascript.expression -> Marshal.from_string s 0 ) ))
         in
         ( (match Build_info.parse build_info with
           | Some bi -> bi
@@ -315,24 +323,6 @@ let associated_wasm_file ~js_output_file =
   then Filename.chop_extension js_output_file
   else Filename.chop_extension js_output_file ^ ".wasm"
 
-let escape_string s =
-  let l = String.length s in
-  let b = Buffer.create (String.length s + 2) in
-  for i = 0 to l - 1 do
-    let c = s.[i] in
-    match c with
-    (* https://github.com/ocsigen/js_of_ocaml/issues/898 *)
-    | '/' when i > 0 && Char.equal s.[i - 1] '<' -> Buffer.add_string b "\\/"
-    | '\000' .. '\031' | '\127' ->
-        Buffer.add_string b "\\x";
-        Buffer.add_char_hex b c
-    | '"' ->
-        Buffer.add_char b '\\';
-        Buffer.add_char b c
-    | c -> Buffer.add_char b c
-  done;
-  Buffer.contents b
-
 let report_missing_primitives missing =
   if not (List.is_empty missing)
   then (
@@ -350,13 +340,6 @@ let build_js_runtime
     ~tmp_wasm_file
     wasm_file
     output_file =
-  (*ZZZ
-    let init_fun =
-      match Parse_js.parse (Parse_js.Lexer.of_string Wa_runtime.js_runtime) with
-      | [ (Expression_statement f, _) ] -> f
-      | _ -> assert false
-    in
-  *)
   let missing_primitives =
     if Config.Flag.genprim ()
     then
@@ -368,9 +351,6 @@ let build_js_runtime
     else []
   in
   report_missing_primitives missing_primitives;
-  let generated_buffer = Buffer.create 1024 in
-  let f = Pretty_print.to_buffer generated_buffer in
-  Pretty_print.set_compact f (not (Config.Flag.pretty ()));
   let obj l =
     Javascript.EObj
       (List.map
@@ -435,44 +415,33 @@ let build_js_runtime
       :: generated_js
     else generated_js
   in
-  ignore
-    (Js_output.program
-       f
-       [ Javascript.Expression_statement (obj generated_js), Javascript.N ]);
-  let s = js_launcher in
-  let rec find pat i =
-    if String.equal (String.sub s ~pos:i ~len:(String.length pat)) pat
-    then i
-    else find pat (i + 1)
+  let init_fun =
+    match Parse_js.parse (Parse_js.Lexer.of_string js_launcher) with
+    | [ (Expression_statement f, _) ] -> f
+    | _ -> assert false
   in
-  let marker = "INSERT_HERE" in
-  let i = find marker 0 in
-  let rec trim_semi s =
-    let l = String.length s in
-    if l = 0
-    then s
-    else
-      match s.[l - 1] with
-      | ';' | '\n' -> trim_semi (String.sub s ~pos:0 ~len:(l - 1))
-      | _ -> s
+  let launcher =
+    let b = Buffer.create 1024 in
+    let f = Pretty_print.to_buffer b in
+    Pretty_print.set_compact f (not (Config.Flag.pretty ()));
+    ignore
+      (Js_output.program
+         f
+         [ ( Expression_statement
+               (Javascript.call
+                  init_fun
+                  [ EStr (Utf8_string.of_string_exn (Filename.basename wasm_file))
+                  ; primitives
+                  ; obj generated_js
+                  ]
+                  N)
+           , N )
+         ]);
+    Buffer.contents b
   in
   Wa_binaryen.gen_file output_file
   @@ fun tmp_output_file ->
-  Wa_binaryen.write_file
-    ~name:tmp_output_file
-    ~contents:
-      (prelude
-      ^ String.sub s ~pos:0 ~len:i
-      ^ "'"
-      ^ escape_string (Filename.basename wasm_file)
-      ^ "',"
-      ^ trim_semi primitives
-      ^ ","
-      ^ trim_semi (Buffer.contents generated_buffer)
-      ^ String.sub
-          s
-          ~pos:(i + String.length marker)
-          ~len:(String.length s - i - String.length marker))
+  Wa_binaryen.write_file ~name:tmp_output_file ~contents:(prelude ^ launcher)
 
 let link ~js_launcher ~output_file ~linkall ~files =
   let t = Timer.make () in

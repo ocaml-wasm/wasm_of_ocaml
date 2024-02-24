@@ -88,15 +88,16 @@ let link_js_files ~primitives =
     | Some x -> x
     | None -> assert false
   in
+  let primitives =
+    match primitives with
+    | Javascript.Expression_statement e, N -> e
+    | _ -> assert false
+  in
   let b = Buffer.create 1024 in
   let f = Pretty_print.to_buffer b in
   Pretty_print.set_compact f (not (Config.Flag.pretty ()));
   ignore (Js_output.program f always_required_js);
-  let b' = Buffer.create 1024 in
-  let f = Pretty_print.to_buffer b' in
-  Pretty_print.set_compact f (not (Config.Flag.pretty ()));
-  ignore (Js_output.program f [ primitives ]);
-  Buffer.contents b, Buffer.contents b'
+  Buffer.contents b, primitives
 
 let run
     { Cmd_arg.common
