@@ -250,7 +250,7 @@ Dune
 - update runtime code to new syntax
 - benchmarks: effects, js_of_ocaml benchmarks
 - minify JS runtime
-- separate compilation / toplevel
+- toplevel
 - use unboxed primitives for int64/int32/nativeint
 
 - improve dune support
@@ -375,3 +375,72 @@ for i in *; do (echo ZZZ $i; cd $i; git diff); done |& less
 
 Cost of casts for bonsai test
 Bonsai / CPS
+
+===================
+
+- compile =>
+  - get_global/set_global
+    ==> always blocks, to avoid one cast?
+
+===================================
+
+
+models/bindings/DebuggerLanguagePlugins.ts
+==> await this.#plugin.evaluate
+
+models/extensions/ExtensionServer.ts
+==>  await this.loadWasmValue<Chrome.DevTools.WasmValue>(`globals[${global}]`, message.stopId);
+
+export class RemoteObjectImpl extends RemoteObject {
+  ==> doGetProperties
+export class ScopeRemoteObject extends RemoteObjectImpl {
+
+class SourceScopeRemoteObject extends SDK.RemoteObject.RemoteObjectImpl {
+
+Protocol.Runtime.RemoteObject??
+
+If the object is opaque, we query the object id when calling
+Debugger.evaluateOnCallFrame (and return it)
+==> and return the id to SourceScopeRemoteObject
+
+ExtensionRemoteObject
+  ==> call this.plugin.getProperties    plugin:DebuggerLanguagePlugin
+
+https://chromium.googlesource.com/devtools/devtools-frontend/+/HEAD/docs/get_the_code.md
+https://docs.google.com/document/d/1WNF-KqRSzPLUUfZqQG5AFeU_Ll8TfWYcJasa_XGf7ro/view
+https://developer.chrome.com/docs/extensions/get-started/tutorial/debug?hl=fr
+https://chromedevtools.github.io/devtools-protocol/tot/Debugger/#method-evaluateOnCallFrame
+https://chromedevtools.github.io/devtools-protocol/tot/Runtime/#type-RemoteObject
+preview
+    {"result":
+{"type":"object","subtype":"wasmvalue","className":"Object","description":"i32","objectId":"6023553991337610027.11.9",
+ "preview":{"type":"object","subtype":"wasmvalue","description":>"i32"<,"overflow":false,"properties":[{"name":"value","type":"number","value":>"66560"<}]}}}
+json:
+   {"type":"i32", "value": 66560}   (type number)
+
+{type: o.description, value: Number(o.preview.properties.find((o)=>o.name=="value").value)};
+
+{"type": "ref", "value": any /*Runtime.RemoteObject*/}
+
+
+1. DevTools:
+   from loadWasmValue, add a value {type:"other", value: "RemoteObject"}
+2. Extension: serialize values of type other
+3. Extension: CustomFormatters.asRemoteObject:
+   return value of type other, value RemoteObject
+4. In models/bindings/DebuggerLanguagePlugins.ts, build a Remote object from
+   this value
+   ==> see doGetProperties ==> this.createRemoteObject(property.value)
+    RuntimeModel.createRemoteObject
+callFrame.debuggerModel.runtimeModel()
+
+=========================
+
+check test_poly_compare.ml
+
+======
+
+zarith: we can share some code with the javascript bindings using a flag
+
+integer roots:
+https://github.com/waldemarhorwat/integer-roots/tree/main
