@@ -77,7 +77,8 @@
       (local.set $carry (i31.get_s (ref.cast (ref i31) (local.get $carry_in))))
       (local.set $ofs (i31.get_s (ref.cast (ref i31) (local.get $vofs))))
       (local.set $len (i31.get_s (ref.cast (ref i31) (local.get $vlen))))
-      (if (i32.eqz (local.get $carry)) (return (ref.i31 (i32.const 0))))
+      (if (i32.eqz (local.get $carry))
+         (then (return (ref.i31 (i32.const 0)))))
       (loop $loop
          (if (i32.lt_s (local.get $i) (local.get $len))
             (then
@@ -100,10 +101,30 @@
    (func (export "decr_nat")
       (param $nat (ref eq)) (param $vofs (ref eq)) (param $vlen (ref eq))
       (param $carry_in (ref eq)) (result (ref eq))
-      ;; ZZZ
-      (call $log_str
-         (array.new_data $string $decr_nat (i32.const 0) (i32.const 8)))
-      (unreachable))
+      (local $data (ref $data))
+      (local $carry i32) (local $i i32) (local $ofs i32) (local $len i32)
+      (local $x i32)
+      (local.set $data
+         (struct.get $nat $data (ref.cast (ref $nat) (local.get $nat))))
+      (local.set $carry (i31.get_s (ref.cast (ref i31) (local.get $carry_in))))
+      (local.set $ofs (i31.get_s (ref.cast (ref i31) (local.get $vofs))))
+      (local.set $len (i31.get_s (ref.cast (ref i31) (local.get $vlen))))
+      (if (i32.eqz (local.get $carry))
+         (then (return (ref.i31 (i32.const 0)))))
+      (loop $loop
+         (if (i32.lt_s (local.get $i) (local.get $len))
+            (then
+               (local.set $x
+                  (array.get $data (local.get $data) (local.get $ofs)))
+               (array.set $data (local.get $data) (local.get $ofs)
+                  (i32.sub (local.get $x) (i32.const 1)))
+               (if (local.get $x)
+                  (then
+                     (return (ref.i31 (i32.const 0)))))
+               (local.set $ofs (i32.add (local.get $ofs) (i32.const 1)))
+               (local.set $i (i32.add (local.get $i) (i32.const 1)))
+               (br $loop))))
+      (ref.i31 (i32.const 1)))
 
    (func (export "set_digit_nat")
       (param $nat (ref eq)) (param $ofs (ref eq)) (param $digit (ref eq))
