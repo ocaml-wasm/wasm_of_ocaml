@@ -140,9 +140,10 @@ let dead_code_elimination in_file out_file =
   filter_unused_primitives primitives usage_file
 
 let optimization_options =
-  [| [ "-O2"; "--skip-pass=inlining-optimizing" ]
-   ; [ "-O2"; "--skip-pass=inlining-optimizing"; "--traps-never-happen" ]
-   ; [ "-O3"; "--traps-never-happen" ]
+  [| [ "--simplify-locals-notee-nostructure"; "--vacuum"; "--reorder-locals"]
+       (* --opt=1 *)
+   ; [ "-O2"; "--traps-never-happen" ] (* --opt=2 *)
+   ; [ "-O3"; "--traps-never-happen" ] (* --opt=3 *)
   |]
 
 let optimize ~profile in_file out_file =
