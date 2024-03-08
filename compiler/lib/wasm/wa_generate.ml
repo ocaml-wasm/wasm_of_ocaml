@@ -1042,10 +1042,12 @@ module Generate (Target : Wa_target_sig.S) = struct
       | None -> 0
       | Some _ -> List.length params + 1
     in
+    (match name_opt with
+    | None -> ctx.global_context.globalized_variables <- Wa_globalize.f p g ctx.closures
+    | Some _ -> ());
     let locals, body =
       function_body
         ~context:ctx.global_context
-        ~value_type:Value.value
         ~param_count
         ~body:
           (let* () = build_initial_env in
@@ -1082,7 +1084,6 @@ module Generate (Target : Wa_target_sig.S) = struct
     let locals, body =
       function_body
         ~context
-        ~value_type:Value.value
         ~param_count:0
         ~body:
           (List.fold_right
@@ -1102,11 +1103,7 @@ module Generate (Target : Wa_target_sig.S) = struct
   let entry_point context toplevel_fun entry_name =
     let typ, body = entry_point ~toplevel_fun in
     let locals, body =
-      function_body
-        ~context
-        ~value_type:Value.value
-        ~param_count:(List.length typ.W.params)
-        ~body
+      function_body ~context ~param_count:(List.length typ.W.params) ~body
     in
     W.Function
       { name = Var.fresh_n "entry_point"
@@ -1242,7 +1239,12 @@ let fix_switch_branches p =
     p.blocks;
   !p'
 
-let start = make_context
+let start () =
+  make_context
+    ~value_type:
+      (match target with
+      | `Core -> Wa_core_target.Value.value
+      | `GC -> Wa_gc_target.Value.value)
 
 let f ~context ~unit_name p ~live_vars ~in_cps =
   let p = if Config.Flag.effects () then fix_switch_branches p else p in
