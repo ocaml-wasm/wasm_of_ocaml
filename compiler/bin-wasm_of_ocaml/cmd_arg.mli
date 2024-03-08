@@ -27,6 +27,7 @@ type t =
   ; runtime_only : bool
   ; output_file : string * bool
   ; input_file : string option
+  ; enable_source_maps : bool
   ; params : (string * string) list
   }
 

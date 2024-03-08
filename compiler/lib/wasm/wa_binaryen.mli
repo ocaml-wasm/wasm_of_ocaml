@@ -1,11 +1,24 @@
 val link :
-  runtime_files:string list -> input_files:string list -> output_file:string -> unit
+     enable_source_maps:bool
+  -> runtime_files:string list
+  -> input_files:string list
+  -> output_file:string
+  -> unit
 
 val dead_code_elimination :
-  dependencies:string -> input_file:string -> output_file:string -> Stdlib.StringSet.t
+     dependencies:string
+  -> enable_source_maps:bool
+  -> input_file:string
+  -> output_file:string
+  -> Stdlib.StringSet.t
 
 val optimize :
-  profile:Driver.profile option -> input_file:string -> output_file:string -> unit
+     profile:Driver.profile option
+  -> ?sourcemap_file:string
+  -> input_file:string
+  -> output_file:string
+  -> unit
+  -> unit
 
 val gen_file : string -> (string -> 'a) -> 'a
 

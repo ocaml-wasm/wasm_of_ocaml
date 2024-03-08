@@ -56,7 +56,7 @@ let common_options () =
   in
   if Config.Flag.pretty () then "-g" :: l else l
 
-let link ~runtime_files ~input_files ~output_file =
+let link ~enable_source_maps ~runtime_files ~input_files ~output_file =
   command
     ("wasm-merge"
     :: (common_options ()
@@ -68,7 +68,11 @@ let link ~runtime_files ~input_files ~output_file =
            (List.map
               ~f:(fun input_file -> [ Filename.quote input_file; "OCaml" ])
               input_files)
-       @ [ "-o"; Filename.quote output_file ]))
+       @ [ "-o"; Filename.quote output_file ]
+       @
+       if enable_source_maps
+       then [ "--output-source-map"; Filename.quote (output_file ^ ".map") ]
+       else []))
 
 let generate_dependencies ~dependencies primitives =
   Yojson.Basic.to_string
@@ -96,7 +100,7 @@ let filter_unused_primitives primitives usage_file =
    with End_of_file -> ());
   !s
 
-let dead_code_elimination ~dependencies ~input_file ~output_file =
+let dead_code_elimination ~dependencies ~enable_source_maps ~input_file ~output_file =
   with_intermediate_file (Filename.temp_file "deps" ".json")
   @@ fun deps_file ->
   with_intermediate_file (Filename.temp_file "usage" ".txt")
@@ -106,14 +110,15 @@ let dead_code_elimination ~dependencies ~input_file ~output_file =
   command
     ("wasm-metadce"
     :: (common_options ()
-       @ [ "--graph-file"
-         ; Filename.quote deps_file
-         ; Filename.quote input_file
-         ; "-o"
-         ; Filename.quote output_file
-         ; ">"
-         ; Filename.quote usage_file
-         ]));
+       @ [ "--graph-file"; Filename.quote deps_file; Filename.quote input_file ]
+       @ (if enable_source_maps
+          then [ "--input-source-map"; Filename.quote (input_file ^ ".map") ]
+          else [])
+       @ [ "-o"; Filename.quote output_file ]
+       @ (if enable_source_maps
+          then [ "--output-source-map"; Filename.quote (output_file ^ ".map") ]
+          else [])
+       @ [ ">"; Filename.quote usage_file ]));
   filter_unused_primitives primitives usage_file
 
 let optimization_options =
@@ -122,7 +127,7 @@ let optimization_options =
    ; [ "-O3"; "--traps-never-happen" ]
   |]
 
-let optimize ~profile ~input_file ~output_file =
+let optimize ~profile ?sourcemap_file ~input_file ~output_file () =
   let level =
     match profile with
     | None -> 1
@@ -130,6 +135,17 @@ let optimize ~profile ~input_file ~output_file =
   in
   command
     ("wasm-opt"
-    :: (common_options ()
-       @ optimization_options.(level - 1)
-       @ [ Filename.quote input_file; "-o"; Filename.quote output_file ]))
+     :: (common_options ()
+        @ optimization_options.(level - 1)
+        @ [ Filename.quote input_file; "-o"; Filename.quote output_file ])
+    @
+    match sourcemap_file with
+    | Some sourcemap_file ->
+        [ "--input-source-map"
+        ; Filename.quote (input_file ^ ".map")
+        ; "--output-source-map"
+        ; Filename.quote sourcemap_file
+        ; "--output-source-map-url"
+        ; Filename.quote sourcemap_file
+        ]
+    | None -> [])

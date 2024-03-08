@@ -24,13 +24,22 @@ let debug_mem = Debug.find "mem"
 
 let () = Sys.catch_break true
 
-let link_and_optimize ~profile runtime_wasm_files wat_files output_file =
+let link_and_optimize ~profile ?sourcemap_file runtime_wasm_files wat_files output_file =
+  let sourcemap_file =
+    (* Check that Binaryen supports the necessary sourcemaps options (requires
+       version >= 118) *)
+    match sourcemap_file with
+    | Some _ when Sys.command "wasm-merge -osm foo 2> /dev/null" <> 0 -> None
+    | Some _ | None -> sourcemap_file
+  in
+  let enable_source_maps = Option.is_some sourcemap_file in
   Wa_binaryen.with_intermediate_file (Filename.temp_file "runtime" ".wasm")
   @@ fun runtime_file ->
   Wa_binaryen.write_file ~name:runtime_file ~contents:Wa_runtime.wasm_runtime;
   Wa_binaryen.with_intermediate_file (Filename.temp_file "wasm-merged" ".wasm")
   @@ fun temp_file ->
   Wa_binaryen.link
+    ~enable_source_maps
     ~runtime_files:(runtime_file :: runtime_wasm_files)
     ~input_files:wat_files
     ~output_file:temp_file;
@@ -39,10 +48,25 @@ let link_and_optimize ~profile runtime_wasm_files wat_files output_file =
   let primitives =
     Wa_binaryen.dead_code_elimination
       ~dependencies:Wa_runtime.dependencies
+      ~enable_source_maps
       ~input_file:temp_file
       ~output_file:temp_file'
   in
-  Wa_binaryen.optimize ~profile ~input_file:temp_file' ~output_file;
+  Wa_binaryen.optimize ~profile ?sourcemap_file ~input_file:temp_file' ~output_file ();
+  (* Add source file contents to source map *)
+  Option.iter sourcemap_file ~f:(fun sourcemap_file ->
+      let open Source_map in
+      let source_map, mappings = Source_map_io.of_file_no_mappings sourcemap_file in
+      assert (List.is_empty (Option.value source_map.sources_content ~default:[]));
+      let sources_content =
+        Some
+          (List.map source_map.sources ~f:(fun file ->
+               if Sys.file_exists file && not (Sys.is_directory file)
+               then Some (Fs.read_file file)
+               else None))
+      in
+      let source_map = { source_map with sources_content } in
+      Source_map_io.to_file ?mappings source_map ~file:sourcemap_file);
   primitives
 
 let link_runtime ~profile runtime_wasm_files output_file =
@@ -52,21 +76,22 @@ let link_runtime ~profile runtime_wasm_files output_file =
   Wa_binaryen.with_intermediate_file (Filename.temp_file "wasm-merged" ".wasm")
   @@ fun temp_file ->
   Wa_binaryen.link
+    ~enable_source_maps:false
     ~runtime_files:(runtime_file :: runtime_wasm_files)
     ~input_files:[]
     ~output_file:temp_file;
-  Wa_binaryen.optimize ~profile ~input_file:temp_file ~output_file
+  Wa_binaryen.optimize ~profile ~input_file:temp_file ~output_file ()
 
 let generate_prelude ~out_file =
   Filename.gen_file out_file
   @@ fun ch ->
   let code, uinfo = Parse_bytecode.predefined_exceptions ~target:`Wasm in
-  let live_vars, in_cps, p =
+  let live_vars, in_cps, p, debug =
     Driver.f ~target:Wasm (Parse_bytecode.Debug.create ~include_cmis:false false) code
   in
   let context = Wa_generate.start () in
   let _ = Wa_generate.f ~context ~unit_name:(Some "prelude") ~live_vars ~in_cps p in
-  Wa_generate.output ch ~context;
+  Wa_generate.output ch ~context ~debug;
   uinfo.provides
 
 let build_prelude z =
@@ -78,7 +103,8 @@ let build_prelude z =
   Wa_binaryen.optimize
     ~profile:(Driver.profile 1)
     ~input_file:prelude_file
-    ~output_file:tmp_prelude_file;
+    ~output_file:tmp_prelude_file
+    ();
   Zip.add_file z ~name:"prelude.wasm" ~file:tmp_prelude_file;
   predefined_exceptions
 
@@ -134,6 +160,7 @@ let run
     ; output_file
     ; params
     ; runtime_only
+    ; enable_source_maps
     } =
   Jsoo_cmdline.Arg.eval common;
   Wa_generate.init ();
@@ -171,22 +198,18 @@ let run
   if times () then Format.eprintf "  parsing js: %a@." Timer.print t1;
   if times () then Format.eprintf "Start parsing...@.";
   let need_debug = Config.Flag.debuginfo () in
-  let compile ~context ~unit_name (one : Parse_bytecode.one) =
+  let output (one : Parse_bytecode.one) ~unit_name ch =
+    let context = Wa_generate.start () in
     let standalone = Option.is_none unit_name in
     let code = one.code in
-    let live_vars, in_cps, p = Driver.f ~target:Wasm ?profile one.debug code in
+    let live_vars, in_cps, p, debug = Driver.f ~target:Wasm ?profile one.debug code in
     let toplevel_name, generated_js =
       Wa_generate.f ~context ~unit_name ~live_vars ~in_cps p
     in
     if standalone then Wa_generate.add_start_function ~context toplevel_name;
-    generated_js
-  in
-  let output (one : Parse_bytecode.one) ~unit_name ch =
-    let context = Wa_generate.start () in
-    let js_code = compile ~context ~unit_name one in
-    Wa_generate.output ch ~context;
+    Wa_generate.output ch ~context ~debug;
     if times () then Format.eprintf "compilation: %a@." Timer.print t;
-    js_code
+    generated_js
   in
   (if runtime_only
    then (
@@ -248,7 +271,7 @@ let run
        let strings, fragments =
          Filename.gen_file wat_file (output code ~unit_name:(Some unit_name))
        in
-       Wa_binaryen.optimize ~profile ~input_file:wat_file ~output_file:tmp_wasm_file;
+       Wa_binaryen.optimize ~profile ~input_file:wat_file ~output_file:tmp_wasm_file ();
        Zip.add_file z ~name:(unit_name ^ ".wasm") ~file:tmp_wasm_file;
        { Wa_link.unit_info; strings; fragments }
      in
