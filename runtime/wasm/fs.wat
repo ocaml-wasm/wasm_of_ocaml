@@ -145,8 +145,6 @@
       (call $log_str
          (array.new_data $string $caml_read_file_content
             (i32.const 0) (i32.const 22)))
-      ;; ZZZ
-      (call $caml_raise_no_such_file (local.get $name))
       (local.set $ch
          (call $caml_ml_open_descriptor_in
             (call $caml_sys_open (local.get $name)

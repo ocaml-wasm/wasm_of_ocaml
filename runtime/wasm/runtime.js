@@ -305,8 +305,13 @@
          mktime:(year,month,day,h,m,s)=>new Date(year,month,day,h,m,s).getTime(),
          random_seed:()=>crypto.getRandomValues(new Int32Array(12)),
          open:(p,flags,perm)=>
-           fs.openSync(p,open_flags.reduce((f,v,i)=>(flags&(1<<i))?(f|v):f,0),
-                       perm),
+         {if(fs) {
+             return fs.openSync(p,open_flags.
+                                reduce((f,v,i)=>(flags&(1<<i))?(f|v):f,0),
+                                perm)
+          } else
+              throw new Error(p + ': No such file or directory')
+         },
          close:(fd)=>fs.closeSync(fd),
          write:(fd,b,o,l,p)=>fs?fs.writeSync(fd,b,o,l,p==null?p:Number(p)):(console[fd==2?'error':'log'](typeof b=='string'?b:decoder.decode(b.slice(o,o+l))),l),
          read:(fd,b,o,l,p)=>fs.readSync(fd,b,o,l,p),
