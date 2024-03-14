@@ -1076,33 +1076,28 @@ module Generate (Target : Wa_target_sig.S) = struct
       }
     :: acc
 
-  let init_function ~context ~to_link ~toplevel_name =
-    if List.is_empty to_link
-    then toplevel_name
-    else
-      let name = Code.Var.fresh_n "initialize" in
-      let typ = { W.params = []; result = [ Value.value ] } in
-      let locals, body =
-        function_body
-          ~context
-          ~value_type:Value.value
-          ~param_count:0
-          ~body:
-            (let* () = instr (Drop (Call (toplevel_name, []))) in
-             List.fold_right
-               ~f:(fun name cont ->
-                 let* f =
-                   register_import ~import_module:"OCaml" ~name:(name ^ ".init") (Fun typ)
-                 in
-                 let* () = instr (Drop (Call (f, []))) in
-                 cont)
-               ~init:(instr (Push (RefI31 (Const (I32 0l)))))
-               to_link)
-      in
-      context.other_fields <-
-        W.Function { name; exported_name = None; typ; locals; body }
-        :: context.other_fields;
-      name
+  let init_function ~context ~to_link =
+    let name = Code.Var.fresh_n "initialize" in
+    let typ = { W.params = []; result = [ Value.value ] } in
+    let locals, body =
+      function_body
+        ~context
+        ~value_type:Value.value
+        ~param_count:0
+        ~body:
+          (List.fold_right
+             ~f:(fun name cont ->
+               let* f =
+                 register_import ~import_module:"OCaml" ~name:(name ^ ".init") (Fun typ)
+               in
+               let* () = instr (Drop (Call (f, []))) in
+               cont)
+             ~init:(instr (Push (RefI31 (Const (I32 0l)))))
+             to_link)
+    in
+    context.other_fields <-
+      W.Function { name; exported_name = None; typ; locals; body } :: context.other_fields;
+    name
 
   let entry_point context toplevel_fun entry_name =
     let typ, body = entry_point ~toplevel_fun in
@@ -1123,9 +1118,12 @@ module Generate (Target : Wa_target_sig.S) = struct
 
   module Curry = Wa_curry.Make (Target)
 
-  let add_start_function ~context ~to_link toplevel_name =
-    let f = init_function ~context ~to_link ~toplevel_name in
-    context.other_fields <- entry_point context f "_initialize" :: context.other_fields
+  let add_start_function ~context toplevel_name =
+    context.other_fields <-
+      entry_point context toplevel_name "_initialize" :: context.other_fields
+
+  let add_init_function ~context ~to_link =
+    add_start_function ~context (init_function ~context ~to_link)
 
   let f
       ~context:global_context
@@ -1264,6 +1262,15 @@ let add_start_function =
   | `GC ->
       let module G = Generate (Wa_gc_target) in
       G.add_start_function
+
+let add_init_function =
+  match target with
+  | `Core ->
+      let module G = Generate (Wa_core_target) in
+      G.add_init_function
+  | `GC ->
+      let module G = Generate (Wa_gc_target) in
+      G.add_init_function
 
 let output ch ~context =
   match target with

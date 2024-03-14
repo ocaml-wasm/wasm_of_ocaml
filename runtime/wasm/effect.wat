@@ -375,7 +375,7 @@
       (local.get $stack))
 
    (func (export "caml_get_continuation_callstack")
-      (param (ref eq)) (result (ref eq))
+      (param (ref eq) (ref eq)) (result (ref eq))
       (array.new_fixed $block 1 (ref.i31 (i32.const 0))))
 
    (func (export "caml_is_continuation") (param (ref eq)) (result i32)

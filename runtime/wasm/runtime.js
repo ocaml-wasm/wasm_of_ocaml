@@ -1,5 +1,72 @@
-((eval_function) => async (src, js, generated)=> {
+((eval_function) => async (link, src, js, generated)=> {
     "use strict";
+
+    async function extract (f, acc, s) {
+      let reader = s.getReader()
+      let chunk, ofs
+      async function doRead(count,write,abort) {
+        let pos = 0
+        while (pos < count) {
+          if (chunk) {
+            let n = Math.min(chunk.length - ofs, count - pos)
+            await write(chunk.subarray(ofs, ofs + n), pos)
+            pos += n
+            ofs += n
+            if (ofs == chunk.length) { chunk = null }
+          } else {
+            let { value, done } = await reader.read()
+            if (done) {
+              await abort();
+              throw new Error ('truncated')
+            }
+            chunk = value
+            ofs = 0
+          }
+        }
+      }
+      function read(buf, count) {
+        return doRead(count,
+                       (chunk, pos)=>buf.set(chunk, pos),
+                       ()=>{})
+      }
+      async function send(count) {
+        let transform = new TransformStream()
+        acc = f(transform.readable, acc)
+        let w = transform.writable.getWriter()
+        await doRead(count,
+                      async(chunk) =>{
+                          await w.ready
+                          await w.write(chunk)
+                      },
+                      ()=>w.abort())
+        await w.ready
+        await w.close()
+      }
+
+      let buf = new Uint8Array(26)
+      function get_short (i) {
+        return buf[i] + (buf[i + 1] << 8)
+      }
+      for(;;) {
+        await read(buf, 26)
+        if (get_short(0) != 0o70707) throw new Error('bad format')
+        let l1 = get_short(20)
+        let l2 = (get_short(22) << 16) + get_short(24)
+        if (!l2) {
+          await reader.cancel()
+          break
+        }
+        let name_len = ((l1 + 1) & -2)
+        let name = new Uint8Array(name_len)
+        await read(name, name_len)
+//        console.log (l1, l2,
+//                     new TextDecoder().decode(name.subarray(0, l1 - 1)))
+        await send(l2)
+        if (l2 & 1) await read(buf, 1)
+      }
+      return acc;
+    }
+
     function loadRelative(src) {
       const path = require('path');
       const f = path.join(path.dirname(require.main.filename),src);
@@ -354,10 +421,45 @@
          map_delete:(m,x)=>m.delete(x),
          log:(x)=>console.log('ZZZZZ', x)
         }
-    const imports = Object.assign(generated, {Math:math,bindings,js})
+var count = 0
+    async function instantiate (stream, imports) {
+      let response =
+          new Response(stream,{headers:{"content-type": "application/wasm"}})
+      imports = await imports;
+//console.log('OOOOOOOO', imports);
+      const wasmModule =
+            await WebAssembly.instantiateStreaming(response, imports)
+//console.log('ZZZ', wasmModule.instance.exports);
+if (count)
+      Object.assign(imports.OCaml, wasmModule.instance.exports);
+else
+      Object.assign(imports.env, wasmModule.instance.exports);
+count++
+      return imports
+    }
+    async function instantiateFromArchive(code, imports) {
+      var stream;
+      if (isNode) {
+          code = await code;
+          stream = new ReadableStream({
+              start(controller) {
+                  controller.enqueue(code);
+                  controller.close();
+              }
+          })
+      } else {
+          stream = (await response).body
+      }
+      imports.OCaml = {};
+      imports = await extract(instantiate, imports, stream)
+      return {instance:
+              {exports: Object.assign(imports.env, imports.OCaml)}}
+    }
+    const imports = Object.assign({Math:math,bindings,js,env:{}}, generated)
     const wasmModule =
-          isNode?await WebAssembly.instantiate(await code, imports)
-                :await WebAssembly.instantiateStreaming(code,imports)
+          link?await instantiateFromArchive(code, imports):
+               isNode?await WebAssembly.instantiate(await code, imports)
+                     :await WebAssembly.instantiateStreaming(code,imports)
 
     var {caml_callback, caml_alloc_tm, caml_start_fiber,
          caml_handle_uncaught_exception, caml_buffer,
@@ -386,4 +488,3 @@
     }
     await _initialize();
 })(((joo_global_object,jsoo_exports,globalThis)=>(x)=>eval("("+x+")"))(globalThis,globalThis?.module?.exports||globalThis,globalThis))
-

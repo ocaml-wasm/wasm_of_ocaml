@@ -151,7 +151,7 @@ let run
     let toplevel_name, js_code =
       Driver.f ~target:(Wasm { unit_name; context }) ?profile one.debug code
     in
-    if standalone then Wa_generate.add_start_function ~context ~to_link:[] toplevel_name;
+    if standalone then Wa_generate.add_start_function ~context toplevel_name;
     js_code
   in
   let output (one : Parse_bytecode.one) ~unit_name ch =

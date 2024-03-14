@@ -20,13 +20,70 @@ open! Stdlib
 
 let times = Debug.find "times"
 
+module Cpio : sig
+  val add_file : out_channel -> name:string -> in_channel -> unit
+
+  val finish : out_channel -> unit
+end = struct
+  let magic = 0x71c7
+
+  let output_short ch c =
+    output_byte ch c;
+    output_byte ch (c lsr 8)
+
+  let output_header ch ?(final = false) name len =
+    output_short ch magic;
+    (* dev *)
+    output_short ch 0;
+    (* ino *)
+    output_short ch 0;
+    (* mode / regular file *)
+    output_short ch (if final then 0 else 0o100664);
+    (* uid *)
+    output_short ch 0;
+    (* gid *)
+    output_short ch 0;
+    (* nlink *)
+    output_short ch 1;
+    (* rdev *)
+    output_short ch 0;
+    (* mtime *)
+    let t = 1704063600 in
+    output_short ch (t lsr 16);
+    output_short ch t;
+    let name_len = String.length name in
+    output_short ch (name_len + 1);
+    output_short ch (len lsr 16);
+    output_short ch len;
+    output_string ch name;
+    output_byte ch 0;
+    if name_len land 1 = 0 then output_byte ch 0
+
+  let output_trailer ch len = if len land 1 = 1 then output_byte ch 0
+
+  let add_file ch ~name in_ch =
+    let len = in_channel_length in_ch in
+    output_header ch name len;
+    let b = Bytes.create 65536 in
+    let rec copy rem =
+      let n = input in_ch b 0 (min 65536 rem) in
+      if n = 0 then raise End_of_file;
+      output ch b 0 n;
+      if rem > n then copy (rem - n)
+    in
+    copy len;
+    output_trailer ch len
+
+  let finish ch = output_header ch ~final:true "TRAILER!!!" 0
+end
+
 module Wasm_binary = struct
   let header = "\000asm\001\000\000\000"
 
   let check_header file ch =
     let s = really_input_string ch 8 in
     if not (String.equal s header)
-    then failwith (file ^ "is not a Wasm binary file (bad magic)")
+    then failwith (file ^ " is not a Wasm binary file (bad magic)")
 
   let open_in f =
     let ch = open_in f in
@@ -53,9 +110,11 @@ module Wasm_binary = struct
     }
 
   let next_section ch =
-    let id = input_byte ch in
-    let size = read_uint ch in
-    { id; size }
+    match input_byte ch with
+    | id ->
+        let size = read_uint ch in
+        Some { id; size }
+    | exception End_of_file -> None
 
   let skip_section ch { size; _ } = seek_in ch (pos_in ch + size)
 
@@ -126,20 +185,51 @@ module Wasm_binary = struct
     in
     { module_; name }
 
+  let export ch =
+    let name = name ch in
+    let d = read_uint ch in
+    if d > 4
+    then (
+      Format.eprintf "Unknown export %x@." d;
+      assert false);
+    ignore (read_uint ch);
+    name
+
   let read_imports ~file =
     let ch = open_in file in
     let rec find_section () =
-      let s = next_section ch in
-      if s.id <> 2
-      then (
-        skip_section ch s;
-        find_section ())
+      match next_section ch with
+      | None -> false
+      | Some s ->
+          s.id = 2
+          ||
+          (skip_section ch s;
+           find_section ())
     in
-    let res =
-      match find_section () with
-      | exception End_of_file -> []
-      | _ -> vec import ch
+    let res = if find_section () then vec import ch else [] in
+    close_in ch;
+    res
+
+  type interface =
+    { imports : import list
+    ; exports : string list
+    }
+
+  let read_interface ~file =
+    let ch = open_in file in
+    let rec find_sections i =
+      match next_section ch with
+      | None -> i
+      | Some s ->
+          if s.id = 2
+          then find_sections { i with imports = vec import ch }
+          else if s.id = 7
+          then { i with exports = vec export ch }
+          else (
+            skip_section ch s;
+            find_sections i)
     in
+    let res = find_sections { imports = []; exports = [] } in
     close_in ch;
     res
 end
@@ -303,20 +393,26 @@ module Custom_section = struct
         , parse [] Unit_info.empty l )
 end
 
-let generate_start_function ~to_link ~out_file =
+let generate_prelude ~out_file =
   Filename.gen_file out_file
   @@ fun ch ->
   let code, uinfo = Parse_bytecode.predefined_exceptions ~target:`Wasm in
   let context = Wa_generate.start () in
-  let toplevel_name, _ =
+  let _ =
     Driver.f
-      ~target:(Wasm { unit_name = None; context })
+      ~target:(Wasm { unit_name = Some "globals"; context })
       (Parse_bytecode.Debug.create ~include_cmis:false false)
       code
   in
-  Wa_generate.add_start_function ~context ~to_link toplevel_name;
   Wa_generate.output ch ~context;
   uinfo.provides
+
+let generate_start_function ~to_link ~out_file =
+  Filename.gen_file out_file
+  @@ fun ch ->
+  let context = Wa_generate.start () in
+  Wa_generate.add_init_function ~context ~to_link:("globals" :: to_link);
+  Wa_generate.output ch ~context
 
 let associated_wasm_file ~js_output_file =
   if Filename.check_suffix js_output_file ".wasm.js"
@@ -338,18 +434,21 @@ let build_js_runtime
     ~primitives
     ~generated_js
     ~tmp_wasm_file
+    ?(separate_compilation = false)
+    ?missing_primitives
     wasm_file
     output_file =
   let missing_primitives =
-    if Config.Flag.genprim ()
-    then
-      let l = Wasm_binary.read_imports ~file:tmp_wasm_file in
-      List.filter_map
-        ~f:(fun { Wasm_binary.module_; name; _ } ->
-          if String.equal module_ "env" then Some name else None)
-        l
-    else []
+    match missing_primitives with
+    | Some l -> l
+    | None ->
+        let l = Wasm_binary.read_imports ~file:tmp_wasm_file in
+        List.filter_map
+          ~f:(fun { Wasm_binary.module_; name; _ } ->
+            if String.equal module_ "env" then Some name else None)
+          l
   in
+  let missing_primitives = if Config.Flag.genprim () then missing_primitives else [] in
   report_missing_primitives missing_primitives;
   let obj l =
     Javascript.EObj
@@ -430,7 +529,9 @@ let build_js_runtime
          [ ( Expression_statement
                (Javascript.call
                   init_fun
-                  [ EStr (Utf8_string.of_string_exn (Filename.basename wasm_file))
+                  [ ENum
+                      (Javascript.Num.of_int32 (if separate_compilation then 1l else 0l))
+                  ; EStr (Utf8_string.of_string_exn (Filename.basename wasm_file))
                   ; primitives
                   ; obj generated_js
                   ]
@@ -443,22 +544,91 @@ let build_js_runtime
   @@ fun tmp_output_file ->
   Wa_binaryen.write_file ~name:tmp_output_file ~contents:(prelude ^ launcher)
 
+let link_with_wasm_merge ~prelude_file ~files ~start_file ~tmp_wasm_file =
+  let runtime, other_files =
+    List.partition
+      ~f:(fun (_, ((bi, _, _), _)) ->
+        match Build_info.kind bi with
+        | `Runtime -> true
+        | `Cmo | `Cma | `Exe | `Unknown -> false)
+      files
+  in
+  Wa_binaryen.with_intermediate_file (Filename.temp_file "dummy" ".wasm")
+  @@ fun dummy_file ->
+  Wa_binaryen.write_file ~name:dummy_file ~contents:"(module)";
+  (* We put first a module with no custom section; otherwise, the
+     custom section from the first file is copied to the output *)
+  Wa_binaryen.link
+    ~debuginfo:true
+    ~runtime_files:(dummy_file :: List.map ~f:fst runtime)
+    ~input_files:((prelude_file :: List.map ~f:fst other_files) @ [ start_file ])
+    ~output_file:tmp_wasm_file
+
+let link_to_archive ~prelude_file ~files ~start_file ~tmp_wasm_file =
+  let files = List.map ~f:(fun (f, _) -> Filename.basename f, f) files in
+  Wa_binaryen.with_intermediate_file (Filename.temp_file "prelude_file" ".wasm")
+  @@ fun tmp_prelude_file ->
+  Wa_binaryen.optimize
+    ~debuginfo:false
+    ~profile:(Driver.profile 1)
+    ~input_file:prelude_file
+    ~output_file:tmp_prelude_file;
+  Wa_binaryen.with_intermediate_file (Filename.temp_file "start_file" ".wasm")
+  @@ fun tmp_start_file ->
+  Wa_binaryen.optimize
+    ~debuginfo:false
+    ~profile:(Driver.profile 1)
+    ~input_file:start_file
+    ~output_file:tmp_start_file;
+  let ch = open_out tmp_wasm_file in
+  List.iter
+    ~f:(fun (name, file) ->
+      let ich = open_in file in
+      Cpio.add_file ch ~name ich;
+      close_in ich)
+    ((List.hd files :: ("prelude.wasm", tmp_prelude_file) :: List.tl files)
+    @ [ "start.wasm", tmp_start_file ]);
+  Cpio.finish ch;
+  close_out ch
+
+let compute_missing_primitives files =
+  let provided_primitives =
+    match files with
+    | (_, (_, { Wasm_binary.exports; _ })) :: _ -> StringSet.of_list exports
+    | _ -> assert false
+  in
+  StringSet.elements
+  @@ List.fold_left
+       ~f:(fun s (_, (_, { Wasm_binary.imports })) ->
+         List.fold_left
+           ~f:(fun s { Wasm_binary.module_; name; _ } ->
+             if String.equal module_ "env" && not (StringSet.mem name provided_primitives)
+             then StringSet.add name s
+             else s)
+           ~init:s
+           imports)
+       ~init:StringSet.empty
+       files
+
 let link ~js_launcher ~output_file ~linkall ~files =
   let t = Timer.make () in
-  let files = List.map files ~f:(fun file -> file, Custom_section.read ~file) in
+  let files =
+    List.map files ~f:(fun file ->
+        file, (Custom_section.read ~file, Wasm_binary.read_interface ~file))
+  in
   (match files with
   | [] -> ()
-  | (file, (bi, _, _)) :: r ->
+  | (file, ((bi, _, _), _)) :: r ->
       ignore
         (List.fold_left
            ~init:bi
-           ~f:(fun bi (file', (bi', _, _)) -> Build_info.merge file bi file' bi')
+           ~f:(fun bi (file', ((bi', _, _), _)) -> Build_info.merge file bi file' bi')
            r));
   let missing, to_link =
     List.fold_right
       files
       ~init:(StringSet.empty, [])
-      ~f:(fun (_file, (build_info, _, units)) acc ->
+      ~f:(fun (_file, ((build_info, _, units), _)) acc ->
         let cmo_file =
           match Build_info.kind build_info with
           | `Cmo -> true
@@ -478,9 +648,12 @@ let link ~js_launcher ~output_file ~linkall ~files =
               , StringSet.elements info.provides @ to_link )
             else requires, to_link))
   in
+  Wa_binaryen.with_intermediate_file (Filename.temp_file "prelude" ".wasm")
+  @@ fun prelude_file ->
+  let predefined_exceptions = generate_prelude ~out_file:prelude_file in
   Wa_binaryen.with_intermediate_file (Filename.temp_file "start" ".wasm")
   @@ fun start_file ->
-  let predefined_exceptions = generate_start_function ~to_link ~out_file:start_file in
+  generate_start_function ~to_link ~out_file:start_file;
   let missing = StringSet.diff missing predefined_exceptions in
   if not (StringSet.is_empty missing)
   then
@@ -493,6 +666,10 @@ let link ~js_launcher ~output_file ~linkall ~files =
   let wasm_file = associated_wasm_file ~js_output_file:output_file in
   Wa_binaryen.gen_file wasm_file
   @@ fun tmp_wasm_file ->
+  if false
+  then link_with_wasm_merge ~prelude_file ~files ~start_file ~tmp_wasm_file
+  else link_to_archive ~prelude_file ~files ~start_file ~tmp_wasm_file;
+  (*
   let runtime, other_files =
     List.partition
       ~f:(fun (_, (bi, _, _)) ->
@@ -511,23 +688,27 @@ let link ~js_launcher ~output_file ~linkall ~files =
     ~runtime_files:(dummy_file :: List.map ~f:fst runtime)
     ~input_files:(List.map ~f:fst other_files @ [ start_file ])
     ~output_file:tmp_wasm_file;
+  *)
   let prelude, primitives =
-    match List.find_map ~f:(fun (_, (_, js, _)) -> js) files with
+    match List.find_map ~f:(fun (_, ((_, js, _), _)) -> js) files with
     | None -> failwith "not runtime found"
     | Some js -> js
   in
   let generated_js =
     List.concat
-    @@ List.map files ~f:(fun (_, (_, _, units)) ->
+    @@ List.map files ~f:(fun (_, ((_, _, units), _)) ->
            List.map units ~f:(fun ((info : Unit_info.t), js_code) ->
                Some (StringSet.choose info.provides), js_code))
   in
+  let missing_primitives = compute_missing_primitives files in
   build_js_runtime
     ~js_launcher
     ~prelude
     ~primitives
     ~generated_js
     ~tmp_wasm_file
+    ~separate_compilation:true
+    ~missing_primitives
     wasm_file
     output_file;
   if times () then Format.eprintf "  emit: %a@." Timer.print t

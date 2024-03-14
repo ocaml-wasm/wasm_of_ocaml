@@ -455,7 +455,7 @@ unwrap (wrap x) ==> x  only if x is not 'struct.new $js y'
 
 =========
 
-sourcemap ==> need option -I to find files
+sourcemap ==> need option -I to find files?
 
 ===
 
@@ -469,10 +469,8 @@ TO ASK
 
 TODO:
 - separate compilation
-  ==> produce cpio archive 'foo.wasm.a'
-  ==> read cpio archive
-  ==> remove hack used to find ocaml sections
+  ==> check we have a single runtime file at the beginning
+  ==> use better name(?)
 - switch to binaryen 117
-- js-strings builtins
 
-62c3f594fb4829479789d4e1d4b1bf5b08306fc6
+zarith improvement

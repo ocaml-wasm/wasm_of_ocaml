@@ -47,6 +47,8 @@ val build_js_runtime :
   -> generated_js:
        (string option * (string list * (string * Javascript.expression) list)) list
   -> tmp_wasm_file:string
+  -> ?separate_compilation:bool
+  -> ?missing_primitives:string list
   -> string
   -> string
   -> unit
