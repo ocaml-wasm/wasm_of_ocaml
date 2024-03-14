@@ -195,4 +195,4 @@ jobs:
       - name: Run Bonsai tests
         if: ${{ matrix.ocaml-compiler < '5.' }}
         working-directory: ./jane-street/lib/bonsai
-        run: opam exec -- dune runtest && cat ../../_build/log
+        run: opam exec -- dune runtest
