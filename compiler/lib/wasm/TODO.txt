@@ -444,3 +444,35 @@ zarith: we can share some code with the javascript bindings using a flag
 
 integer roots:
 https://github.com/waldemarhorwat/integer-roots/tree/main
+
+=============
+
+unwrap (struct.new $js x) ==> x
+unwrap (wrap x) ==> x  only if x is not 'struct.new $js y'
+
+====> use struct.new $js x when we know x should be wrapped
+      (is a string, for instance)
+
+=========
+
+sourcemap ==> need option -I to find files
+
+===
+
+TO ASK
+------
+- which test was disabled?
+      match Sys.backend with Other "js_of_ocaml" -> ...
+- which option beside -I would be needed?
+
+=============
+
+TODO:
+- separate compilation
+  ==> produce cpio archive 'foo.wasm.a'
+  ==> read cpio archive
+  ==> remove hack used to find ocaml sections
+- switch to binaryen 117
+- js-strings builtins
+
+62c3f594fb4829479789d4e1d4b1bf5b08306fc6
