@@ -450,7 +450,6 @@
          (array.new_fixed $block 2 (ref.i31 (i32.const 0)) (local.get $x))
          (ref.as_non_null (global.get $caml_trampoline_ref))))
 
-
    (func (export "caml_callback_2")
       (param $f (ref eq)) (param $x (ref eq)) (param $y (ref eq))
       (result (ref eq))

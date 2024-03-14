@@ -96,8 +96,7 @@
          (field $exn (ref eq))
          (field $effect (ref eq))))
 
-   (type $generic_fiber
-      (sub (struct (field $handlers (mut (ref $handlers))))))
+   (type $generic_fiber (sub (struct (field $handlers (mut (ref $handlers))))))
 
    (type $fiber
       (sub final $generic_fiber
