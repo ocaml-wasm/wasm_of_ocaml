@@ -196,9 +196,6 @@
              start += read;
            }
          },
-         compare_strings:(s1,s2)=>(s1<s2)?-1:+(s1>s2),
-         hash_string,
-         is_string:(v)=>+(typeof v==="string"),
          ta_create:(k,sz)=> new(typed_arrays[k])(sz),
          ta_normalize:(a)=>
            a instanceof Uint32Array?
@@ -421,6 +418,20 @@
          map_delete:(m,x)=>m.delete(x),
          log:(x)=>console.log('ZZZZZ', x)
         }
+    let string_ops =
+        {test:(v)=>+(typeof v==="string"),
+         compare:(s1,s2)=>(s1<s2)?-1:+(s1>s2),
+         hash:hash_string,
+         decodeStringFromUTF8Array:()=>"",
+         encodeStringToUTF8Array:()=>0}
+    const imports =
+        Object.assign({Math:math, bindings, js,
+                       "wasm:js-string":string_ops,
+                       "wasm:text-decoder":string_ops,
+                       "wasm:text-encoder":string_ops,
+                       env:{}},
+                      generated)
+    const options = { builtins: ['js-string', 'text-decoder', 'text-encoder'] }
 var count = 0
     async function instantiate (stream, imports) {
       let response =
@@ -428,7 +439,7 @@ var count = 0
       imports = await imports;
 //console.log('OOOOOOOO', imports);
       const wasmModule =
-            await WebAssembly.instantiateStreaming(response, imports)
+            await WebAssembly.instantiateStreaming(response, imports, options)
 //console.log('ZZZ', wasmModule.instance.exports);
 if (count)
       Object.assign(imports.OCaml, wasmModule.instance.exports);
@@ -455,11 +466,10 @@ count++
       return {instance:
               {exports: Object.assign(imports.env, imports.OCaml)}}
     }
-    const imports = Object.assign({Math:math,bindings,js,env:{}}, generated)
     const wasmModule =
-          link?await instantiateFromArchive(code, imports):
-               isNode?await WebAssembly.instantiate(await code, imports)
-                     :await WebAssembly.instantiateStreaming(code,imports)
+          link?await instantiateFromArchive(code, imports, options):
+               isNode?await WebAssembly.instantiate(await code, imports, options)
+                     :await WebAssembly.instantiateStreaming(code,imports, options)
 
     var {caml_callback, caml_alloc_tm, caml_start_fiber,
          caml_handle_uncaught_exception, caml_buffer,
