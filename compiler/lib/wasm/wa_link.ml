@@ -494,24 +494,46 @@ let build_js_runtime
         N
   in
   let launcher =
+    Code.Var.reset ();
     let b = Buffer.create 1024 in
     let f = Pretty_print.to_buffer b in
     Pretty_print.set_compact f (not (Config.Flag.pretty ()));
-    ignore
-      (Js_output.program
-         f
-         [ ( Expression_statement
-               (Javascript.call
-                  init_fun
-                  [ ENum
-                      (Javascript.Num.of_int32 (if separate_compilation then 1l else 0l))
-                  ; EStr (Utf8_string.of_string_exn (Filename.basename wasm_file))
-                  ; primitives
-                  ; generated_js
-                  ]
-                  N)
-           , N )
-         ]);
+    let js =
+      [ ( Javascript.Expression_statement
+            (Javascript.call
+               init_fun
+               [ ENum (Javascript.Num.of_int32 (if separate_compilation then 1l else 0l))
+               ; EStr (Utf8_string.of_string_exn (Filename.basename wasm_file))
+               ; primitives
+               ; generated_js
+               ]
+               N)
+        , Javascript.N )
+      ]
+    in
+    List.iter ~f:Var_printer.add_reserved [ "joo_global_object"; "jsoo_exports" ];
+    let traverse = new Js_traverse.free in
+    let js = traverse#program js in
+    let free = traverse#get_free in
+    Javascript.IdentSet.iter
+      (fun x ->
+        match x with
+        | V _ -> assert false
+        | S { name = Utf8 x; _ } -> Var_printer.add_reserved x)
+      free;
+    let js =
+      if Config.Flag.shortvar ()
+      then (
+        let t5 = Timer.make () in
+        let js = (new Js_traverse.rename_variable)#program js in
+        if times () then Format.eprintf "    shorten vars: %a@." Timer.print t5;
+        js)
+      else js
+    in
+    let js = (new Js_traverse.simpl)#program js in
+    let js = (new Js_traverse.clean)#program js in
+    let js = Js_assign.program js in
+    ignore (Js_output.program f js);
     Buffer.contents b
   in
   Wa_binaryen.gen_file output_file
