@@ -599,7 +599,7 @@ let compute_missing_primitives files =
   in
   StringSet.elements
   @@ List.fold_left
-       ~f:(fun s (_, (_, { Wasm_binary.imports })) ->
+       ~f:(fun s (_, (_, { Wasm_binary.imports; _ })) ->
          List.fold_left
            ~f:(fun s { Wasm_binary.module_; name; _ } ->
              if String.equal module_ "env" && not (StringSet.mem name provided_primitives)
