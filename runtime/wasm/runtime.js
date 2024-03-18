@@ -448,7 +448,7 @@ count++
               }
           })
       } else {
-          stream = (await response).body
+          stream = (await code).body
       }
       imports.OCaml = {};
       imports = await extract(instantiate, imports, stream)

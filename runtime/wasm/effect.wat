@@ -711,6 +711,6 @@
             (local.get $ms)))
       (call $raise_unhandled (local.get $eff) (ref.i31 (i32.const 0))))
 
-   (func (export "caml_cps_initialize_effects")
+   (func (export "caml_cps_initialize_effects") (param externref)
       (global.set $caml_trampoline_ref (ref.func $caml_trampoline)))
 )

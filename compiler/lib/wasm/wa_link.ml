@@ -619,6 +619,7 @@ let link ~js_launcher ~output_file ~linkall ~files =
   (match files with
   | [] -> ()
   | (file, ((bi, _, _), _)) :: r ->
+      Build_info.configure bi;
       ignore
         (List.fold_left
            ~init:bi

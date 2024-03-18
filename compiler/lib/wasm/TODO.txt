@@ -471,6 +471,7 @@ TODO:
 - separate compilation
   ==> check we have a single runtime file at the beginning
   ==> use better name(?)
+  ==> fix short names
 - switch to binaryen 117
 
 zarith improvement
