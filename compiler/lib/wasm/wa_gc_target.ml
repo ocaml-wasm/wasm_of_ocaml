@@ -453,12 +453,23 @@ module Value = struct
     let* i' = i' in
     return (W.RefEq (i, i'))
 
-  let ref ty =
-    { W.nullable = false; typ = Type ty }
+  let ref ty = { W.nullable = false; typ = Type ty }
 
-  let ref_test typ e =
+  let ref_test (typ : W.ref_type) e =
     let* e = e in
-    return (W.RefTest (typ, e))
+    match e with
+    | W.RefI31 _ -> (
+        match typ.typ with
+        | W.I31 | Eq | Any -> return (W.Const (I32 1l))
+        | Type _ | Func | Struct | Array | Extern -> return (W.Const (I32 0l)))
+    | GlobalGet (V nm) -> (
+        let* init = get_global nm in
+        match init with
+        | Some (W.ArrayNewFixed (t, _) | W.StructNew (t, _)) ->
+            let* b = heap_type_sub (Type t) typ.typ in
+            if b then return (W.Const (I32 1l)) else return (W.Const (I32 0l))
+        | _ -> return (W.RefTest (typ, e)))
+    | _ -> return (W.RefTest (typ, e))
 
   let caml_js_strict_equals x y =
     let* x = x in
@@ -471,21 +482,63 @@ module Value = struct
     in
     return (W.Call (f, [ x; y ]))
 
+  let rec effect_free e =
+    match e with
+    | W.Const _ | ConstSym _ | LocalGet _ | GlobalGet _ | RefFunc _ | RefNull _ -> true
+    | UnOp (_, e')
+    | I32WrapI64 e'
+    | I64ExtendI32 (_, e')
+    | F32DemoteF64 e'
+    | F64PromoteF32 e'
+    | Load (_, e')
+    | Load8 (_, _, e')
+    | RefI31 e'
+    | I31Get (_, e')
+    | ArrayLen e'
+    | StructGet (_, _, _, e')
+    | RefCast (_, e')
+    | RefTest (_, e')
+    | ExternInternalize e'
+    | ExternExternalize e' -> effect_free e'
+    | BinOp (_, e1, e2)
+    | ArrayNew (_, e1, e2)
+    | ArrayNewData (_, _, e1, e2)
+    | ArrayGet (_, _, e1, e2)
+    | RefEq (e1, e2) -> effect_free e1 && effect_free e2
+    | LocalTee _
+    | BlockExpr _
+    | Call_indirect _
+    | Call _
+    | MemoryGrow _
+    | Seq _
+    | Pop _
+    | Call_ref _
+    | Br_on_cast _
+    | Br_on_cast_fail _ -> false
+    | Select (_, e1, e2, e3) | IfExpr (_, e1, e2, e3) ->
+        effect_free e1 && effect_free e2 && effect_free e3
+    | ArrayNewFixed (_, l) | StructNew (_, l) -> List.for_all ~f:effect_free l
+
   let if_expr ty cond ift iff =
     let* cond = cond in
     let* ift = ift in
     let* iff = iff in
-    return (W.IfExpr (ty, cond, ift, iff))
+    match cond with
+    | W.Const (I32 n) -> return (if Int32.equal n 0l then iff else ift)
+    | _ ->
+        if Poly.equal ift iff && effect_free cond
+        then return ift
+        else return (W.IfExpr (ty, cond, ift, iff))
 
   let map f x =
     let* x = x in
     return (f x)
 
-  let (>>|) x f = map f x
+  let ( >>| ) x f = map f x
 
   let eq_gen ~negate x y =
-    let xv  = Code.Var.fresh () in
-    let yv  = Code.Var.fresh () in
+    let xv = Code.Var.fresh () in
+    let yv = Code.Var.fresh () in
     let* js = Type.js_type in
     let n =
       if_expr
@@ -493,27 +546,24 @@ module Value = struct
         (* We mimic an "and" on the two conditions, but in a way that is nicer to the
            binaryen optimizer. *)
         (if_expr
-          I32
-          (ref_test (ref js) (load xv))
-          (ref_test (ref js) (load yv))
-          (Arith.const 0l))
+           I32
+           (ref_test (ref js) (load xv))
+           (ref_test (ref js) (load yv))
+           (Arith.const 0l))
         (caml_js_strict_equals (load xv) (load yv)
-          >>| (fun e -> W.RefCast ({ nullable = false; typ = I31 }, e))
-          >>| (fun e -> W.I31Get (S, e)))
+        >>| (fun e -> W.RefCast ({ nullable = false; typ = I31 }, e))
+        >>| fun e -> W.I31Get (S, e))
         (ref_eq (load xv) (load yv))
     in
     seq
       (let* () = store xv x in
-        let* () = store yv y in
-        return ())
+       let* () = store yv y in
+       return ())
       (val_int (if negate then Arith.eqz n else n))
 
+  let eq x y = eq_gen ~negate:false x y
 
-  let eq x y =
-    eq_gen ~negate:false x y
-
-  let neq x y =
-    eq_gen ~negate:true x y
+  let neq x y = eq_gen ~negate:true x y
 
   let ult = binop Arith.(ult)
 

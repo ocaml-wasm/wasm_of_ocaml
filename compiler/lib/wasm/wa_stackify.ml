@@ -329,6 +329,11 @@ let rec rewrite_expression e =
   | ExternExternalize e' ->
       let* e' = rewrite_expression e' in
       return (Wa_ast.ExternExternalize e')
+  | IfExpr (ty, e1, e2, e3) ->
+      let* e1 = rewrite_expression e1 in
+      let* e2 = rewrite_expression e2 in
+      let* e3 = rewrite_expression e3 in
+      return (Wa_ast.IfExpr (ty, e1, e2, e3))
 
 and rewrite_expressions l =
   let* l =

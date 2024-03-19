@@ -59,7 +59,7 @@ let rec scan_expression ctx e =
       scan_expression ctx e';
       ctx.position <- ctx.position + 1;
       handle_assignment ctx i
-  | Select (_, e1, e2, e3) ->
+  | Select (_, e1, e2, e3) | IfExpr (_, e1, e2, e3) ->
       scan_expression ctx e1;
       scan_expression ctx e2;
       scan_expression ctx e3
@@ -228,6 +228,11 @@ let rec rewrite_expression ctx e =
       Br_on_cast_fail (i, ty, ty', rewrite_expression ctx e')
   | ExternInternalize e' -> ExternInternalize (rewrite_expression ctx e')
   | ExternExternalize e' -> ExternExternalize (rewrite_expression ctx e')
+  | IfExpr (ty, e1, e2, e3) ->
+      let e1 = rewrite_expression ctx e1 in
+      let e2 = rewrite_expression ctx e2 in
+      let e3 = rewrite_expression ctx e3 in
+      IfExpr (ty, e1, e2, e3)
 
 and rewrite_expressions ctx l = List.map ~f:(fun e -> rewrite_expression ctx e) l
 
