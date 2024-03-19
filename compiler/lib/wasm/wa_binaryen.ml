@@ -117,8 +117,8 @@ let dead_code_elimination ~debuginfo ~dependencies ~input_file ~output_file =
   filter_unused_primitives primitives usage_file
 
 let optimization_options =
-  [| [ "-O2"; "--skip-pass=inlining-optimizing" ]
-   ; [ "-O2"; "--skip-pass=inlining-optimizing"; "--traps-never-happen" ]
+  [| [ "-O2"; "--traps-never-happen" ]
+   ; [ "-O2"; "--traps-never-happen" ]
    ; [ "-O3"; "--traps-never-happen" ]
   |]
 
