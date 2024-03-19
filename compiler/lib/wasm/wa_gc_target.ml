@@ -950,7 +950,7 @@ module Closure = struct
     if List.is_empty free_variables
     then
       let* typ = Type.closure_type ~usage:`Alloc ~cps arity in
-      let name = Code.Var.fresh_n "closure" in
+      let name = Code.Var.fork f in
       let* () =
         register_global
           (V name)

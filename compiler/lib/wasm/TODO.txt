@@ -475,3 +475,5 @@ TODO:
 - switch to binaryen 117
 
 zarith improvement
+
+branch minimize-runtime?
