@@ -7,8 +7,7 @@ on:
 jobs:
   build:
     env:
-      OPAMJOBS: 4
-      OPAMDOWNLOADJOBS: 8
+      OPAMJOBS: 2
       OPAMYES: true
 
     strategy:
