@@ -20,63 +20,6 @@ open! Stdlib
 
 let times = Debug.find "times"
 
-module Cpio : sig
-  val add_file : out_channel -> name:string -> in_channel -> unit
-
-  val finish : out_channel -> unit
-end = struct
-  let magic = 0x71c7
-
-  let output_short ch c =
-    output_byte ch c;
-    output_byte ch (c lsr 8)
-
-  let output_header ch ?(final = false) name len =
-    output_short ch magic;
-    (* dev *)
-    output_short ch 0;
-    (* ino *)
-    output_short ch 0;
-    (* mode / regular file *)
-    output_short ch (if final then 0 else 0o100664);
-    (* uid *)
-    output_short ch 0;
-    (* gid *)
-    output_short ch 0;
-    (* nlink *)
-    output_short ch 1;
-    (* rdev *)
-    output_short ch 0;
-    (* mtime *)
-    let t = 1704063600 in
-    output_short ch (t lsr 16);
-    output_short ch t;
-    let name_len = String.length name in
-    output_short ch (name_len + 1);
-    output_short ch (len lsr 16);
-    output_short ch len;
-    output_string ch name;
-    output_byte ch 0;
-    if name_len land 1 = 0 then output_byte ch 0
-
-  let output_trailer ch len = if len land 1 = 1 then output_byte ch 0
-
-  let add_file ch ~name in_ch =
-    let len = in_channel_length in_ch in
-    output_header ch name len;
-    let b = Bytes.create 65536 in
-    let rec copy rem =
-      let n = input in_ch b 0 (min 65536 rem) in
-      if n = 0 then raise End_of_file;
-      output ch b 0 n;
-      if rem > n then copy (rem - n)
-    in
-    copy len;
-    output_trailer ch len
-
-  let finish ch = output_header ch ~final:true "TRAILER!!!" 0
-end
-
 module Wasm_binary = struct
   let header = "\000asm\001\000\000\000"
 
@@ -580,16 +523,12 @@ let link_to_archive ~prelude_file ~files ~start_file ~tmp_wasm_file =
     ~profile:(Driver.profile 1)
     ~input_file:start_file
     ~output_file:tmp_start_file;
-  let ch = open_out tmp_wasm_file in
+  let ch = Zip.open_out tmp_wasm_file in
   List.iter
-    ~f:(fun (name, file) ->
-      let ich = open_in file in
-      Cpio.add_file ch ~name ich;
-      close_in ich)
+    ~f:(fun (name, file) -> Zip.add_file ch ~name ~file)
     ((List.hd files :: ("prelude.wasm", tmp_prelude_file) :: List.tl files)
     @ [ "start.wasm", tmp_start_file ]);
-  Cpio.finish ch;
-  close_out ch
+  Zip.close_out ch
 
 let compute_missing_primitives files =
   let provided_primitives =

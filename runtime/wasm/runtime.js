@@ -29,9 +29,11 @@
                        (chunk, pos)=>buf.set(chunk, pos),
                        ()=>{})
       }
-      async function send(count) {
+      async function send(count, compressed) {
         let transform = new TransformStream()
-        acc = f(transform.readable, acc)
+        let r = transform.readable
+        r = compressed?r.pipeThrough(new DecompressionStream("deflate-raw")):r
+        acc = f(r, acc)
         let w = transform.writable.getWriter()
         await doRead(count,
                       async(chunk) =>{
@@ -43,26 +45,33 @@
         await w.close()
       }
 
-      let buf = new Uint8Array(26)
-      function get_short (i) {
+      let buf = new Uint8Array(30)
+      function get16 (i) {
         return buf[i] + (buf[i + 1] << 8)
       }
+      function get32 (i) {
+        return get16(i) + (get16(i+2) << 16)
+      }
       for(;;) {
-        await read(buf, 26)
-        if (get_short(0) != 0o70707) throw new Error('bad format')
-        let l1 = get_short(20)
-        let l2 = (get_short(22) << 16) + get_short(24)
-        if (!l2) {
-          await reader.cancel()
-          break
+        await read(buf, 30)
+        const sig = get32(0);
+        if (sig == 0x02014b50) {
+            await reader.cancel()
+            break
         }
-        let name_len = ((l1 + 1) & -2)
+        if (sig != 0x04034b50) throw new Error('bad signature')
+        let compression = get16(8)
+        if (compression != 0 && compression != 8)
+          throw new Error('unsupported compression')
+        let l = get32(18)
+        let name_len = get16(26)
+        let extra_len = get16(28)
         let name = new Uint8Array(name_len)
         await read(name, name_len)
-//        console.log (l1, l2,
-//                     new TextDecoder().decode(name.subarray(0, l1 - 1)))
-        await send(l2)
-        if (l2 & 1) await read(buf, 1)
+//        console.log (l, name_len, extra_len, new TextDecoder().decode(name))
+        let extra = new Uint8Array(extra_len)
+        await read(extra, extra_len)
+        await send(l, compression)
       }
       return acc;
     }
