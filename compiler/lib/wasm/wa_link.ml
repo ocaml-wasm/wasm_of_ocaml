@@ -588,6 +588,18 @@ let link ~js_launcher ~output_file ~linkall ~files =
               , StringSet.elements info.provides @ to_link )
             else requires, to_link))
   in
+  let files =
+    List.filter
+      ~f:(fun (_, ((build_info, _, units), _)) ->
+        (match Build_info.kind build_info with
+        | `Cmo | `Cma | `Exe | `Unknown -> false
+        | `Runtime -> true)
+        || List.exists
+             ~f:(fun ((info : Unit_info.t), _) ->
+               StringSet.exists (fun nm -> List.mem nm ~set:to_link) info.provides)
+             units)
+      files
+  in
   Wa_binaryen.with_intermediate_file (Filename.temp_file "prelude" ".wasm")
   @@ fun prelude_file ->
   let predefined_exceptions = generate_prelude ~out_file:prelude_file in

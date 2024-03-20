@@ -477,3 +477,17 @@ TODO:
 zarith improvement
 
 branch minimize-runtime?
+
+===========================
+
+- build an archive from a cma file to cma.wasm.zip
+  ===> multiple files (or single file?) + manifest
+- compile cmo file to cmo.wasm
+  ==> zip file as well?
+
+- build an archive from cmo.wasm / cma.wasm.zip files
+
+- link archives and cmo.wasm files to produce a js file + wasm.zip file
+  (or explode into a directory? <<= might be better for source map files)
+
+wasm (+ wasm.map files)
