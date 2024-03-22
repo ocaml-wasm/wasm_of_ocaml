@@ -1037,18 +1037,19 @@ module Generate (Target : Wa_target_sig.S) = struct
     (*
   Format.eprintf "=== %d ===@." pc;
 *)
-    let param_count =
+    let param_names =
       match name_opt with
-      | None -> 0
-      | Some _ -> List.length params + 1
+      | None -> []
+      | Some f -> params @ [ f ]
     in
+    let param_count = List.length param_names in
     (match name_opt with
     | None -> ctx.global_context.globalized_variables <- Wa_globalize.f p g ctx.closures
     | Some _ -> ());
     let locals, body =
       function_body
         ~context:ctx.global_context
-        ~param_count
+        ~param_names
         ~body:
           (let* () = build_initial_env in
            let stack_ctx = Stack.start_function ~context:ctx.global_context stack_info in
@@ -1062,7 +1063,7 @@ module Generate (Target : Wa_target_sig.S) = struct
              (fun ~result_typ ~fall_through ~context ->
                translate_branch result_typ fall_through (-1) cont context stack_ctx))
     in
-    let body = post_process_function_body ~param_count ~locals body in
+    let body = post_process_function_body ~param_names ~locals body in
     W.Function
       { name =
           (match name_opt with
@@ -1072,6 +1073,7 @@ module Generate (Target : Wa_target_sig.S) = struct
           (match name_opt with
           | None -> Option.map ~f:(fun name -> name ^ ".init") unit_name
           | Some _ -> None)
+      ; param_names
       ; typ = func_type param_count
       ; locals
       ; body
@@ -1084,7 +1086,7 @@ module Generate (Target : Wa_target_sig.S) = struct
     let locals, body =
       function_body
         ~context
-        ~param_count:0
+        ~param_names:[]
         ~body:
           (List.fold_right
              ~f:(fun name cont ->
@@ -1097,18 +1099,18 @@ module Generate (Target : Wa_target_sig.S) = struct
              to_link)
     in
     context.other_fields <-
-      W.Function { name; exported_name = None; typ; locals; body } :: context.other_fields;
+      W.Function { name; exported_name = None; typ; param_names = []; locals; body }
+      :: context.other_fields;
     name
 
   let entry_point context toplevel_fun entry_name =
-    let typ, body = entry_point ~toplevel_fun in
-    let locals, body =
-      function_body ~context ~param_count:(List.length typ.W.params) ~body
-    in
+    let typ, param_names, body = entry_point ~toplevel_fun in
+    let locals, body = function_body ~context ~param_names ~body in
     W.Function
       { name = Var.fresh_n "entry_point"
       ; exported_name = Some entry_name
       ; typ
+      ; param_names
       ; locals
       ; body
       }

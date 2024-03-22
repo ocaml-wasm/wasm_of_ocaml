@@ -43,18 +43,18 @@ and instructions ~tail l =
   match l with
   | [] -> []
   | [ i ] -> [ instruction ~tail i ]
-  | [ LocalSet (x, Call (symb, l)); Return (Some (LocalGet y)) ] when x = y ->
+  | [ LocalSet (x, Call (symb, l)); Return (Some (LocalGet y)) ] when Code.Var.equal x y
+    -> [ Return_call (symb, l) ]
+  | [ LocalSet (x, Call_indirect (ty, e, l)); Return (Some (LocalGet y)) ]
+    when Code.Var.equal x y -> [ Return_call_indirect (ty, e, l) ]
+  | [ LocalSet (x, Call_ref (ty, e, l)); Return (Some (LocalGet y)) ]
+    when Code.Var.equal x y -> [ Return_call_ref (ty, e, l) ]
+  | [ LocalSet (x, Call (symb, l)); Push (LocalGet y) ] when tail && Code.Var.equal x y ->
       [ Return_call (symb, l) ]
-  | [ LocalSet (x, Call_indirect (ty, e, l)); Return (Some (LocalGet y)) ] when x = y ->
-      [ Return_call_indirect (ty, e, l) ]
-  | [ LocalSet (x, Call_ref (ty, e, l)); Return (Some (LocalGet y)) ] when x = y ->
-      [ Return_call_ref (ty, e, l) ]
-  | [ LocalSet (x, Call (symb, l)); Push (LocalGet y) ] when tail && x = y ->
-      [ Return_call (symb, l) ]
-  | [ LocalSet (x, Call_indirect (ty, e, l)); Push (LocalGet y) ] when tail && x = y ->
-      [ Return_call_indirect (ty, e, l) ]
-  | [ LocalSet (x, Call_ref (ty, e, l)); Push (LocalGet y) ] when tail && x = y ->
-      [ Return_call_ref (ty, e, l) ]
+  | [ LocalSet (x, Call_indirect (ty, e, l)); Push (LocalGet y) ]
+    when tail && Code.Var.equal x y -> [ Return_call_indirect (ty, e, l) ]
+  | [ LocalSet (x, Call_ref (ty, e, l)); Push (LocalGet y) ]
+    when tail && Code.Var.equal x y -> [ Return_call_ref (ty, e, l) ]
   | i :: Nop :: rem -> instructions ~tail (i :: rem)
   | i :: i' :: Nop :: rem -> instructions ~tail (i :: i' :: rem)
   | i :: rem -> instruction ~tail:false i :: instructions ~tail rem

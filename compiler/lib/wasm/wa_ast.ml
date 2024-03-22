@@ -131,8 +131,8 @@ type expression =
   | F64PromoteF32 of expression
   | Load of (memarg, memarg, memarg, memarg) op * expression
   | Load8 of signage * (memarg, memarg, memarg, memarg) op * expression
-  | LocalGet of int
-  | LocalTee of int * expression
+  | LocalGet of var
+  | LocalTee of var * expression
   | GlobalGet of symbol
   | Select of value_type * expression * expression * expression
   | BlockExpr of func_type * instruction list
@@ -166,7 +166,7 @@ and instruction =
   | Drop of expression
   | Store of (memarg, memarg, memarg, memarg) op * expression * expression
   | Store8 of (memarg, memarg, memarg, memarg) op * expression * expression
-  | LocalSet of int * expression
+  | LocalSet of var * expression
   | GlobalSet of symbol * expression
   | Loop of func_type * instruction list
   | Block of func_type * instruction list
@@ -216,7 +216,8 @@ type module_field =
       { name : var
       ; exported_name : string option
       ; typ : func_type
-      ; locals : value_type list
+      ; param_names : var list
+      ; locals : (var * value_type) list
       ; body : instruction list
       }
   | Data of

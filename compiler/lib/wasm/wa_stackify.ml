@@ -44,7 +44,7 @@ module Context : sig
 
   val perform : 'a t -> 'a
 
-  val lookup : int -> Wa_ast.expression t
+  val lookup : Wa_ast.var -> Wa_ast.expression t
 
   val effect : effect -> 'a -> 'a t
 
@@ -52,7 +52,7 @@ module Context : sig
 
   val instruction : Wa_ast.instruction t -> Wa_ast.instruction list t
 
-  val push : int -> Wa_ast.expression t -> Wa_ast.instruction list t
+  val push : Wa_ast.var -> Wa_ast.expression t -> Wa_ast.instruction list t
 
   val block : Wa_ast.instruction list t -> Wa_ast.instruction list t
 end = struct
@@ -63,8 +63,8 @@ end = struct
     }
 
   type context =
-    { pending_assignments : assignement IntMap.t
-    ; flushed_assignments : IntSet.t
+    { pending_assignments : assignement Code.Var.Map.t
+    ; flushed_assignments : Code.Var.Set.t
     ; effects : effect list
     ; position : int
     }
@@ -81,25 +81,26 @@ end = struct
   let perform f =
     fst
       (f
-         { pending_assignments = IntMap.empty
-         ; flushed_assignments = IntSet.empty
+         { pending_assignments = Code.Var.Map.empty
+         ; flushed_assignments = Code.Var.Set.empty
          ; effects = []
          ; position = 0
          })
 
   let lookup x ctx =
-    match IntMap.find_opt x ctx.pending_assignments with
+    match Code.Var.Map.find_opt x ctx.pending_assignments with
     | Some { expr; _ } ->
         ( Wa_ast.LocalTee (x, expr)
-        , { ctx with pending_assignments = IntMap.remove x ctx.pending_assignments } )
+        , { ctx with pending_assignments = Code.Var.Map.remove x ctx.pending_assignments }
+        )
     | None -> Wa_ast.LocalGet x, ctx
 
   let flushed_assignments ctx =
     let l =
       List.sort
         ~cmp:(fun (_, i) (_, i') -> compare i' i)
-        (IntSet.fold
-           (fun x l -> (x, (IntMap.find x ctx.pending_assignments).order) :: l)
+        (Code.Var.Set.fold
+           (fun x l -> (x, (Code.Var.Map.find x ctx.pending_assignments).order) :: l)
            ctx.flushed_assignments
            [])
     in
@@ -107,10 +108,10 @@ end = struct
 
   let effect e x ctx =
     let flushed_assignments =
-      IntMap.fold
+      Code.Var.Map.fold
         (fun x ({ effects; _ } : assignement) flushed ->
           if List.exists ~f:(fun e' -> conflicts e e') effects
-          then IntSet.add x flushed
+          then Code.Var.Set.add x flushed
           else flushed)
         ctx.pending_assignments
         ctx.flushed_assignments
@@ -121,25 +122,25 @@ end = struct
     ( ()
     , { ctx with
         flushed_assignments =
-          IntMap.fold
-            (fun x _ flushed -> IntSet.add x flushed)
+          Code.Var.Map.fold
+            (fun x _ flushed -> Code.Var.Set.add x flushed)
             ctx.pending_assignments
-            IntSet.empty
+            Code.Var.Set.empty
       } )
 
   let instruction i ctx =
-    assert (IntSet.is_empty ctx.flushed_assignments);
+    assert (Code.Var.Set.is_empty ctx.flushed_assignments);
     let i, ctx' = i { ctx with effects = [] } in
     ( flushed_assignments ctx' @ [ i ]
     , { ctx' with
-        flushed_assignments = IntSet.empty
+        flushed_assignments = Code.Var.Set.empty
       ; effects = effect_union ctx.effects ctx'.effects
       } )
 
   let push x e ctx =
-    assert (IntSet.is_empty ctx.flushed_assignments);
+    assert (Code.Var.Set.is_empty ctx.flushed_assignments);
     let e, ctx' = e { ctx with effects = [] } in
-    assert (not (IntMap.mem x ctx.pending_assignments));
+    assert (not (Code.Var.Map.mem x ctx.pending_assignments));
     if List.exists ~f:is_pop ctx'.effects
     then
       (* Assignments containing a Pop are flushed at once, since it is
@@ -147,7 +148,7 @@ end = struct
          Pop is performed *)
       ( flushed_assignments ctx' @ [ Wa_ast.LocalSet (x, e) ]
       , { ctx' with
-          flushed_assignments = IntSet.empty
+          flushed_assignments = Code.Var.Set.empty
         ; effects =
             effect_union
               ctx.effects
@@ -156,11 +157,11 @@ end = struct
     else
       ( flushed_assignments ctx'
       , { pending_assignments =
-            IntMap.add
+            Code.Var.Map.add
               x
               { expr = e; effects = ctx'.effects; order = ctx.position }
               ctx'.pending_assignments
-        ; flushed_assignments = IntSet.empty
+        ; flushed_assignments = Code.Var.Set.empty
         ; effects = effect_union ctx.effects ctx'.effects
         ; position = ctx.position + 1
         } )
@@ -168,14 +169,14 @@ end = struct
   let block l =
     let* () = flush_all in
     fun ctx ->
-      assert (IntMap.is_empty ctx.pending_assignments);
+      assert (Code.Var.Map.is_empty ctx.pending_assignments);
       let l', ctx' =
         (let* l = l in
          let* () = flush_all in
          return l)
-          { ctx with flushed_assignments = IntSet.empty }
+          { ctx with flushed_assignments = Code.Var.Set.empty }
       in
-      assert (IntMap.is_empty ctx'.pending_assignments);
+      assert (Code.Var.Map.is_empty ctx'.pending_assignments);
       ( l' @ flushed_assignments ctx'
       , { flushed_assignments = ctx.flushed_assignments
         ; pending_assignments = ctx.pending_assignments

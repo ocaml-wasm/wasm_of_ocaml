@@ -8,7 +8,8 @@
 open Stdlib
 
 type ctx =
-  { local_types : Wa_ast.value_type option array
+  { local_types : (Wa_ast.var * Wa_ast.value_type option) array
+  ; local_index : (Wa_ast.var, int) Hashtbl.t
   ; mutable position : int
   ; last_use : int array
   ; mapping : int array
@@ -18,6 +19,7 @@ type ctx =
   }
 
 let handle_assignment ctx i =
+  let i = Hashtbl.find ctx.local_index i in
   ctx.assignemnt_count.(i) <- ctx.assignemnt_count.(i) + 1;
   (* Extend the variable's scope, but only if it is used. If the
      variable is not used anywhere, we can remove the assignemnt. This
@@ -54,7 +56,7 @@ let rec scan_expression ctx e =
   | RefEq (e', e'') ->
       scan_expression ctx e';
       scan_expression ctx e''
-  | LocalGet i -> ctx.last_use.(i) <- ctx.position
+  | LocalGet i -> ctx.last_use.(Hashtbl.find ctx.local_index i) <- ctx.position
   | LocalTee (i, e') ->
       scan_expression ctx e';
       ctx.position <- ctx.position + 1;
@@ -115,9 +117,9 @@ and scan_instructions ctx l = List.iter ~f:(fun i -> scan_instruction ctx i) l
 let use ctx v =
   let v' = ctx.mapping.(v) in
   assert (v' <> -1);
-  if ctx.position = ctx.last_use.(v) && Option.is_none ctx.local_types.(v)
+  if ctx.position = ctx.last_use.(v) && Option.is_none (snd ctx.local_types.(v))
   then ctx.free_variables <- IntSet.add v' ctx.free_variables;
-  v'
+  fst ctx.local_types.(v')
 
 let assignment ctx v e =
   ctx.position <- ctx.position + 1;
@@ -126,28 +128,32 @@ let assignment ctx v e =
    then
      match e with
      | Wa_ast.LocalGet v0
-       when ctx.last_use.(v0) + 1 = ctx.position
+       when let v0 = Hashtbl.find ctx.local_index v0 in
+            ctx.last_use.(v0) + 1 = ctx.position
             && Poly.equal ctx.local_types.(v) ctx.local_types.(v0) ->
          (* We are assigning the value of an existing local variable
             which is no longer used. We can reuse the same local
             variable to eliminate the assignment. *)
+         let v0 = Hashtbl.find ctx.local_index v0 in
          assert (
            IntSet.mem ctx.mapping.(v0) ctx.free_variables
-           || Option.is_some ctx.local_types.(v0));
+           || Option.is_some (snd ctx.local_types.(v0)));
          let v' = ctx.mapping.(v0) in
          ctx.free_variables <- IntSet.remove v' ctx.free_variables;
          ctx.mapping.(v) <- v'
      | Wa_ast.LocalGet v0
-       when ctx.last_use.(v0) >= ctx.last_use.(v) && ctx.assignemnt_count.(v) = 1 ->
+       when let v0 = Hashtbl.find ctx.local_index v0 in
+            ctx.last_use.(v0) >= ctx.last_use.(v) && ctx.assignemnt_count.(v) = 1 ->
          (* We are assigning the value of an existing local variable
             which has a longer scope. We can reuse the same local
             variable to eliminate the assignment. *)
+         let v0 = Hashtbl.find ctx.local_index v0 in
          ctx.last_use.(v) <- ctx.last_use.(v0);
          let v' = ctx.mapping.(v0) in
          ctx.mapping.(v) <- v'
      | _ -> (
          match IntSet.min_elt_opt ctx.free_variables with
-         | Some v' when Option.is_none ctx.local_types.(v) ->
+         | Some v' when Option.is_none (snd ctx.local_types.(v)) ->
              (* For now, we reuse local variables only when they are of
                 the default type *)
              ctx.free_variables <- IntSet.remove v' ctx.free_variables;
@@ -173,10 +179,12 @@ let rec rewrite_expression ctx e =
   | Load (op, e') -> Load (op, rewrite_expression ctx e')
   | Load8 (s, op, e') -> Load8 (s, op, rewrite_expression ctx e')
   | LocalGet v ->
+      let v = Hashtbl.find ctx.local_index v in
       let v' = use ctx v in
       LocalGet v'
   | LocalTee (v, e0) -> (
       let e' = rewrite_expression ctx e0 in
+      let v = Hashtbl.find ctx.local_index v in
       if ctx.last_use.(v) = -1
       then (
         ctx.position <- ctx.position + 1;
@@ -184,7 +192,7 @@ let rec rewrite_expression ctx e =
       else
         let v' = assignment ctx v e0 in
         match e' with
-        | LocalGet v'' when v' = v'' -> e'
+        | LocalGet v'' when Poly.equal v' v'' -> e'
         | _ -> LocalTee (v', e'))
   | Select (ty, e1, e2, e3) ->
       let e1 = rewrite_expression ctx e1 in
@@ -249,6 +257,7 @@ and rewrite_instruction ctx i =
       Store8 (op, e, e')
   | LocalSet (v, e0) -> (
       let e = rewrite_expression ctx e0 in
+      let v = Hashtbl.find ctx.local_index v in
       if ctx.last_use.(v) = -1
       then (
         ctx.position <- ctx.position + 1;
@@ -256,7 +265,7 @@ and rewrite_instruction ctx i =
       else
         let v' = assignment ctx v e0 in
         match e with
-        | LocalGet v'' when v' = v'' -> Nop
+        | LocalGet v'' when Poly.equal v' v'' -> Nop
         | _ -> LocalSet (v', e))
   | GlobalSet (nm, e) -> GlobalSet (nm, rewrite_expression ctx e)
   | Loop (typ, l) -> Loop (typ, rewrite_instructions ctx l)
@@ -302,9 +311,19 @@ and rewrite_instruction ctx i =
 and rewrite_instructions ctx l = List.map ~f:(fun i -> rewrite_instruction ctx i) l
 
 let f ~param_count ~local_types instrs =
+  let local_index = Hashtbl.create 8 in
+  let _ =
+    Array.fold_left
+      ~f:(fun idx (x, _) ->
+        Hashtbl.add local_index x idx;
+        idx + 1)
+      ~init:0
+      local_types
+  in
   let local_count = Array.length local_types in
   let ctx =
     { local_types
+    ; local_index
     ; position = 0
     ; last_use = Array.make (max param_count local_count) (-1)
     ; mapping = Array.make (max param_count local_count) (-1)
@@ -322,7 +341,7 @@ let f ~param_count ~local_types instrs =
   done;
   ctx.position <- 0;
   let instrs = rewrite_instructions ctx instrs in
-  let local_types' = Array.make (ctx.largest_used + 1) None in
+  let local_types' = Array.make (ctx.largest_used + 1) (Code.Var.fresh (), None) in
   for i = 0 to local_count - 1 do
     let j = ctx.mapping.(i) in
     if j <> -1 then local_types'.(j) <- local_types.(i)

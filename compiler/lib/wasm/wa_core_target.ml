@@ -640,7 +640,7 @@ let handle_exceptions ~result_typ ~fall_through ~context body x exn_handler =
         exn_handler ~result_typ ~fall_through ~context )
     ]
 
-let post_process_function_body ~param_count:_ ~locals:_ instrs = instrs
+let post_process_function_body ~param_names:_ ~locals:_ instrs = instrs
 
 let entry_point ~toplevel_fun =
   let code =
@@ -661,4 +661,4 @@ let entry_point ~toplevel_fun =
     let* () = instr (W.GlobalSet (S "young_limit", low)) in
     drop (return (W.Call (toplevel_fun, [])))
   in
-  { W.params = []; result = [] }, code
+  { W.params = []; result = [] }, [], code

@@ -377,6 +377,8 @@ struct
     ; global_names : (symbol, int) Hashtbl.t
     ; data_names : (var, int) Hashtbl.t
     ; tag_names : (var, int) Hashtbl.t
+    ; local_names : (var, (var, int) Hashtbl.t) Hashtbl.t
+    ; current_local_names : (var, int) Hashtbl.t
     }
 
   let rec output_expression st ch e =
@@ -428,11 +430,11 @@ struct
     | Call_indirect _ | ConstSym _ | Load _ | Load8 _ | MemoryGrow _ -> assert false
     | LocalGet i ->
         output_byte ch 0x20;
-        output_uint ch i
+        output_uint ch (Hashtbl.find st.current_local_names i)
     | LocalTee (i, e') ->
         output_expression st ch e';
         output_byte ch 0x22;
-        output_uint ch i
+        output_uint ch (Hashtbl.find st.current_local_names i)
     | GlobalGet g ->
         output_byte ch 0x23;
         output_uint ch (Hashtbl.find st.global_names g)
@@ -584,7 +586,7 @@ struct
     | LocalSet (i, e) ->
         output_expression st ch e;
         output_byte ch 0x21;
-        output_uint ch i
+        output_uint ch (Hashtbl.find st.current_local_names i)
     | GlobalSet (g, e) ->
         output_expression st ch e;
         output_byte ch 0x24;
@@ -908,25 +910,45 @@ struct
     let rec loop acc n t l =
       match l with
       | [] -> List.rev ((n, t) :: acc)
-      | t' :: r ->
+      | (_, t') :: r ->
           if Poly.equal t t' then loop acc (n + 1) t r else loop ((n, t) :: acc) 1 t' r
     in
     match l with
     | [] -> []
-    | t :: rem -> loop [] 1 t rem
+    | (_, t) :: rem -> loop [] 1 t rem
 
   let output_code ch (st, fields) =
     let l =
       List.fold_left
         ~f:(fun acc field ->
           match field with
-          | Function { locals; body; _ } -> (locals, body) :: acc
+          | Function { name; param_names; locals; body; _ } ->
+              (name, param_names, locals, body) :: acc
           | Type _ | Import _ | Data _ | Global _ | Tag _ -> acc)
         ~init:[]
         fields
     in
     output_vec
-      (with_size (fun ch (locals, body) ->
+      (with_size (fun ch (name, param_names, locals, body) ->
+           let current_local_names = Hashtbl.create 8 in
+           let idx =
+             List.fold_left
+               ~f:(fun idx x ->
+                 Hashtbl.add current_local_names x idx;
+                 idx + 1)
+               ~init:0
+               param_names
+           in
+           let _ =
+             List.fold_left
+               ~f:(fun idx (x, _) ->
+                 Hashtbl.add current_local_names x idx;
+                 idx + 1)
+               ~init:idx
+               locals
+           in
+           Hashtbl.add st.local_names name current_local_names;
+           let st = { st with current_local_names } in
            output_vec
              (fun ch (n, typ) ->
                output_uint ch n;
@@ -965,7 +987,26 @@ struct
         ch
         types
     in
+    let locals =
+      Hashtbl.fold
+        (fun name tbl rem -> (Hashtbl.find st.func_names name, tbl) :: rem)
+        st.local_names
+        []
+    in
     out 1 index st.func_names;
+    output_section
+      2
+      (output_vec (fun ch (idx, tbl) ->
+           output_uint ch idx;
+           let locals = Hashtbl.fold (fun name idx rem -> (idx, name) :: rem) tbl [] in
+           output_vec
+             (fun ch (idx, name) ->
+               output_uint ch idx;
+               output_name ch (index name))
+             ch
+             locals))
+      ch
+      locals;
     out 4 index st.type_names;
     out 7 symbol st.global_names;
     out 9 index st.data_names;
@@ -979,7 +1020,14 @@ struct
     in
     output_section 3 output_functions ch (func_idx, func_names, func_types, fields);
     let st =
-      { type_names; func_names; global_names; data_names = Hashtbl.create 1; tag_names }
+      { type_names
+      ; func_names
+      ; global_names
+      ; data_names = Hashtbl.create 1
+      ; tag_names
+      ; local_names = Hashtbl.create 8
+      ; current_local_names = Hashtbl.create 8
+      }
     in
     output_section 6 output_globals ch (st, global_idx, fields);
     output_section 7 output_exports ch (func_names, global_names, fields);
