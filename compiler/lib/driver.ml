@@ -634,7 +634,7 @@ let full
       live_vars, in_cps, p
 
 let full_no_source_map ~formatter ~standalone ~wrap_with_fun ~profile ~linkall d p =
-  let _ =
+  let (_ : Source_map.t option) =
     full
       ~target:(JavaScript formatter)
       ~standalone
