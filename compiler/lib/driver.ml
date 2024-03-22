@@ -576,16 +576,12 @@ let configure formatter =
 
 type 'a target =
   | JavaScript : Pretty_print.t -> Source_map.t option target
-  | Wasm :
-      { unit_name : string option
-      ; context : Wa_code_generation.context
-      }
-      -> (Wa_ast.var * (string list * (string * Javascript.expression) list)) target
+  | Wasm : (Deadcode.variable_uses * Effects.in_cps * Code.program) target
 
 let target_flag (type a) (t : a target) =
   match t with
   | JavaScript _ -> `JavaScript
-  | Wasm _ -> `Wasm
+  | Wasm -> `Wasm
 
 let link_and_pack ?(standalone = true) ?(wrap_with_fun = `Iife) ?(linkall = false) p =
   p
@@ -616,7 +612,7 @@ let full
     +> map_fst
          ((match target with
           | JavaScript _ -> Generate_closure.f
-          | Wasm _ -> Fun.id)
+          | Wasm -> Fun.id)
          +> deadcode')
   in
   if times () then Format.eprintf "Start Optimizing...@.";
@@ -633,9 +629,9 @@ let full
       in
       let source_map = emit formatter r in
       source_map
-  | Wasm { unit_name; context } ->
+  | Wasm ->
       let (p, live_vars), _, in_cps = r in
-      Wa_generate.f ~context ~unit_name ~live_vars ~in_cps p
+      live_vars, in_cps, p
 
 let full_no_source_map ~formatter ~standalone ~wrap_with_fun ~profile ~linkall d p =
   let _ =

@@ -341,12 +341,10 @@ let generate_prelude ~out_file =
   @@ fun ch ->
   let code, uinfo = Parse_bytecode.predefined_exceptions ~target:`Wasm in
   let context = Wa_generate.start () in
-  let _ =
-    Driver.f
-      ~target:(Wasm { unit_name = Some "globals"; context })
-      (Parse_bytecode.Debug.create ~include_cmis:false false)
-      code
+  let live_vars, in_cps, p =
+    Driver.f ~target:Wasm (Parse_bytecode.Debug.create ~include_cmis:false false) code
   in
+  let _ = Wa_generate.f ~context ~unit_name:(Some "globals") ~live_vars ~in_cps p in
   Wa_generate.output ch ~context;
   uinfo.provides
 

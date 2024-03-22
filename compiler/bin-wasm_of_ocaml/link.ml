@@ -18,7 +18,7 @@
  *)
 
 open! Js_of_ocaml_compiler.Stdlib
-open Js_of_ocaml_compiler
+open Wasm_of_ocaml_compiler
 open Cmdliner
 
 type t =

@@ -18,6 +18,7 @@
 
 open! Js_of_ocaml_compiler.Stdlib
 open Js_of_ocaml_compiler
+open Wasm_of_ocaml_compiler
 
 let times = Debug.find "times"
 
@@ -148,9 +149,8 @@ let run
   let compile ~context ~unit_name (one : Parse_bytecode.one) =
     let standalone = Option.is_none unit_name in
     let code = one.code in
-    let toplevel_name, js_code =
-      Driver.f ~target:(Wasm { unit_name; context }) ?profile one.debug code
-    in
+    let live_vars, in_cps, p = Driver.f ~target:Wasm ?profile one.debug code in
+    let toplevel_name, js_code = Wa_generate.f ~context ~unit_name ~live_vars ~in_cps p in
     if standalone then Wa_generate.add_start_function ~context toplevel_name;
     js_code
   in
