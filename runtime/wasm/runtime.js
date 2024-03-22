@@ -1,4 +1,4 @@
-((eval_function) => async (link, src, js, generated)=> {
+(async (link, src, js, generated)=> {
     "use strict";
 
     async function extract (f, acc, s) {
@@ -177,7 +177,6 @@
          delete:(x,y)=>delete x[y],
          instanceof:(x,y)=>+(x instanceof y),
          typeof:(x)=>typeof x,
-         eval:eval_function,
          equals:(x,y)=>+(x==y),
          strict_equals:(x,y)=>+(x===y),
          fun_call:(f,o,args)=>f.apply(o,args),
@@ -506,4 +505,4 @@ count++
             event.error&&caml_handle_uncaught_exception(event.error))
     }
     await _initialize();
-})(((joo_global_object,jsoo_exports,globalThis)=>(x)=>eval("("+x+")"))(globalThis,globalThis?.module?.exports||globalThis,globalThis))
+})

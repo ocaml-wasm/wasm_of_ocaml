@@ -460,6 +460,39 @@ let build_js_runtime
     | [ (Expression_statement f, _) ] -> f
     | _ -> assert false
   in
+  let generated_js =
+    if List.is_empty generated_js
+    then obj generated_js
+    else
+      let var ident e =
+        Javascript.variable_declaration [ Javascript.ident ident, (e, N) ], Javascript.N
+      in
+      Javascript.call
+        (EArrow
+           ( Javascript.fun_
+               [ Javascript.ident Constant.global_object_ ]
+               [ var
+                   Constant.old_global_object_
+                   (EVar (Javascript.ident Constant.global_object_))
+               ; var
+                   Constant.exports_
+                   (EBin
+                      ( Or
+                      , EDot
+                          ( EDot
+                              ( EVar (Javascript.ident Constant.global_object_)
+                              , ANullish
+                              , Utf8_string.of_string_exn "module" )
+                          , ANullish
+                          , Utf8_string.of_string_exn "export" )
+                      , EVar (Javascript.ident Constant.global_object_) ))
+               ; Return_statement (Some (obj generated_js)), N
+               ]
+               N
+           , AUnknown ))
+        [ EVar (Javascript.ident Constant.global_object_) ]
+        N
+  in
   let launcher =
     let b = Buffer.create 1024 in
     let f = Pretty_print.to_buffer b in
@@ -474,7 +507,7 @@ let build_js_runtime
                       (Javascript.Num.of_int32 (if separate_compilation then 1l else 0l))
                   ; EStr (Utf8_string.of_string_exn (Filename.basename wasm_file))
                   ; primitives
-                  ; obj generated_js
+                  ; generated_js
                   ]
                   N)
            , N )
