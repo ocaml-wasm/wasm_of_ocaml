@@ -390,7 +390,7 @@ let build_js_runtime
           l
   in
   let missing_primitives = if Config.Flag.genprim () then missing_primitives else [] in
-  report_missing_primitives missing_primitives;
+  if not separate_compilation then report_missing_primitives missing_primitives;
   let obj l =
     Javascript.EObj
       (List.map
