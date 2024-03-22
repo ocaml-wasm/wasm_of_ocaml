@@ -1,3 +1,5 @@
+open Stdlib
+
 module type CRC = sig
   type t
 
@@ -58,9 +60,10 @@ module CRC32 : CRC = struct
       lazy
         (let tbl = Lazy.force tbl in
          let tbl' = Lazy.force tbl' in
-         Array.init 256 (fun i -> (tbl'.(i) lsr 8) lxor tbl.(tbl'.(i) land 0xFF)))
+         Array.init 256 ~f:(fun i -> (tbl'.(i) lsr 8) lxor tbl.(tbl'.(i) land 0xFF)))
 
-    let table1 = lazy (Array.map (fun i -> Int32.to_int i land start) (compute_table ()))
+    let table1 =
+      lazy (Array.map ~f:(fun i -> Int32.to_int i land start) (compute_table ()))
 
     let table2 = next_table table1 table1
 
@@ -254,7 +257,7 @@ let output_end_of_directory z pos len =
 
 let output_directory z =
   let pos = pos_out z.ch in
-  List.iter (output_file_header z.ch) (List.rev z.files);
+  List.iter ~f:(output_file_header z.ch) (List.rev z.files);
   let pos' = pos_out z.ch in
   output_end_of_directory z pos (pos' - pos)
 

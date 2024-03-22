@@ -491,3 +491,36 @@ branch minimize-runtime?
   (or explode into a directory? <<= might be better for source map files)
 
 wasm (+ wasm.map files)
+
+========================
+
+do not warn about missing primitives in case of separate compilation?
+
+runtime:
+   include predefined exceptions / must be linked-in
+
+["x", "y", "z", ...]
+[0, 1, [], [2], [2,3], [3], [2,4], .., 0]
+0 ==> await all the precedent ones before compiling this one + put into env
+1 ==> await all the precedent ones before compiling this one + put into OCaml
+list => await for the elements in this list before compiling
+
+can we trim the dependency graph? (remove implied dependencies)
+
+==============
+
+- sourcemap support
+- dwarf
+  - minimal support: map code location to source location
+    ==> breakpoints / stack traces
+    may have to make some binaryen fixes and/or disable some optimizations
+    (many optimizations already unsupported)
+  - extended support : values
+    ==> not supported by devtools currently
+- add support for externref in the DevTools plugin for debuggin C/C++
+  ==> not completely clear this is possible
+  https://chromewebstore.google.com/detail/cc++-devtools-support-dwa/pdcpmagijalfljmkmjngeonclgbbannb
+  https://github.com/ChromeDevTools/devtools-frontend/blob/main/extension-api/ExtensionAPI.d.ts
+- write our own plugin for improved support:
+  display OCaml strings as strings, ...
+  https://github.com/ChromeDevTools/devtools-frontend/blob/main/extension-api/ExtensionAPI.d.ts

@@ -195,12 +195,6 @@ let run
      (match kind with
      | `Exe ->
          let t1 = Timer.make () in
-         (* The OCaml compiler can generate code using the
-            "caml_string_greaterthan" primitive but does not use it
-            itself. This is (was at some point at least) the only primitive
-            in this case.  Ideally, Js_of_ocaml should parse the .mli files
-            for primitives as well as marking this primitive as potentially
-            used. But the -linkall option is probably good enough. *)
          let code =
            Parse_bytecode.from_exe
              ~target:`Wasm

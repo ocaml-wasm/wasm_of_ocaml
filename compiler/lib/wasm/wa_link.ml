@@ -549,6 +549,10 @@ let compute_missing_primitives files =
        ~init:StringSet.empty
        files
 
+(*ZZZ
+  file: name + list of sections
+  section : entry + metadata
+*)
 let link ~js_launcher ~output_file ~linkall ~files =
   let t = Timer.make () in
   let files =
