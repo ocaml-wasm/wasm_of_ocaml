@@ -1,6 +1,5 @@
-(async function (js, strings, fragments) {
+(async (src, js, generated) => {
     "use strict";
-    const src = 'CODE';
     function loadRelative(src) {
       const path = require('path');
       const f = path.join(path.dirname(require.main.filename),src);
@@ -350,9 +349,12 @@
          decodeStringFromUTF8Array:()=>"",
          encodeStringToUTF8Array:()=>0}
     const imports =
-        {Math:math,bindings,"wasm:js-string":string_ops,
-         "wasm:text-decoder":string_ops,"wasm:text-encoder":string_ops,
-         env:{},js,strings,fragments}
+        Object.assign({Math:math, bindings, js,
+                       "wasm:js-string":string_ops,
+                       "wasm:text-decoder":string_ops,
+                       "wasm:text-encoder":string_ops,
+                       env:{}},
+                      generated)
     const options = { builtins: ['js-string', 'text-decoder', 'text-encoder'] }
     const wasmModule =
           isNode?await WebAssembly.instantiate(await code, imports, options)
@@ -384,5 +386,5 @@
             event.error&&caml_handle_uncaught_exception(event.error))
     }
     await _initialize();
-})(PRIMITIVES, STRINGS,
-   ((joo_global_object,jsoo_exports,globalThis)=>FRAGMENTS)(globalThis,globalThis?.module?.exports||globalThis,globalThis))
+})
+

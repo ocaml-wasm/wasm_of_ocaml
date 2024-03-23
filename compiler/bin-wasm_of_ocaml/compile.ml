@@ -209,24 +209,6 @@ let link_and_optimize ~profile ?sourcemap_file runtime_wasm_files wat_file outpu
       Source_map_io.to_file ?mappings source_map ~file:sourcemap_file);
   primitives
 
-let escape_string s =
-  let l = String.length s in
-  let b = Buffer.create (String.length s + 2) in
-  for i = 0 to l - 1 do
-    let c = s.[i] in
-    match c with
-    (* https://github.com/ocsigen/js_of_ocaml/issues/898 *)
-    | '/' when i > 0 && Char.equal s.[i - 1] '<' -> Buffer.add_string b "\\/"
-    | '\000' .. '\031' | '\127' ->
-        Buffer.add_string b "\\x";
-        Buffer.add_char_hex b c
-    | '"' ->
-        Buffer.add_char b '\\';
-        Buffer.add_char b c
-    | c -> Buffer.add_char b c
-  done;
-  Buffer.contents b
-
 let build_js_runtime primitives (strings, fragments) wasm_file output_file =
   let always_required_js, primitives =
     let l =
@@ -244,75 +226,125 @@ let build_js_runtime primitives (strings, fragments) wasm_file output_file =
     | Some x -> x
     | None -> assert false
   in
-  let b = Buffer.create 1024 in
-  let f = Pretty_print.to_buffer b in
-  Pretty_print.set_compact f (not (Config.Flag.pretty ()));
-  ignore (Js_output.program f always_required_js);
-  let b' = Buffer.create 1024 in
-  let f = Pretty_print.to_buffer b' in
-  Pretty_print.set_compact f (not (Config.Flag.pretty ()));
-  ignore (Js_output.program f [ primitives ]);
-  let b'' = Buffer.create 1024 in
-  let f = Pretty_print.to_buffer b'' in
-  Pretty_print.set_compact f (not (Config.Flag.pretty ()));
-  ignore
-    (Js_output.program
-       f
-       [ ( Javascript.Expression_statement
-             (EArr
-                (List.map
-                   ~f:(fun s -> Javascript.Element (EStr (Utf8_string.of_string_exn s)))
-                   strings))
-         , Javascript.N )
-       ]);
-  let fragment_buffer = Buffer.create 1024 in
-  let f = Pretty_print.to_buffer fragment_buffer in
-  Pretty_print.set_compact f (not (Config.Flag.pretty ()));
-  ignore
-    (Js_output.program
-       f
-       [ ( Javascript.Expression_statement
-             (EObj
-                (List.map
-                   ~f:(fun (nm, f) ->
-                     let id = Utf8_string.of_string_exn nm in
-                     Javascript.Property (PNI id, f))
-                   fragments))
-         , Javascript.N )
-       ]);
-  let s = Wa_runtime.js_runtime in
-  let rec find pat i =
-    if String.equal (String.sub s ~pos:i ~len:(String.length pat)) pat
-    then i
-    else find pat (i + 1)
+  let primitives =
+    match primitives with
+    | Javascript.Expression_statement e, N -> e
+    | _ -> assert false
   in
-  let i = find "CODE" 0 in
-  let j = find "PRIMITIVES" 0 in
-  let k = find "STRINGS" 0 in
-  let l = find "FRAGMENTS" 0 in
-  let rec trim_semi s =
-    let l = String.length s in
-    if l = 0
-    then s
+  let prelude =
+    let b = Buffer.create 1024 in
+    let f = Pretty_print.to_buffer b in
+    Pretty_print.set_compact f (not (Config.Flag.pretty ()));
+    ignore (Js_output.program f always_required_js);
+    Buffer.contents b
+  in
+  let obj l =
+    Javascript.EObj
+      (List.map
+         ~f:(fun (nm, v) ->
+           let id = Utf8_string.of_string_exn nm in
+           Javascript.Property (PNS id, v))
+         l)
+  in
+  let generated_js =
+    let strings =
+      if List.is_empty strings
+      then []
+      else
+        [ ( "strings"
+          , Javascript.EArr
+              (List.map
+                 ~f:(fun s -> Javascript.Element (EStr (Utf8_string.of_string_exn s)))
+                 strings) )
+        ]
+    in
+    let fragments =
+      if List.is_empty fragments then [] else [ "fragments", obj fragments ]
+    in
+    strings @ fragments
+  in
+  let init_fun =
+    match Parse_js.parse (Parse_js.Lexer.of_string Wa_runtime.js_runtime) with
+    | [ (Expression_statement f, _) ] -> f
+    | _ -> assert false
+  in
+  let generated_js =
+    if List.is_empty generated_js
+    then obj generated_js
     else
-      match s.[l - 1] with
-      | ';' | '\n' -> trim_semi (String.sub s ~pos:0 ~len:(l - 1))
-      | _ -> s
+      let var ident e =
+        Javascript.variable_declaration [ Javascript.ident ident, (e, N) ], Javascript.N
+      in
+      Javascript.call
+        (EArrow
+           ( Javascript.fun_
+               [ Javascript.ident Constant.global_object_ ]
+               [ var
+                   Constant.old_global_object_
+                   (EVar (Javascript.ident Constant.global_object_))
+               ; var
+                   Constant.exports_
+                   (EBin
+                      ( Or
+                      , EDot
+                          ( EDot
+                              ( EVar (Javascript.ident Constant.global_object_)
+                              , ANullish
+                              , Utf8_string.of_string_exn "module" )
+                          , ANullish
+                          , Utf8_string.of_string_exn "export" )
+                      , EVar (Javascript.ident Constant.global_object_) ))
+               ; Return_statement (Some (obj generated_js)), N
+               ]
+               N
+           , AUnknown ))
+        [ EVar (Javascript.ident Constant.global_object_) ]
+        N
+  in
+  let launcher =
+    Code.Var.reset ();
+    let b = Buffer.create 1024 in
+    let f = Pretty_print.to_buffer b in
+    Pretty_print.set_compact f (not (Config.Flag.pretty ()));
+    let js =
+      [ ( Javascript.Expression_statement
+            (Javascript.call
+               init_fun
+               [ EStr (Utf8_string.of_string_exn (Filename.basename wasm_file))
+               ; primitives
+               ; generated_js
+               ]
+               N)
+        , Javascript.N )
+      ]
+    in
+    List.iter ~f:Var_printer.add_reserved [ "joo_global_object"; "jsoo_exports" ];
+    let traverse = new Js_traverse.free in
+    let js = traverse#program js in
+    let free = traverse#get_free in
+    Javascript.IdentSet.iter
+      (fun x ->
+        match x with
+        | V _ -> assert false
+        | S { name = Utf8 x; _ } -> Var_printer.add_reserved x)
+      free;
+    let js =
+      if Config.Flag.shortvar ()
+      then (
+        let t5 = Timer.make () in
+        let js = (new Js_traverse.rename_variable)#program js in
+        if times () then Format.eprintf "    shorten vars: %a@." Timer.print t5;
+        js)
+      else js
+    in
+    let js = (new Js_traverse.simpl)#program js in
+    let js = (new Js_traverse.clean)#program js in
+    let js = Js_assign.program js in
+    ignore (Js_output.program f js);
+    Buffer.contents b
   in
   gen_file output_file
-  @@ fun tmp_output_file ->
-  write_file
-    tmp_output_file
-    (Buffer.contents b
-    ^ String.sub s ~pos:0 ~len:i
-    ^ escape_string (Filename.basename wasm_file)
-    ^ String.sub s ~pos:(i + 4) ~len:(j - i - 4)
-    ^ trim_semi (Buffer.contents b')
-    ^ String.sub s ~pos:(j + 10) ~len:(k - j - 10)
-    ^ trim_semi (Buffer.contents b'')
-    ^ String.sub s ~pos:(k + 7) ~len:(l - k - 7)
-    ^ trim_semi (Buffer.contents fragment_buffer)
-    ^ String.sub s ~pos:(l + 9) ~len:(String.length s - l - 9))
+  @@ fun tmp_output_file -> write_file tmp_output_file (prelude ^ launcher)
 
 let run
     { Cmd_arg.common
