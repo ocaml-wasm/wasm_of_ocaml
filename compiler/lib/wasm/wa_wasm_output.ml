@@ -969,23 +969,58 @@ struct
     output_byte ch id;
     with_size f ch x
 
+  let rec find_available_name used name i =
+    let nm = Printf.sprintf "%s$%d" name i in
+    if StringSet.mem nm used then find_available_name used name (i + 1) else nm
+
+  let assign_names f tbl =
+    let names = Hashtbl.fold (fun name idx rem -> (idx, name) :: rem) tbl [] in
+    let names = List.sort ~cmp:(fun (idx, _) (idx', _) -> compare idx idx') names in
+    let used = ref StringSet.empty in
+    let names =
+      List.map
+        ~f:(fun (idx, x) ->
+          match f x with
+          | None -> idx, None
+          | Some nm ->
+              let nm =
+                if StringSet.mem nm !used then find_available_name !used nm 1 else nm
+              in
+              used := StringSet.add nm !used;
+              idx, Some nm)
+        names
+    in
+    let printer = Var_printer.create Var_printer.Alphabet.javascript in
+    let i = ref 0 in
+    let rec first_available_name () =
+      let nm = Var_printer.to_string printer !i in
+      incr i;
+      if StringSet.mem nm !used then first_available_name () else nm
+    in
+    List.map
+      ~f:(fun (idx, nm) ->
+        match nm with
+        | Some nm -> idx, nm
+        | None -> idx, first_available_name ())
+      names
+
   let output_names ch st =
     output_name ch "name";
-    let index = Code.Var.to_string in
+    let index = Code.Var.get_name in
     let symbol name =
       match name with
-      | V name -> index name
-      | S name -> name
+      | V name -> Code.Var.get_name name
+      | S name -> Some name
     in
     let out id f tbl =
-      let types = Hashtbl.fold (fun name idx rem -> (idx, name) :: rem) tbl [] in
+      let names = assign_names f tbl in
       output_section
         id
         (output_vec (fun ch (idx, name) ->
              output_uint ch idx;
-             output_name ch (f name)))
+             output_name ch name))
         ch
-        types
+        names
     in
     let locals =
       Hashtbl.fold
@@ -998,11 +1033,11 @@ struct
       2
       (output_vec (fun ch (idx, tbl) ->
            output_uint ch idx;
-           let locals = Hashtbl.fold (fun name idx rem -> (idx, name) :: rem) tbl [] in
+           let locals = assign_names index tbl in
            output_vec
              (fun ch (idx, name) ->
                output_uint ch idx;
-               output_name ch (index name))
+               output_name ch name)
              ch
              locals))
       ch
