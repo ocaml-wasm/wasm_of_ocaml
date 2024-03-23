@@ -454,7 +454,7 @@ let rec is_smi e =
 let get_i31_value x st =
   match st.instrs with
   | LocalSet (x', RefI31 e) :: rem when Code.Var.equal x x' && is_smi e ->
-      let x = Var.fresh_n "cond" in
+      let x = Var.fresh () in
       let x, st = add_var ~typ:I32 x st in
       Some x, { st with instrs = LocalSet (x', RefI31 (LocalTee (x, e))) :: rem }
   | _ -> None, st
