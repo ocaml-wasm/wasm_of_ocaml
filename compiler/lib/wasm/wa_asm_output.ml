@@ -599,7 +599,9 @@ module Output () = struct
                               string ".int32 " ^^ symbol name offset
                           | DataSpace n -> string ".space " ^^ integer n))
                       contents)
-          | Global { name; exported_name; _ } ->
+          | Global { name; exported_name; typ; _ } ->
+              if typ.mut && Option.is_some exported_name
+              then Feature.require mutable_globals;
               indent
                 (section_header "data" name
                 ^^ define_symbol name
