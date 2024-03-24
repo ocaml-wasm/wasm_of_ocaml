@@ -509,6 +509,15 @@ can we trim the dependency graph? (remove implied dependencies)
 
 ==============
 
-TODO
-- weeklies
-- zip files
+- new style of exception handlers (?)
+
+- call runtime based on function types
+  --> i32  ==> box/unbox i32 (?)
+      i64  ==> box/unbox i64
+      f64  ==> box/unbox float
+      externref ==> (call $unwrap/wrap) + extern.{in,ex}ternalize
+      anyref ==> (call $unwrap/wrap)
+      (ref i31)     ==> cast
+      (ref $string)
+      (ref $block)
+      (ref $js)
