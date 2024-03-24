@@ -1,5 +1,5 @@
 (module
-   (import "fail" "caml_bound_error" (func $caml_bound_error))
+   (import "fail" "caml_bound_error" (func $caml_bound_error (result (ref eq))))
    (import "fail" "caml_invalid_argument"
       (func $caml_invalid_argument (param $arg (ref eq))))
    (import "int32" "caml_copy_int32"
@@ -153,10 +153,10 @@
       (local.set $s (ref.cast (ref $string) (local.get $v)))
       (local.set $p (i31.get_s (ref.cast (ref i31) (local.get $i))))
       (if (i32.lt_s (local.get $p) (i32.const 0))
-         (then (call $caml_bound_error)))
+         (then (return_call $caml_bound_error)))
       (if (i32.ge_u (i32.add (local.get $p) (i32.const 1))
                     (array.len (local.get $s)))
-         (then (call $caml_bound_error)))
+         (then (return_call $caml_bound_error)))
       (ref.i31 (i32.or
                   (array.get_u $string (local.get $s) (local.get $p))
                   (i32.shl (array.get_u $string (local.get $s)
@@ -170,10 +170,10 @@
       (local.set $s (ref.cast (ref $string) (local.get $v)))
       (local.set $p (i31.get_s (ref.cast (ref i31) (local.get $i))))
       (if (i32.lt_s (local.get $p) (i32.const 0))
-         (then (call $caml_bound_error)))
+         (then (return_call $caml_bound_error)))
       (if (i32.ge_u (i32.add (local.get $p) (i32.const 3))
                     (array.len (local.get $s)))
-         (then (call $caml_bound_error)))
+         (then (return_call $caml_bound_error)))
       (return_call $caml_copy_int32
          (i32.or
             (i32.or
@@ -196,10 +196,10 @@
       (local.set $s (ref.cast (ref $string) (local.get $v)))
       (local.set $p (i31.get_s (ref.cast (ref i31) (local.get $i))))
       (if (i32.lt_s (local.get $p) (i32.const 0))
-         (then (call $caml_bound_error)))
+         (then (return_call $caml_bound_error)))
       (if (i32.ge_u (i32.add (local.get $p) (i32.const 7))
                     (array.len (local.get $s)))
-         (then (call $caml_bound_error)))
+         (then (return_call $caml_bound_error)))
       (return_call $caml_copy_int64
          (i64.or
             (i64.or
@@ -246,10 +246,10 @@
       (local.set $p (i31.get_s (ref.cast (ref i31) (local.get 1))))
       (local.set $v (i31.get_s (ref.cast (ref i31) (local.get 2))))
       (if (i32.lt_s (local.get $p) (i32.const 0))
-         (then (call $caml_bound_error)))
+         (then (return_call $caml_bound_error)))
       (if (i32.ge_u (i32.add (local.get $p) (i32.const 1))
                     (array.len (local.get $s)))
-         (then (call $caml_bound_error)))
+         (then (return_call $caml_bound_error)))
       (array.set $string (local.get $s) (local.get $p) (local.get $v))
       (array.set $string (local.get $s)
          (i32.add (local.get $p) (i32.const 1))
@@ -263,10 +263,10 @@
       (local.set $p (i31.get_s (ref.cast (ref i31) (local.get 1))))
       (local.set $v (call $Int32_val (local.get 2)))
       (if (i32.lt_s (local.get $p) (i32.const 0))
-         (then (call $caml_bound_error)))
+         (then (return_call $caml_bound_error)))
       (if (i32.ge_u (i32.add (local.get $p) (i32.const 3))
                     (array.len (local.get $s)))
-         (then (call $caml_bound_error)))
+         (then (return_call $caml_bound_error)))
       (array.set $string (local.get $s) (local.get $p) (local.get $v))
       (array.set $string (local.get $s)
          (i32.add (local.get $p) (i32.const 1))
@@ -286,10 +286,10 @@
       (local.set $p (i31.get_s (ref.cast (ref i31) (local.get 1))))
       (local.set $v (call $Int64_val (local.get 2)))
       (if (i32.lt_s (local.get $p) (i32.const 0))
-         (then (call $caml_bound_error)))
+         (then (return_call $caml_bound_error)))
       (if (i32.ge_u (i32.add (local.get $p) (i32.const 7))
                     (array.len (local.get $s)))
-         (then (call $caml_bound_error)))
+         (then (return_call $caml_bound_error)))
       (array.set $string (local.get $s) (local.get $p)
          (i32.wrap_i64 (local.get $v)))
       (array.set $string (local.get $s)
