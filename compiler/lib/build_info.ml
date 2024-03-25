@@ -73,6 +73,17 @@ let to_string info =
   in
   Printf.sprintf "%s%s\n" prefix str
 
+let to_json info : Yojson.Basic.t =
+  `Assoc (info |> StringMap.bindings |> List.map ~f:(fun (k, v) -> k, `String v))
+
+let from_json (info : Yojson.Basic.t) =
+  let open Yojson.Basic.Util in
+  info
+  |> to_assoc
+  |> List.fold_left
+       ~f:(fun m (k, v) -> StringMap.add k (to_string v) m)
+       ~init:StringMap.empty
+
 let parse s =
   match String.drop_prefix ~prefix s with
   | None -> None
