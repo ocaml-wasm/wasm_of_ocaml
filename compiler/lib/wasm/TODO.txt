@@ -522,3 +522,7 @@ can we trim the dependency graph? (remove implied dependencies)
       (ref $string)
       (ref $block)
       (ref $js)
+
+===================
+
+wasm-merge: check that the type of imports/exports matches

@@ -27,7 +27,8 @@
       (func $caml_ml_channel_size (param (ref eq)) (result (ref eq))))
    (import "io" "caml_really_getblock"
       (func $caml_really_getblock
-         (param (ref eq)) (param (ref $string)) (param i32) (param i32)))
+         (param (ref eq)) (param (ref $string)) (param i32) (param i32)
+         (result i32)))
    (import "io" "caml_sys_open"
       (func $caml_sys_open
          (param (ref eq)) (param (ref eq)) (param (ref eq)) (result (ref eq))))
@@ -156,8 +157,9 @@
          (i31.get_u
             (ref.cast (ref i31) (call $caml_ml_channel_size (local.get $ch)))))
       (local.set $res (array.new $string (i32.const 0) (local.get $len)))
-      (call $caml_really_getblock
-         (local.get $ch) (local.get $res) (i32.const 0) (local.get $len))
+      (drop
+         (call $caml_really_getblock
+            (local.get $ch) (local.get $res) (i32.const 0) (local.get $len)))
       (local.get $res))
 
    (func (export "caml_fs_init") (result (ref eq))
