@@ -165,6 +165,7 @@ Js_of_ocaml fixes:
 ==> Condition.wait should throw (never makes sense)
 ==> weak/ephemerons
 ==> Dom_html.Keyboard_code.of_event is weird
+==> change equality semantics?
 
 ===================================
 
