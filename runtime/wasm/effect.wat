@@ -713,4 +713,132 @@
 
    (func (export "caml_cps_initialize_effects") (param externref)
       (global.set $caml_trampoline_ref (ref.func $caml_trampoline)))
+
+(;
+             ;;;;;;;;;;; Stack switching proposal ;;;;;;;;;;;;
+
+   ;; Missing: initialization function that catches unhandled effects
+
+   ;; Effect types
+
+   (tag $effect (param (ref eq)) (result (ref eq) (ref eq)))
+
+   (type $cont_function (func (param (ref eq) (ref eq)) (result (ref eq))))
+
+   (type $cont (cont $cont_function))
+
+   (type $handlers
+      (struct
+         (field $value (ref eq))
+         (field $exn (ref eq))
+         (field $effect (ref eq))))
+
+   (type $generic_fiber (sub (struct (field $handlers (mut (ref $handlers))))))
+
+   (type $fiber
+      (sub final $generic_fiber
+         (struct
+            (field $handlers (mut (ref $handlers)))
+            (field $cont (ref $cont)))))
+
+   (type $continuation (struct (mut eqref)))
+
+   ;; Resume
+
+   (data $already_resumed "Effect.Continuation_already_resumed")
+
+   (func $resume (export "%resume")
+      (param $vfiber (ref eq)) (param $f (ref eq)) (param $v (ref eq))
+      (result (ref eq))
+      (local $fiber (ref $fiber))
+      (local $res (ref eq))
+      (local $exn (ref eq))
+      (local $resume_res (tuple (ref eq) (ref $cont)))
+      (local.set $fiber (ref.cast (ref $fiber) (local.get $vfiber)))
+      (if (ref.eq (local.get $fiber) (ref.i31 (i32.const 0)))
+         (then
+            (call $caml_raise_constant
+               (ref.as_non_null
+                  (call $caml_named_value
+                     (array.new_data $string $already_resumed
+                        (i32.const 0) (i32.const 35)))))))
+      (local.set $exn
+         (block $handle_exception (result (ref eq))
+            (local.set $resume_res
+               (block $handle_effect (result (ref eq) (ref $cont))
+                  (local.set $res
+                     (try (result (ref eq))
+                        (do
+                           (resume $cont
+                               (tag $effect $handle_effect)
+                               (local.get $f) (local.get $v)
+                               (struct.get $fiber $cont (local.get $fiber))))
+                        (catch $javascript_exception
+                           (br $handle_exception
+                              (call $caml_wrap_exception (pop externref))))
+                        (catch $ocaml_exception
+                           (br $handle_exception (pop (ref eq))))))
+                  ;; handle return
+                  (return_call_ref $function_1 (local.get $res)
+                     (local.tee $f
+                        (struct.get $handlers $value
+                           (struct.get $fiber $handlers (local.get $fiber))))
+                     (struct.get $closure 0
+                        (ref.cast (ref $closure) (local.get $f))))))
+            ;; handle effect
+            (return_call_ref $function_3
+               (tuple.extract 2 0 (local.get $resume_res))
+               (struct.new $continuation
+                  (struct.new $fiber
+                     (struct.get $fiber $handlers (local.get $fiber))
+                     (tuple.extract 2 1 (local.get $resume_res))))
+               (i31.new (i32.const 0)) ;; unused
+               (local.tee $f
+                  (struct.get $handlers $effect
+                     (struct.get $fiber $handlers (local.get $fiber))))
+               (struct.get $closure_3 1
+                  (ref.cast (ref $closure_3) (local.get $f))))))
+      ;; handle exception
+      (return_call_ref $function_1 (local.get $exn)
+         (local.tee $f
+            (struct.get $handlers $exn
+               (struct.get $fiber $handlers (local.get $fiber))))
+         (struct.get $closure 0 (ref.cast (ref $closure) (local.get $f)))))
+
+   ;; Perform
+
+   (func (export "%reperform")
+      (param $eff (ref eq)) (param $cont (ref eq)) (result (ref eq))
+      (local $res (tuple (ref eq) (ref eq)))
+      (local.set $res (suspend $effect (local.get $eff)))
+      (return_call $resume
+         (ref.as_non_null
+            (struct.get $continuation 0
+               (ref.cast (ref $continuation) (local.get $cont))))
+         (tuple.extract 2 0 (local.get $res))
+         (tuple.extract 2 1 (local.get $res))))
+
+   (func (export "%perform") (param $eff (ref eq)) (result (ref eq))
+      (local $res (tuple (ref eq) (ref eq)))
+      (local.set $res (suspend $effect (local.get $eff)))
+      (return_call_ref $function_1 (tuple.extract 2 1 (local.get $res))
+         (tuple.extract 2 0 (local.get $res))
+         (struct.get $closure 0
+            (ref.cast (ref $closure) (tuple.extract 2 0 (local.get $res))))))
+
+   ;; Allocate a stack
+
+   (func $initial_cont
+      (param $f (ref $closure)) (param $x (ref eq)) (result (ref eq))
+      (return_call_ref $function_1 (local.get $x)
+         (local.get $f)
+         (struct.get $closure 0 (local.get $f))))
+
+   (func (export "caml_alloc_stack")
+      (param $hv (ref eq)) (param $hx (ref eq)) (param $hf (ref eq))
+      (result (ref eq))
+      (struct.new $fiber
+         (struct.new $handlers (local.get $hv) (local.get $hx) (local.get $hf))
+         (cont.new $cont (ref.func $initial_cont))))
+;)
 )
