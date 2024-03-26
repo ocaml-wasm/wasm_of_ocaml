@@ -132,7 +132,7 @@ let to_json t : Yojson.Basic.t =
     |> set "primitives" (fun t -> t.primitives)
     |> bool "force_link" (fun t -> t.force_link)
     |> bool "effects_without_cps" (fun t -> t.effects_without_cps)
-    |> map "crcs" (fun t -> t.crcs) (opt digest))
+       (*ZZZZ   |> map "crcs" (fun t -> t.crcs) (opt digest)*))
 
 let from_json t =
   let open Yojson.Basic.Util in
