@@ -29,7 +29,7 @@ module Wasm_binary = struct
     then failwith (file ^ " is not a Wasm binary file (bad magic)")
 
   let open_in f =
-    let ch = open_in f in
+    let ch = open_in_bin f in
     check_header f ch;
     ch
 

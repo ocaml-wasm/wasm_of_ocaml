@@ -525,9 +525,7 @@ can we trim the dependency graph? (remove implied dependencies)
 
 ===================
 
-Do not support keeping unit names
 .wasma for intermediate files?
-Not needed: ~skip_variable_reset:true
 
 ---
 

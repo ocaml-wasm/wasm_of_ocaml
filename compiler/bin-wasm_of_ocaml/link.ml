@@ -76,9 +76,9 @@ let f { common; output_file; js_files; linkall } =
 let info =
   Info.make
     ~name:"link"
-    ~doc:"Js_of_ocaml linker"
+    ~doc:"Wasm_of_ocaml linker"
     ~description:
-      "js_of_ocaml-link is a JavaScript linker. It can concatenate multiple JavaScript \
+      "wasm_of_ocaml-link is a JavaScript linker. It can concatenate multiple JavaScript \
        files keeping sourcemap information."
 
 let command =

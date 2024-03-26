@@ -28,7 +28,6 @@ type t =
   ; output_file : string * bool
   ; input_file : string option
   ; params : (string * string) list
-  ; keep_unit_names : bool
   }
 
 val options : t Cmdliner.Term.t

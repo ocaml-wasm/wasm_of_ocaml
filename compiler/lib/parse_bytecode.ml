@@ -2469,9 +2469,9 @@ type one =
   ; debug : Debug.t
   }
 
-let parse_bytecode ~skip_variable_reset code globals debug_data ~target =
+let parse_bytecode code globals debug_data ~target =
   let state = State.initial globals in
-  if not skip_variable_reset then Code.Var.reset ();
+  Code.Var.reset ();
   let blocks = Blocks.analyse debug_data code in
   let blocks =
     (* Disabled. [pc] might not be an appropriate place to split blocks *)
@@ -2668,7 +2668,7 @@ let from_exe
     Ocaml_compiler.Symtable.GlobalMap.iter symbols ~f:(fun id n ->
         globals.named_value.(n) <- Some (Ocaml_compiler.Symtable.Global.name id);
         globals.is_exported.(n) <- true);
-  let p = parse_bytecode ~skip_variable_reset:false code globals debug_data ~target in
+  let p = parse_bytecode code globals debug_data ~target in
   (* register predefined exception *)
   let body =
     List.fold_left predefined_exceptions ~init:[] ~f:(fun body (i, name) ->
@@ -2797,9 +2797,7 @@ let from_bytes ~prims ~debug (code : bytecode) =
     t
   in
   let globals = make_globals 0 [||] prims in
-  let p =
-    parse_bytecode ~skip_variable_reset:false code globals debug_data ~target:`JavaScript
-  in
+  let p = parse_bytecode code globals debug_data ~target:`JavaScript in
   let gdata = Var.fresh_n "global_data" in
   let need_gdata = ref false in
   let find_name i =
@@ -2938,13 +2936,7 @@ module Reloc = struct
     globals
 end
 
-let from_compilation_units
-    ~skip_variable_reset
-    ~target
-    ~includes:_
-    ~include_cmis
-    ~debug_data
-    l =
+let from_compilation_units ~target ~includes:_ ~include_cmis ~debug_data l =
   let reloc = Reloc.create () in
   List.iter l ~f:(fun (compunit, code) -> Reloc.step1 ~target reloc compunit code);
   List.iter l ~f:(fun (compunit, code) -> Reloc.step2 reloc compunit code);
@@ -2953,7 +2945,7 @@ let from_compilation_units
     let l = List.map l ~f:(fun (_, c) -> Bytes.to_string c) in
     String.concat ~sep:"" l
   in
-  let prog = parse_bytecode ~skip_variable_reset code globals debug_data ~target in
+  let prog = parse_bytecode code globals debug_data ~target in
   let gdata = Var.fresh_n "global_data" in
   let need_gdata = ref false in
   let body =
@@ -2995,14 +2987,8 @@ let from_compilation_units
   in
   { code = prepend prog body; cmis; debug = debug_data }
 
-let from_cmo
-    ~target
-    ?(skip_variable_reset = false)
-    ?(includes = [])
-    ?(include_cmis = false)
-    ?(debug = false)
-    compunit
-    ic =
+let from_cmo ~target ?(includes = []) ?(include_cmis = false) ?(debug = false) compunit ic
+    =
   let debug_data = Debug.create ~include_cmis debug in
   seek_in ic compunit.Cmo_format.cu_pos;
   let code = Bytes.create compunit.Cmo_format.cu_codesize in
@@ -3014,13 +3000,7 @@ let from_cmo
     Debug.read_event_list debug_data ~crcs:[] ~includes ~orig:0 ic);
   if times () then Format.eprintf "    read debug events: %a@." Timer.print t;
   let p =
-    from_compilation_units
-      ~skip_variable_reset
-      ~target
-      ~includes
-      ~include_cmis
-      ~debug_data
-      [ compunit, code ]
+    from_compilation_units ~target ~includes ~include_cmis ~debug_data [ compunit, code ]
   in
   Code.invariant p.code;
   p
@@ -3044,15 +3024,7 @@ let from_cma ~target ?(includes = []) ?(include_cmis = false) ?(debug = false) l
         compunit, code)
   in
   if times () then Format.eprintf "    read debug events: %.2f@." !t;
-  let p =
-    from_compilation_units
-      ~target
-      ~skip_variable_reset:false
-      ~includes
-      ~include_cmis
-      ~debug_data
-      units
-  in
+  let p = from_compilation_units ~target ~includes ~include_cmis ~debug_data units in
   Code.invariant p.code;
   p
 

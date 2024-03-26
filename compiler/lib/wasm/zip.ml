@@ -1,6 +1,4 @@
-let std_open_out = open_out
-
-let std_close_out = close_out
+let stdlib_close_out = close_out
 
 open Stdlib
 
@@ -181,7 +179,7 @@ type output =
   ; mutable files : file list
   }
 
-let open_out name = { ch = open_out name; files = [] }
+let open_out name = { ch = open_out_bin name; files = [] }
 
 let output_16 ch c =
   output_byte ch c;
@@ -221,7 +219,7 @@ let output_local_file_header ch ?(crc = 0l) { name; len; _ } =
   crc_pos
 
 let add_file z ~name ~file =
-  let ch = open_in file in
+  let ch = open_in_bin file in
   let pos = pos_out z.ch in
   let len = in_channel_length ch in
   let file = { name; pos; len; crc = 0l } in
@@ -378,7 +376,7 @@ type input =
   }
 
 let open_in name =
-  let ch = open_in name in
+  let ch = open_in_bin name in
   let len = in_channel_length ch in
   let find_directory_end offset =
     seek_in ch (len - 22 - offset);
@@ -418,9 +416,9 @@ let extract_file z ~name ~file =
   let pos = StringMap.find name z.files in
   let { pos; len; _ } = read_local_file_header z.ch pos in
   seek_in z.ch pos;
-  let ch = std_open_out file in
+  let ch = open_out_bin file in
   copy z.ch ch len;
-  std_close_out ch
+  stdlib_close_out ch
 
 let close_in z = close_in z.ch
 

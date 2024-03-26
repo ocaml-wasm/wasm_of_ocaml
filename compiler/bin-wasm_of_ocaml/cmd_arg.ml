@@ -30,7 +30,6 @@ type t =
   ; output_file : string * bool
   ; input_file : string option
   ; params : (string * string) list
-  ; keep_unit_names : bool
   }
 
 let options =
@@ -45,10 +44,6 @@ let options =
   let input_file =
     let doc = "Compile the bytecode program [$(docv)]. " in
     Arg.(required & pos ~rev:true 0 (some string) None & info [] ~docv:"PROGRAM" ~doc)
-  in
-  let keep_unit_names =
-    let doc = "Keep unit name" in
-    Arg.(value & flag & info [ "keep-unit-names" ] ~doc)
   in
   let profile =
     let doc = "Set optimization profile : [$(docv)]." in
@@ -75,17 +70,7 @@ let options =
       & opt_all (list (pair ~sep:'=' (enum all) string)) []
       & info [ "set" ] ~docv:"PARAM=VALUE" ~doc)
   in
-  let build_t
-      common
-      set_param
-      profile
-      _
-      _
-      _
-      output_file
-      input_file
-      runtime_files
-      keep_unit_names =
+  let build_t common set_param profile _ _ _ output_file input_file runtime_files =
     let chop_extension s = try Filename.chop_extension s with Invalid_argument _ -> s in
     let output_file =
       match output_file with
@@ -101,7 +86,6 @@ let options =
       ; input_file = Some input_file
       ; runtime_files
       ; runtime_only = false
-      ; keep_unit_names
       }
   in
   let t =
@@ -115,8 +99,7 @@ let options =
       $ sourcemap_inline_in_js
       $ output_file
       $ input_file
-      $ runtime_files
-      $ keep_unit_names)
+      $ runtime_files)
   in
   Term.ret t
 
@@ -159,7 +142,6 @@ let options_runtime_only =
       ; runtime_only = true
       ; output_file = output_file, true
       ; input_file = None
-      ; keep_unit_names = false
       }
   in
   let t =

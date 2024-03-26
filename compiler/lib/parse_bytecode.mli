@@ -64,7 +64,6 @@ val from_exe :
 
 val from_cmo :
      target:[ `JavaScript | `Wasm ]
-  -> ?skip_variable_reset:bool
   -> ?includes:string list
   -> ?include_cmis:bool
   -> ?debug:bool

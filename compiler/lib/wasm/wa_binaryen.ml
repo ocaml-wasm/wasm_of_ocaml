@@ -27,7 +27,7 @@ let gen_file file f =
     raise exc
 
 let write_file ~name ~contents =
-  let ch = open_out name in
+  let ch = open_out_bin name in
   output_string ch contents;
   close_out ch
 
