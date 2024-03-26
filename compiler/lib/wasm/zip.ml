@@ -159,7 +159,7 @@ type file =
   ; mutable crc : int32
   }
 
-type t =
+type output =
   { ch : out_channel
   ; mutable files : file list
   }
@@ -297,3 +297,114 @@ let output_directory z =
 let close_out z =
   output_directory z;
   close_out z.ch
+
+(****)
+
+type entry =
+  { pos : int
+  ; len : int
+  ; crc : int32
+  }
+
+let input_16 ch =
+  let c = input_byte ch in
+  c lor (input_byte ch lsl 8)
+
+let input_32 ch =
+  let c = input_16 ch in
+  c lor (input_16 ch lsl 16)
+
+let input_32' ch =
+  let c = input_16 ch in
+  Int32.(logor (of_int c) (shift_left (of_int (input_16 ch)) 16))
+
+let read_local_file_header ch pos =
+  let pos = pos + 14 in
+  seek_in ch pos;
+  let crc = input_32' ch in
+  let _ = input_32 ch in
+  let len = input_32 ch in
+  let name_len = input_16 ch in
+  let extra_len = input_16 ch in
+  { pos = pos + 16 + name_len + extra_len; len; crc }
+
+let read_file_header ch =
+  let signature = input_32' ch in
+  if not (Int32.equal signature 0x02014b50l) then failwith "bad signature";
+  (* versions: made by / needed to extract *)
+  ignore (input_16 ch);
+  let v = input_16 ch in
+  if v > 10 then failwith "unsupported file format";
+  (* general purpose but flag *)
+  ignore (input_16 ch);
+  (* compression method *)
+  ignore (input_16 ch);
+  (* time / date *)
+  ignore (input_32 ch);
+  (* CRC *)
+  ignore (input_32' ch);
+  (* compressed / uncompressed size *)
+  ignore (input_32 ch);
+  ignore (input_32 ch);
+  (* file name length *)
+  let name_len = input_16 ch in
+  (* extra field length *)
+  let extra_len = input_16 ch in
+  (* file comment length *)
+  let comment_len = input_16 ch in
+  (* disk number start *)
+  ignore (input_16 ch);
+  (* file attributes *)
+  ignore (input_16 ch);
+  ignore (input_32 ch);
+  (* relative offset of local header *)
+  let pos = input_32 ch in
+  (* file name *)
+  let name = really_input_string ch name_len in
+  ignore (really_input_string ch extra_len);
+  ignore (really_input_string ch comment_len);
+  name, pos
+
+type input =
+  { ch : in_channel
+  ; mutable files : int StringMap.t
+  }
+
+let open_in name =
+  let ch = open_in name in
+  let len = in_channel_length ch in
+  let find_directory_end offset =
+    seek_in ch (len - 22 - offset);
+    let c = ref 0l in
+    let p = ref (-1) in
+    for i = 0 to offset + 3 do
+      (c := Int32.(add (shift_left !c 8) (of_int (input_byte ch))));
+      if Int32.equal !c 0x504b0506l then p := 22 + 3 + offset - i
+    done;
+    !p
+  in
+  let p = find_directory_end 0 in
+  let p = if p = -1 then find_directory_end 65535 else p in
+  if p = -1 then failwith "not a ZIP file";
+  seek_in ch (len - p + 10);
+  (* number of entries *)
+  let n = input_16 ch in
+  (* size of the directory *)
+  ignore (input_32 ch);
+  (* offset of the directory *)
+  let offset = input_32 ch in
+  seek_in ch offset;
+  let m = ref StringMap.empty in
+  for i = 0 to n - 1 do
+    let name, entry = read_file_header ch in
+    m := StringMap.add name entry !m
+  done;
+  { ch; files = !m }
+
+let read_entry z ~name =
+  let pos = StringMap.find name z.files in
+  let { pos; len; _ } = read_local_file_header z.ch pos in
+  seek_in z.ch pos;
+  really_input_string z.ch len
+
+let close_in z = close_in z.ch

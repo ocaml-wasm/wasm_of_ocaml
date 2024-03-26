@@ -1,25 +1,23 @@
+open Stdlib
+
+type output
+
+val open_out : string -> output
+
+val add_entry : output -> name:string -> contents:string -> unit
+
+val add_file : output -> name:string -> file:string -> unit
+
+val close_out : output -> unit
+
+type input
+
+val open_in : string -> input
+
+val read_entry : input -> name:string -> string
+
+val close_in : input -> unit
 (*
-open Stdlib*)
-
-type t
-
-val open_out : string -> t
-
-val add_entry : t -> name:string -> contents:string -> unit
-
-val add_file : t -> name:string -> file:string -> unit
-
-val close_out : t -> unit
-
-(*
-type entry =
-  { pos : int
-  ; size : int
-  ; crc : int32
-  }
-
-val read_directory : in_channel -> entry StringMap.t
-
 val read_file : entry -> string
 
 val extract_file : entry -> out_channel -> unit

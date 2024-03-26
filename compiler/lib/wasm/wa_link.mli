@@ -31,7 +31,7 @@ module Custom_section : sig
 end
 
 val add_info :
-     Zip.t
+     Zip.output
   -> build_info:Build_info.t
   -> unit_data:(Unit_info.t * (string list * Custom_section.fragments)) list
   -> unit

@@ -342,7 +342,16 @@ let info_to_json ~build_info ~unit_data =
     let f = Pretty_print.to_buffer b in
     Pretty_print.set_compact f true;
     ignore (Js_output.program f [ Javascript.Expression_statement e, Javascript.N ]);
-    String.trim (Buffer.contents b)
+    let rec trim_semi s =
+      let l = String.length s in
+      if l = 0
+      then s
+      else
+        match s.[l - 1] with
+        | ';' | '\n' -> trim_semi (String.sub s ~pos:0 ~len:(l - 1))
+        | _ -> s
+    in
+    trim_semi (Buffer.contents b)
   in
   let add nm skip v rem = if skip then rem else (nm, v) :: rem in
   `Assoc
@@ -370,11 +379,45 @@ let info_to_json ~build_info ~unit_data =
               unit_data))
     |> add "build_info" false (Build_info.to_json build_info))
 
+let info_from_json info =
+  let open Yojson.Basic.Util in
+  let build_info = info |> member "build_info" |> Build_info.from_json in
+  let unit_data =
+    info
+    |> member "units"
+    |> to_option to_list
+    |> Option.value ~default:[]
+    |> List.map ~f:(fun u ->
+           let unit_info = u |> member "unit_info" |> Unit_info.from_json in
+           let strings =
+             u
+             |> member "strings"
+             |> to_option to_list
+             |> Option.value ~default:[]
+             |> List.map ~f:to_string
+           in
+           let fragments =
+             u
+             |> member "fragments"
+             |> to_option to_assoc
+             |> Option.value ~default:[]
+             |> List.map ~f:(fun (nm, e) ->
+                    ( nm
+                    , let lex = Parse_js.Lexer.of_string (to_string e) in
+                      Parse_js.parse_expr lex ))
+           in
+           unit_info, (strings, fragments))
+  in
+  build_info, unit_data
+
 let add_info z ~build_info ~unit_data =
   Zip.add_entry
     z
     ~name:"info.json"
     ~contents:(Yojson.Basic.to_string (info_to_json ~build_info ~unit_data))
+
+let read_info z =
+  info_from_json (Yojson.Basic.from_string (Zip.read_entry z ~name:"info.json"))
 
 let generate_prelude ~out_file =
   Filename.gen_file out_file
@@ -585,7 +628,7 @@ let build_js_runtime
 let link_with_wasm_merge ~prelude_file ~files ~start_file ~tmp_wasm_file =
   let runtime, other_files =
     List.partition
-      ~f:(fun (_, ((bi, _, _), _)) ->
+      ~f:(fun (_, (bi, _)) ->
         match Build_info.kind bi with
         | `Runtime -> true
         | `Cmo | `Cma | `Exe | `Unknown -> false)
@@ -652,22 +695,23 @@ let link ~js_launcher ~output_file ~linkall ~files =
   let t = Timer.make () in
   let files =
     List.map files ~f:(fun file ->
-        file, (Custom_section.read ~file, Wasm_binary.read_interface ~file))
+        let z = Zip.open_in file in
+        file, read_info z)
   in
   (match files with
   | [] -> ()
-  | (file, ((bi, _, _), _)) :: r ->
+  | (file, (bi, _)) :: r ->
       Build_info.configure bi;
       ignore
         (List.fold_left
            ~init:bi
-           ~f:(fun bi (file', ((bi', _, _), _)) -> Build_info.merge file bi file' bi')
+           ~f:(fun bi (file', (bi', _)) -> Build_info.merge file bi file' bi')
            r));
   let missing, to_link =
     List.fold_right
       files
       ~init:(StringSet.empty, [])
-      ~f:(fun (_file, ((build_info, _, units), _)) acc ->
+      ~f:(fun (_file, (build_info, units)) acc ->
         let cmo_file =
           match Build_info.kind build_info with
           | `Cmo -> true
@@ -689,7 +733,7 @@ let link ~js_launcher ~output_file ~linkall ~files =
   in
   let files =
     List.filter
-      ~f:(fun (_, ((build_info, _, units), _)) ->
+      ~f:(fun (_file, (build_info, units)) ->
         (match Build_info.kind build_info with
         | `Cmo | `Cma | `Exe | `Unknown -> false
         | `Runtime -> true)
@@ -720,26 +764,6 @@ let link ~js_launcher ~output_file ~linkall ~files =
   if false
   then link_with_wasm_merge ~prelude_file ~files ~start_file ~tmp_wasm_file
   else link_to_archive ~prelude_file ~files ~start_file ~tmp_wasm_file;
-  (*
-  let runtime, other_files =
-    List.partition
-      ~f:(fun (_, (bi, _, _)) ->
-        match Build_info.kind bi with
-        | `Runtime -> true
-        | `Cmo | `Cma | `Exe | `Unknown -> false)
-      files
-  in
-  Wa_binaryen.with_intermediate_file (Filename.temp_file "dummy" ".wasm")
-  @@ fun dummy_file ->
-  Wa_binaryen.write_file ~name:dummy_file ~contents:"(module)";
-  (* We put first a module with no custom section; otherwise, the
-     custom section from the first file is copied to the output *)
-  Wa_binaryen.link
-    ~debuginfo:true
-    ~runtime_files:(dummy_file :: List.map ~f:fst runtime)
-    ~input_files:(List.map ~f:fst other_files @ [ start_file ])
-    ~output_file:tmp_wasm_file;
-  *)
   let prelude, primitives =
     match List.find_map ~f:(fun (_, ((_, js, _), _)) -> js) files with
     | None -> failwith "not runtime found"
@@ -747,7 +771,7 @@ let link ~js_launcher ~output_file ~linkall ~files =
   in
   let generated_js =
     List.concat
-    @@ List.map files ~f:(fun (_, ((_, _, units), _)) ->
+    @@ List.map files ~f:(fun (_, (_, units)) ->
            List.map units ~f:(fun ((info : Unit_info.t), js_code) ->
                Some (StringSet.choose info.provides), js_code))
   in
