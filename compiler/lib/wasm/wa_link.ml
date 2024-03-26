@@ -696,7 +696,9 @@ let link ~js_launcher ~output_file ~linkall ~files =
   let files =
     List.map files ~f:(fun file ->
         let z = Zip.open_in file in
-        file, read_info z)
+        let info = read_info z in
+        Zip.close_in z;
+        file, info)
   in
   (match files with
   | [] -> ()
@@ -765,9 +767,18 @@ let link ~js_launcher ~output_file ~linkall ~files =
   then link_with_wasm_merge ~prelude_file ~files ~start_file ~tmp_wasm_file
   else link_to_archive ~prelude_file ~files ~start_file ~tmp_wasm_file;
   let prelude, primitives =
-    match List.find_map ~f:(fun (_, ((_, js, _), _)) -> js) files with
-    | None -> failwith "not runtime found"
-    | Some js -> js
+    (*ZZZ The first file should exists and be a runtime; other files
+      should be cmas or cmos *)
+    match files with
+    | (file, _) :: _ ->
+        let z = Zip.open_in file in
+        let prelude = Zip.read_entry z ~name:"prelude.js" in
+        let primitives : Javascript.expression =
+          Marshal.from_string (Zip.read_entry z ~name:"primitives.js-marshalled") 0
+        in
+        Zip.close_in z;
+        prelude, primitives
+    | _ -> assert false
   in
   let generated_js =
     List.concat
