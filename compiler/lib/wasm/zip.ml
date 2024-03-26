@@ -372,7 +372,7 @@ let read_file_header ch =
 
 type input =
   { ch : in_channel
-  ; mutable files : int StringMap.t
+  ; files : int StringMap.t
   }
 
 let open_in name =
@@ -400,7 +400,7 @@ let open_in name =
   let offset = input_32 ch in
   seek_in ch offset;
   let m = ref StringMap.empty in
-  for i = 0 to n - 1 do
+  for _ = 0 to n - 1 do
     let name, entry = read_file_header ch in
     m := StringMap.add name entry !m
   done;
@@ -411,6 +411,11 @@ let read_entry z ~name =
   let { pos; len; _ } = read_local_file_header z.ch pos in
   seek_in z.ch pos;
   really_input_string z.ch len
+
+let get_entry z ~name =
+  let pos = StringMap.find name z.files in
+  let { pos; len; _ } = read_local_file_header z.ch pos in
+  z.ch, pos, len
 
 let extract_file z ~name ~file =
   let pos = StringMap.find name z.files in

@@ -1,5 +1,3 @@
-open Stdlib
-
 type output
 
 val open_out : string -> output
@@ -15,6 +13,8 @@ type input
 val open_in : string -> input
 
 val read_entry : input -> name:string -> string
+
+val get_entry : input -> name:string -> in_channel * int (* pos *) * int (* len *)
 
 val extract_file : input -> name:string -> file:string -> unit
 

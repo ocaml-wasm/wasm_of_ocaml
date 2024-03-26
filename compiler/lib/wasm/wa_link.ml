@@ -28,10 +28,20 @@ module Wasm_binary = struct
     if not (String.equal s header)
     then failwith (file ^ " is not a Wasm binary file (bad magic)")
 
+  type t =
+    { ch : in_channel
+    ; limit : int
+    }
+
   let open_in f =
     let ch = open_in_bin f in
     check_header f ch;
-    ch
+    { ch; limit = in_channel_length ch }
+
+  let from_channel ~name ch pos len =
+    seek_in ch pos;
+    check_header name ch;
+    { ch; limit = pos + len }
 
   let rec read_uint ?(n = 5) ch =
     let i = input_byte ch in
@@ -53,13 +63,14 @@ module Wasm_binary = struct
     }
 
   let next_section ch =
-    match input_byte ch with
-    | id ->
-        let size = read_uint ch in
-        Some { id; size }
-    | exception End_of_file -> None
+    if pos_in ch.ch = ch.limit
+    then None
+    else
+      let id = input_byte ch.ch in
+      let size = read_uint ch.ch in
+      Some { id; size }
 
-  let skip_section ch { size; _ } = seek_in ch (pos_in ch + size)
+  let skip_section ch { size; _ } = seek_in ch.ch (pos_in ch.ch + size)
 
   let vec f ch =
     let rec loop acc n = if n = 0 then List.rev acc else loop (f ch :: acc) (n - 1) in
@@ -149,8 +160,8 @@ module Wasm_binary = struct
           (skip_section ch s;
            find_section ())
     in
-    let res = if find_section () then vec import ch else [] in
-    close_in ch;
+    let res = if find_section () then vec import ch.ch else [] in
+    close_in ch.ch;
     res
 
   type interface =
@@ -158,183 +169,27 @@ module Wasm_binary = struct
     ; exports : string list
     }
 
-  let read_interface ~file =
-    let ch = open_in file in
+  let read_interface ch =
     let rec find_sections i =
       match next_section ch with
       | None -> i
       | Some s ->
           if s.id = 2
-          then find_sections { i with imports = vec import ch }
+          then find_sections { i with imports = vec import ch.ch }
           else if s.id = 7
-          then { i with exports = vec export ch }
+          then { i with exports = vec export ch.ch }
           else (
             skip_section ch s;
             find_sections i)
     in
-    let res = find_sections { imports = []; exports = [] } in
-    close_in ch;
-    res
+    find_sections { imports = []; exports = [] }
 end
 
-module Custom_section = struct
-  let with_open_out s ~flags f =
-    let oc = open_out_gen (Open_wronly :: Open_creat :: Open_binary :: flags) 0o666 s in
-    Fun.protect ~finally:(fun () -> close_out_noerr oc) (fun () -> f oc)
-
-  let with_open_in s f =
-    let oc = open_in_bin s in
-    Fun.protect ~finally:(fun () -> close_in_noerr oc) (fun () -> f oc)
-
-  let read_int_32 ch =
-    let res = ref 0 in
-    for i = 0 to 3 do
-      res := !res lor (input_byte ch lsl (8 * i))
-    done;
-    !res
-
-  let write_int_32 ch d =
-    let d = ref d in
-    for _ = 0 to 3 do
-      output_byte ch !d;
-      d := !d lsr 8
-    done
-
-  let rec uint32 i =
-    if i >= 128 || i < 0
-    then Char.chr (i lor 128 land 255) :: uint32 (i lsr 7)
-    else [ Char.chr i ]
-
-  let uint32 i = uint32 (i land 0xffffffff)
-
-  let section_name = "\005ocaml"
-
-  let read_infos f ch =
-    try
-      let len = in_channel_length ch in
-      seek_in ch (len - 4);
-      let n = read_int_32 ch in
-      let leb128_n = uint32 n in
-      let leb128_len = List.length leb128_n in
-      let l = n + 1 + leb128_len in
-      if l > len then raise Exit;
-      seek_in ch (len - l);
-      let s = really_input_string ch l in
-      List.iteri ~f:(fun i c -> if Char.(s.[i] <> c) then raise Exit) ('\000' :: leb128_n);
-      let name_length = String.length section_name in
-      if not
-           (String.equal
-              (String.sub s ~pos:(leb128_len + 1) ~len:name_length)
-              section_name)
-      then raise Exit;
-      String.split_on_char
-        (String.sub s ~pos:(leb128_len + 1 + name_length) ~len:(n - name_length - 4))
-        ~sep:'\n'
-    with Exit -> failwith ("file " ^ f ^ " contains not link information")
-
-  let write_infos ch l =
-    let len = out_channel_length ch in
-    seek_out ch len;
-    let s = String.concat ~sep:"" l in
-    let n = String.length s + String.length section_name + 4 in
-    let leb128_n = uint32 n in
-    output_byte ch 0;
-    List.iter ~f:(fun c -> output_char ch c) leb128_n;
-    output_string ch section_name;
-    output_string ch s;
-    write_int_32 ch n
-
-  type fragments = (string * Javascript.expression) list
-
-  let js_prefix = "//# js:"
-
-  let write ~file ~build_info ?js_runtime ~unit_data () =
-    let build_info = Build_info.to_string build_info in
-    let unit_data =
-      List.map
-        ~f:(fun (unit_info, (str, frag)) ->
-          [ Unit_info.to_string unit_info
-          ; js_prefix
-            ^ Yojson.Safe.to_string
-                (`Assoc
-                  [ "strings", `List (List.map ~f:(fun s -> `String s) str)
-                  ; "fragments", `String (Marshal.to_string (frag : fragments) [])
-                  ])
-            ^ "\n"
-          ])
-        unit_data
-    in
-    let js_runtime =
-      match js_runtime with
-      | None -> []
-      | Some (prelude, primitives) ->
-          [ js_prefix
-            ^ Yojson.Safe.to_string
-                (`Assoc
-                  [ "prelude", `String prelude
-                  ; ( "primitives"
-                    , `String (Marshal.to_string (primitives : Javascript.expression) [])
-                    )
-                  ])
-            ^ "\n"
-          ]
-    in
-    with_open_out file ~flags:[ Open_append ] (fun ch ->
-        write_infos ch ((build_info :: js_runtime) @ List.concat unit_data))
-
-  let read ~file =
-    let rec parse acc uinfo l =
-      match l with
-      | [] | [ "" ] -> List.rev acc
-      | s :: rem -> (
-          match Unit_info.parse uinfo s with
-          | Some uinfo -> parse acc uinfo rem
-          | None ->
-              let js_code =
-                match String.drop_prefix ~prefix:js_prefix s with
-                | None -> assert false
-                | Some s ->
-                    let open Yojson.Safe.Util in
-                    let info = Yojson.Safe.from_string s in
-                    ( info |> member "strings" |> to_list |> List.map ~f:to_string
-                    , (info
-                       |> member "fragments"
-                       |> to_string
-                       |> fun s : fragments -> Marshal.from_string s 0
-                        : fragments) )
-              in
-              parse ((uinfo, js_code) :: acc) Unit_info.empty rem)
-    in
-    match
-      with_open_in file (fun ch ->
-          Wasm_binary.check_header file ch;
-          read_infos file ch)
-    with
-    | [] -> assert false
-    | build_info :: l ->
-        let l, js =
-          match l with
-          | [] -> l, None
-          | s :: rem -> (
-              match String.drop_prefix ~prefix:js_prefix s with
-              | None -> l, None
-              | Some s ->
-                  let data = Yojson.Safe.from_string s in
-                  let open Yojson.Safe.Util in
-                  ( rem
-                  , Some
-                      ( data |> member "prelude" |> to_string
-                      , data
-                        |> member "primitives"
-                        |> to_string
-                        |> fun s : Javascript.expression -> Marshal.from_string s 0 ) ))
-        in
-        ( (match Build_info.parse build_info with
-          | Some bi -> bi
-          | None -> assert false)
-        , js
-        , parse [] Unit_info.empty l )
-end
+type unit_data =
+  { unit_info : Unit_info.t
+  ; strings : string list
+  ; fragments : (string * Javascript.expression) list
+  }
 
 let info_to_json ~build_info ~unit_data =
   let js_to_string e =
@@ -361,7 +216,7 @@ let info_to_json ~build_info ~unit_data =
          (List.is_empty unit_data)
          (`List
            (List.map
-              ~f:(fun (unit_info, (strings, fragments)) ->
+              ~f:(fun { unit_info; strings; fragments } ->
                 `Assoc
                   ([]
                   |> add
@@ -406,7 +261,7 @@ let info_from_json info =
                     , let lex = Parse_js.Lexer.of_string (to_string e) in
                       Parse_js.parse_expr lex ))
            in
-           unit_info, (strings, fragments))
+           { unit_info; strings; fragments })
   in
   build_info, unit_data
 
@@ -625,28 +480,7 @@ let build_js_runtime
   @@ fun tmp_output_file ->
   Wa_binaryen.write_file ~name:tmp_output_file ~contents:(prelude ^ launcher)
 
-let link_with_wasm_merge ~prelude_file ~files ~start_file ~tmp_wasm_file =
-  let runtime, other_files =
-    List.partition
-      ~f:(fun (_, (bi, _)) ->
-        match Build_info.kind bi with
-        | `Runtime -> true
-        | `Cmo | `Cma | `Exe | `Unknown -> false)
-      files
-  in
-  Wa_binaryen.with_intermediate_file (Filename.temp_file "dummy" ".wasm")
-  @@ fun dummy_file ->
-  Wa_binaryen.write_file ~name:dummy_file ~contents:"(module)";
-  (* We put first a module with no custom section; otherwise, the
-     custom section from the first file is copied to the output *)
-  Wa_binaryen.link
-    ~debuginfo:true
-    ~runtime_files:(dummy_file :: List.map ~f:fst runtime)
-    ~input_files:((prelude_file :: List.map ~f:fst other_files) @ [ start_file ])
-    ~output_file:tmp_wasm_file
-
-let link_to_archive ~prelude_file ~files ~start_file ~tmp_wasm_file =
-  let files = List.map ~f:(fun (f, _) -> Filename.basename f, f) files in
+let link_to_archive ~set_to_link ~prelude_file ~files ~start_file ~tmp_wasm_file =
   Wa_binaryen.with_intermediate_file (Filename.temp_file "prelude_file" ".wasm")
   @@ fun tmp_prelude_file ->
   Wa_binaryen.optimize
@@ -662,21 +496,40 @@ let link_to_archive ~prelude_file ~files ~start_file ~tmp_wasm_file =
     ~input_file:start_file
     ~output_file:tmp_start_file;
   let ch = Zip.open_out tmp_wasm_file in
-  List.iter
-    ~f:(fun (name, file) -> Zip.add_file ch ~name ~file)
-    ((List.hd files :: ("prelude.wasm", tmp_prelude_file) :: List.tl files)
-    @ [ "start.wasm", tmp_start_file ]);
-  Zip.close_out ch
-
-let compute_missing_primitives files =
-  let provided_primitives =
-    match files with
-    | (_, (_, { Wasm_binary.exports; _ })) :: _ -> StringSet.of_list exports
-    | _ -> assert false
+  let read_interface z ~name =
+    Wasm_binary.read_interface
+      (let ch, pos, len = Zip.get_entry z ~name in
+       Wasm_binary.from_channel ~name ch pos len)
   in
+  let z = Zip.open_in (fst (List.hd files)) in
+  let runtime_intf = read_interface z ~name:"runtime.wasm" in
+  Zip.copy_file z ch ~src_name:"runtime.wasm" ~dst_name:"runtime.wasm";
+  Zip.close_in z;
+  Zip.add_file ch ~name:"prelude.wasm" ~file:tmp_prelude_file;
+  let intfs = ref [] in
+  List.iter
+    ~f:(fun (file, (_, units)) ->
+      let z = Zip.open_in file in
+      List.iter
+        ~f:(fun { unit_info; _ } ->
+          let unit_name = StringSet.choose unit_info.provides in
+          if StringSet.mem unit_name set_to_link
+          then (
+            let name = unit_name ^ ".wasm" in
+            intfs := read_interface z ~name :: !intfs;
+            Zip.copy_file z ch ~src_name:name ~dst_name:name))
+        units;
+      Zip.close_in z)
+    files;
+  Zip.add_file ch ~name:"start.wasm" ~file:tmp_start_file;
+  Zip.close_out ch;
+  runtime_intf, List.rev !intfs
+
+let compute_missing_primitives (runtime_intf, intfs) =
+  let provided_primitives = StringSet.of_list runtime_intf.Wasm_binary.exports in
   StringSet.elements
   @@ List.fold_left
-       ~f:(fun s (_, (_, { Wasm_binary.imports; _ })) ->
+       ~f:(fun s { Wasm_binary.imports; _ } ->
          List.fold_left
            ~f:(fun s { Wasm_binary.module_; name; _ } ->
              if String.equal module_ "env" && not (StringSet.mem name provided_primitives)
@@ -685,12 +538,8 @@ let compute_missing_primitives files =
            ~init:s
            imports)
        ~init:StringSet.empty
-       files
+       intfs
 
-(*ZZZ
-  file: name + list of sections
-  section : entry + metadata
-*)
 let link ~js_launcher ~output_file ~linkall ~files =
   let t = Timer.make () in
   let files =
@@ -719,20 +568,20 @@ let link ~js_launcher ~output_file ~linkall ~files =
           | `Cmo -> true
           | `Cma | `Exe | `Runtime | `Unknown -> false
         in
-        List.fold_right
-          units
-          ~init:acc
-          ~f:(fun ((info : Unit_info.t), _) (requires, to_link) ->
+        List.fold_right units ~init:acc ~f:(fun { unit_info; _ } (requires, to_link) ->
             if (not (Config.Flag.auto_link ()))
                || cmo_file
                || linkall
-               || info.force_link
-               || not (StringSet.is_empty (StringSet.inter requires info.provides))
+               || unit_info.force_link
+               || not (StringSet.is_empty (StringSet.inter requires unit_info.provides))
             then
-              ( StringSet.diff (StringSet.union info.requires requires) info.provides
-              , StringSet.elements info.provides @ to_link )
+              ( StringSet.diff
+                  (StringSet.union unit_info.requires requires)
+                  unit_info.provides
+              , StringSet.elements unit_info.provides @ to_link )
             else requires, to_link))
   in
+  let set_to_link = StringSet.of_list to_link in
   let files =
     List.filter
       ~f:(fun (_file, (build_info, units)) ->
@@ -740,8 +589,10 @@ let link ~js_launcher ~output_file ~linkall ~files =
         | `Cmo | `Cma | `Exe | `Unknown -> false
         | `Runtime -> true)
         || List.exists
-             ~f:(fun ((info : Unit_info.t), _) ->
-               StringSet.exists (fun nm -> List.mem nm ~set:to_link) info.provides)
+             ~f:(fun { unit_info; _ } ->
+               StringSet.exists
+                 (fun nm -> StringSet.mem nm set_to_link)
+                 unit_info.provides)
              units)
       files
   in
@@ -763,9 +614,9 @@ let link ~js_launcher ~output_file ~linkall ~files =
   let wasm_file = associated_wasm_file ~js_output_file:output_file in
   Wa_binaryen.gen_file wasm_file
   @@ fun tmp_wasm_file ->
-  if false
-  then link_with_wasm_merge ~prelude_file ~files ~start_file ~tmp_wasm_file
-  else link_to_archive ~prelude_file ~files ~start_file ~tmp_wasm_file;
+  let interfaces =
+    link_to_archive ~set_to_link ~prelude_file ~files ~start_file ~tmp_wasm_file
+  in
   let prelude, primitives =
     (*ZZZ The first file should exists and be a runtime; other files
       should be cmas or cmos *)
@@ -783,10 +634,10 @@ let link ~js_launcher ~output_file ~linkall ~files =
   let generated_js =
     List.concat
     @@ List.map files ~f:(fun (_, (_, units)) ->
-           List.map units ~f:(fun ((info : Unit_info.t), js_code) ->
-               Some (StringSet.choose info.provides), js_code))
+           List.map units ~f:(fun { unit_info; strings; fragments } ->
+               Some (StringSet.choose unit_info.provides), (strings, fragments)))
   in
-  let missing_primitives = compute_missing_primitives files in
+  let missing_primitives = compute_missing_primitives interfaces in
   build_js_runtime
     ~js_launcher
     ~prelude

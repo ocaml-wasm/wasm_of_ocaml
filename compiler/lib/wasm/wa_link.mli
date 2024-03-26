@@ -26,15 +26,13 @@ module Wasm_binary : sig
   val read_imports : file:string -> import list
 end
 
-module Custom_section : sig
-  type fragments = (string * Javascript.expression) list
-end
+type unit_data =
+  { unit_info : Unit_info.t
+  ; strings : string list
+  ; fragments : (string * Javascript.expression) list
+  }
 
-val add_info :
-     Zip.output
-  -> build_info:Build_info.t
-  -> unit_data:(Unit_info.t * (string list * Custom_section.fragments)) list
-  -> unit
+val add_info : Zip.output -> build_info:Build_info.t -> unit_data:unit_data list -> unit
 
 val associated_wasm_file : js_output_file:string -> string
 

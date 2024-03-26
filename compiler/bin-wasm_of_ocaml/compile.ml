@@ -26,9 +26,6 @@ let debug_mem = Debug.find "mem"
 
 let () = Sys.catch_break true
 
-let gen_unit_filename dir u =
-  Filename.concat dir (Printf.sprintf "%s.js" (Ocaml_compiler.Cmo_format.name u))
-
 let link_and_optimize ~profile runtime_wasm_files wat_files output_file =
   let debuginfo = Config.Flag.pretty () in
   Wa_binaryen.with_intermediate_file (Filename.temp_file "runtime" ".wasm")
@@ -211,7 +208,7 @@ let run
        @@ fun wat_file ->
        Wa_binaryen.with_intermediate_file (Filename.temp_file unit_name ".wasm")
        @@ fun tmp_wasm_file ->
-       let js_code =
+       let strings, fragments =
          Filename.gen_file wat_file (output code ~unit_name:(Some unit_name))
        in
        Wa_binaryen.optimize
@@ -220,7 +217,7 @@ let run
          ~input_file:wat_file
          ~output_file:tmp_wasm_file;
        Zip.add_file z ~name:(unit_name ^ ".wasm") ~file:tmp_wasm_file;
-       unit_info, js_code
+       { Wa_link.unit_info; strings; fragments }
      in
      (match kind with
      | `Exe ->

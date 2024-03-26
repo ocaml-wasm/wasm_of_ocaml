@@ -525,11 +525,11 @@ can we trim the dependency graph? (remove implied dependencies)
 
 ===================
 
+cmdline options: update description
 .wasma for intermediate files?
 
 ---
 
-adapt linking phase
-support linking archives into archives
-
-open_in/out_bin
+- support linking archives into archives
+- check crcs
+- link to directory
