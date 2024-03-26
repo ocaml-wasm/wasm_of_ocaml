@@ -1,3 +1,7 @@
+let std_open_out = open_out
+
+let std_close_out = close_out
+
 open Stdlib
 
 module type CRC = sig
@@ -152,6 +156,19 @@ module CRC32 : CRC = struct
         : CRC)
 end
 
+let copy in_ch out_ch ?(iter = fun _ _ _ -> ()) len =
+  let b = Bytes.create 65536 in
+  let rec copy rem =
+    if rem > 0
+    then (
+      let n = input in_ch b 0 (min 65536 rem) in
+      if n = 0 then raise End_of_file;
+      iter b 0 n;
+      output out_ch b 0 n;
+      copy (rem - n))
+  in
+  copy len
+
 type file =
   { name : string
   ; pos : int
@@ -210,18 +227,8 @@ let add_file z ~name ~file =
   let file = { name; pos; len; crc = 0l } in
   z.files <- file :: z.files;
   let crc_pos = output_local_file_header z.ch file in
-  let b = Bytes.create 65536 in
   let crc = ref CRC32.start in
-  let rec copy rem =
-    if rem > 0
-    then (
-      let n = input ch b 0 (min 65536 rem) in
-      if n = 0 then raise End_of_file;
-      crc := CRC32.update_from_bytes b 0 n !crc;
-      output z.ch b 0 n;
-      copy (rem - n))
-  in
-  copy len;
+  copy ch z.ch ~iter:(fun b pos len -> crc := CRC32.update_from_bytes b pos len !crc) len;
   let crc = CRC32.finish !crc in
   file.crc <- crc;
   let pos = pos_out z.ch in
@@ -407,4 +414,22 @@ let read_entry z ~name =
   seek_in z.ch pos;
   really_input_string z.ch len
 
+let extract_file z ~name ~file =
+  let pos = StringMap.find name z.files in
+  let { pos; len; _ } = read_local_file_header z.ch pos in
+  seek_in z.ch pos;
+  let ch = std_open_out file in
+  copy z.ch ch len;
+  std_close_out ch
+
 let close_in z = close_in z.ch
+
+let copy_file z (z' : output) ~src_name ~dst_name =
+  let pos = StringMap.find src_name z.files in
+  let { pos; len; crc } = read_local_file_header z.ch pos in
+  seek_in z.ch pos;
+  let pos' = pos_out z'.ch in
+  let file = { name = dst_name; pos = pos'; len; crc } in
+  z'.files <- file :: z'.files;
+  let _ = output_local_file_header z'.ch ~crc file in
+  copy z.ch z'.ch len

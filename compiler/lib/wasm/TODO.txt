@@ -533,3 +533,5 @@ Not needed: ~skip_variable_reset:true
 
 adapt linking phase
 support linking archives into archives
+
+open_in/out_bin
