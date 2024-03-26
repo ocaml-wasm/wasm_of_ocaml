@@ -525,4 +525,11 @@ can we trim the dependency graph? (remove implied dependencies)
 
 ===================
 
-wasm-merge: check that the type of imports/exports matches
+Do not support keeping unit names
+.wasma for intermediate files?
+Not needed: ~skip_variable_reset:true
+
+---
+
+adapt linking phase
+support linking archives into archives

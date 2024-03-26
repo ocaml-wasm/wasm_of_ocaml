@@ -336,6 +336,46 @@ module Custom_section = struct
         , parse [] Unit_info.empty l )
 end
 
+let info_to_json ~build_info ~unit_data =
+  let js_to_string e =
+    let b = Buffer.create 128 in
+    let f = Pretty_print.to_buffer b in
+    Pretty_print.set_compact f true;
+    ignore (Js_output.program f [ Javascript.Expression_statement e, Javascript.N ]);
+    String.trim (Buffer.contents b)
+  in
+  let add nm skip v rem = if skip then rem else (nm, v) :: rem in
+  `Assoc
+    ([]
+    |> add
+         "units"
+         (List.is_empty unit_data)
+         (`List
+           (List.map
+              ~f:(fun (unit_info, (strings, fragments)) ->
+                `Assoc
+                  ([]
+                  |> add
+                       "strings"
+                       (List.is_empty strings)
+                       (`List (List.map ~f:(fun s -> `String s) strings))
+                  |> add
+                       "fragments"
+                       (List.is_empty fragments)
+                       (`Assoc
+                         (List.map
+                            ~f:(fun (nm, e) -> nm, `String (js_to_string e))
+                            fragments))
+                  |> add "unit_info" false (Unit_info.to_json unit_info)))
+              unit_data))
+    |> add "build_info" false (Build_info.to_json build_info))
+
+let add_info z ~build_info ~unit_data =
+  Zip.add_entry
+    z
+    ~name:"info.json"
+    ~contents:(Yojson.Basic.to_string (info_to_json ~build_info ~unit_data))
+
 let generate_prelude ~out_file =
   Filename.gen_file out_file
   @@ fun ch ->
@@ -495,6 +535,8 @@ let build_js_runtime
   in
   let launcher =
     Code.Var.reset ();
+    Code.Var.set_pretty true;
+    Code.Var.set_stable (Config.Flag.stable_var ());
     let b = Buffer.create 1024 in
     let f = Pretty_print.to_buffer b in
     Pretty_print.set_compact f (not (Config.Flag.pretty ()));

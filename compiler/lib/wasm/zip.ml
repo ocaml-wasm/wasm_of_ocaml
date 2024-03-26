@@ -5,7 +5,9 @@ module type CRC = sig
 
   val start : t
 
-  val update : bytes -> int -> int -> t -> t
+  val update_from_bytes : bytes -> int -> int -> t -> t
+
+  val update_from_string : string -> int -> int -> t -> t
 
   val finish : t -> int32
 end
@@ -33,7 +35,7 @@ module CRC32 : CRC = struct
 
     let start = 0xffffffffl
 
-    let update s pos len crc =
+    let update_from_bytes s pos len crc =
       assert (pos >= 0 && len >= 0 && pos <= Bytes.length s - len);
       let open Int32 in
       let tbl = Lazy.force table in
@@ -45,6 +47,19 @@ module CRC32 : CRC = struct
             (Array.unsafe_get
                tbl
                (to_int !crc land 0xff lxor Char.code (Bytes.unsafe_get s i)))
+      done;
+      !crc
+
+    let update_from_string s pos len crc =
+      assert (pos >= 0 && len >= 0 && pos <= String.length s - len);
+      let open Int32 in
+      let tbl = Lazy.force table in
+      let crc = ref crc in
+      for i = pos to pos + len - 1 do
+        crc :=
+          logxor
+            (shift_right_logical !crc 8)
+            (Array.unsafe_get tbl (to_int !crc land 0xff lxor Char.code s.[i]))
       done;
       !crc
 
@@ -79,7 +94,7 @@ module CRC32 : CRC = struct
 
     let table8 = next_table table1 table7
 
-    let update s pos len crc =
+    let update_from_bytes s pos len crc =
       assert (pos >= 0 && len >= 0 && pos <= Bytes.length s - len);
       let tbl1 = Lazy.force table1 in
       let tbl2 = Lazy.force table2 in
@@ -113,6 +128,15 @@ module CRC32 : CRC = struct
         crc :=
           (!crc lsr 8)
           lxor Array.unsafe_get tbl1 (!crc land 0xff lxor Char.code (Bytes.unsafe_get s i))
+      done;
+      !crc
+
+    let update_from_string s pos len crc =
+      assert (pos >= 0 && len >= 0 && pos <= String.length s - len);
+      let tbl = Lazy.force table1 in
+      let crc = ref crc in
+      for i = pos to pos + len - 1 do
+        crc := (!crc lsr 8) lxor Array.unsafe_get tbl (!crc land 0xff lxor Char.code s.[i])
       done;
       !crc
 
@@ -154,7 +178,7 @@ let output_crc ch crc =
   output_16 ch (Int32.to_int crc);
   output_16 ch (Int32.to_int (Int32.shift_right_logical crc 16))
 
-let output_local_file_header ch { name; len; _ } =
+let output_local_file_header ch ?(crc = 0l) { name; len; _ } =
   output_32 ch 0x04034b50;
   (* version needed to extract *)
   output_16 ch 10;
@@ -167,7 +191,7 @@ let output_local_file_header ch { name; len; _ } =
   output_16 ch 0x5821;
   (* CRC *)
   let crc_pos = pos_out ch in
-  output_32 ch 0x0;
+  output_crc ch crc;
   (* compressed / uncompressed size *)
   output_32 ch len;
   output_32 ch len;
@@ -193,7 +217,7 @@ let add_file z ~name ~file =
     then (
       let n = input ch b 0 (min 65536 rem) in
       if n = 0 then raise End_of_file;
-      crc := CRC32.update b 0 n !crc;
+      crc := CRC32.update_from_bytes b 0 n !crc;
       output z.ch b 0 n;
       copy (rem - n))
   in
@@ -204,6 +228,15 @@ let add_file z ~name ~file =
   seek_out z.ch crc_pos;
   output_crc z.ch crc;
   seek_out z.ch pos
+
+let add_entry z ~name ~contents =
+  let pos = pos_out z.ch in
+  let len = String.length contents in
+  let crc = CRC32.start |> CRC32.update_from_string contents 0 len |> CRC32.finish in
+  let file = { name; pos; len; crc } in
+  z.files <- file :: z.files;
+  let _crc_pos = output_local_file_header z.ch ~crc file in
+  output_string z.ch contents
 
 let output_file_header ch { name; pos; len; crc } =
   output_32 ch 0x02014b50;

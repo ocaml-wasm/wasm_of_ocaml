@@ -28,15 +28,13 @@ end
 
 module Custom_section : sig
   type fragments = (string * Javascript.expression) list
-
-  val write :
-       file:string
-    -> build_info:Build_info.t
-    -> ?js_runtime:string * Javascript.expression
-    -> unit_data:(Unit_info.t * (string list * fragments)) list
-    -> unit
-    -> unit
 end
+
+val add_info :
+     Zip.t
+  -> build_info:Build_info.t
+  -> unit_data:(Unit_info.t * (string list * Custom_section.fragments)) list
+  -> unit
 
 val associated_wasm_file : js_output_file:string -> string
 

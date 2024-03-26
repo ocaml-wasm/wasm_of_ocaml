@@ -5,6 +5,8 @@ type t
 
 val open_out : string -> t
 
+val add_entry : t -> name:string -> contents:string -> unit
+
 val add_file : t -> name:string -> file:string -> unit
 
 val close_out : t -> unit

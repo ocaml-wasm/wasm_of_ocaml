@@ -29,11 +29,6 @@ let () = Sys.catch_break true
 let gen_unit_filename dir u =
   Filename.concat dir (Printf.sprintf "%s.js" (Ocaml_compiler.Cmo_format.name u))
 
-let output_gen output_file f =
-  Code.Var.set_pretty true;
-  Code.Var.set_stable (Config.Flag.stable_var ());
-  Filename.gen_file output_file f
-
 let link_and_optimize ~profile runtime_wasm_files wat_files output_file =
   let debuginfo = Config.Flag.pretty () in
   Wa_binaryen.with_intermediate_file (Filename.temp_file "runtime" ".wasm")
@@ -95,6 +90,9 @@ let link_js_files ~primitives =
     | _ -> assert false
   in
   let b = Buffer.create 1024 in
+  Code.Var.set_pretty true;
+  Code.Var.set_stable (Config.Flag.stable_var ());
+  (*ZZZ minify? *)
   let f = Pretty_print.to_buffer b in
   Pretty_print.set_compact f (not (Config.Flag.pretty ()));
   ignore (Js_output.program f always_required_js);
@@ -107,7 +105,6 @@ let run
     ; input_file
     ; output_file
     ; params
-    ; keep_unit_names
     ; runtime_only
     } =
   Jsoo_cmdline.Arg.eval common;
@@ -164,6 +161,8 @@ let run
   (if runtime_only
    then (
      Wa_binaryen.gen_file (fst output_file)
+     @@ fun tmp_output_file ->
+     Wa_binaryen.with_intermediate_file (Filename.temp_file "wasm" ".wasm")
      @@ fun tmp_wasm_file ->
      link_runtime ~profile runtime_wasm_files tmp_wasm_file;
      let primitives =
@@ -173,13 +172,16 @@ let run
               if String.equal module_ "js" then Some name else None)
        |> StringSet.of_list
      in
-     let js_runtime = link_js_files ~primitives in
-     Wa_link.Custom_section.write
-       ~file:tmp_wasm_file
-       ~js_runtime
-       ~unit_data:[]
-       ~build_info:(Build_info.create `Runtime)
-       ())
+     let prelude, primitives = link_js_files ~primitives in
+     let z = Zip.open_out tmp_output_file in
+     Wa_link.add_info z ~build_info:(Build_info.create `Runtime) ~unit_data:[];
+     Zip.add_file z ~name:"runtime.wasm" ~file:tmp_wasm_file;
+     Zip.add_entry z ~name:"prelude.js" ~contents:prelude;
+     Zip.add_entry
+       z
+       ~name:"primitives.js-marshalled"
+       ~contents:(Marshal.to_string (primitives : Javascript.expression) []);
+     Zip.close_out z)
    else
      let kind, ic, close_ic, include_dirs =
        let input_file =
@@ -191,6 +193,34 @@ let run
        let res = Parse_bytecode.from_channel ch in
        let include_dirs = Filename.dirname input_file :: include_dirs in
        res, ch, (fun () -> close_in ch), include_dirs
+     in
+     let compile_cmo z cmo =
+       let t1 = Timer.make () in
+       let code =
+         Parse_bytecode.from_cmo
+           ~target:`Wasm
+           ~includes:include_dirs
+           ~debug:need_debug
+           cmo
+           ic
+       in
+       let unit_info = Unit_info.of_cmo cmo in
+       let unit_name = StringSet.choose unit_info.provides in
+       if times () then Format.eprintf "  parsing: %a (%s)@." Timer.print t1 unit_name;
+       Wa_binaryen.with_intermediate_file (Filename.temp_file unit_name ".wat")
+       @@ fun wat_file ->
+       Wa_binaryen.with_intermediate_file (Filename.temp_file unit_name ".wasm")
+       @@ fun tmp_wasm_file ->
+       let js_code =
+         Filename.gen_file wat_file (output code ~unit_name:(Some unit_name))
+       in
+       Wa_binaryen.optimize
+         ~debuginfo:(Config.Flag.pretty ())
+         ~profile
+         ~input_file:wat_file
+         ~output_file:tmp_wasm_file;
+       Zip.add_file z ~name:(unit_name ^ ".wasm") ~file:tmp_wasm_file;
+       unit_info, js_code
      in
      (match kind with
      | `Exe ->
@@ -212,7 +242,9 @@ let run
          let wasm_file = Wa_link.associated_wasm_file ~js_output_file:output_file in
          Wa_binaryen.gen_file wasm_file
          @@ fun tmp_wasm_file ->
-         let generated_js = [ None, output_gen wat_file (output code ~unit_name:None) ] in
+         let generated_js =
+           [ None, Filename.gen_file wat_file (output code ~unit_name:None) ]
+         in
          let primitives =
            link_and_optimize ~profile runtime_wasm_files [ wat_file ] tmp_wasm_file
          in
@@ -226,136 +258,22 @@ let run
            wasm_file
            output_file
      | `Cmo cmo ->
-         let output_file =
-           match output_file, keep_unit_names with
-           | (x, false), true -> gen_unit_filename (Filename.dirname x) cmo
-           | (x, _), false -> x
-           | (x, true), true
-             when String.length x > 0 && Char.equal x.[String.length x - 1] '/' ->
-               gen_unit_filename x cmo
-           | (_, true), true -> failwith "use [-o dirname/] or remove [--keep-unit-names]"
-         in
-         let t1 = Timer.make () in
-         let code =
-           Parse_bytecode.from_cmo
-             ~target:`Wasm
-             ~includes:include_dirs
-             ~debug:need_debug
-             cmo
-             ic
-         in
-         if times () then Format.eprintf "  parsing: %a@." Timer.print t1;
-         Wa_binaryen.gen_file (Filename.chop_extension output_file ^ ".wat")
-         @@ fun wat_file ->
-         let wasm_file = Filename.chop_extension output_file ^ ".wasm" in
-         Wa_binaryen.gen_file wasm_file
-         @@ fun tmp_wasm_file ->
-         let unit_info = Unit_info.of_cmo cmo in
-         let build_info = Build_info.create `Cmo in
-         let unit_name = StringSet.choose unit_info.provides in
-         let js_code = output_gen wat_file (output code ~unit_name:(Some unit_name)) in
-         Wa_binaryen.optimize
-           ~debuginfo:(Config.Flag.pretty ())
-           ~profile
-           ~input_file:wat_file
-           ~output_file:tmp_wasm_file;
-         Wa_link.Custom_section.write
-           ~file:tmp_wasm_file
-           ~unit_data:[ unit_info, js_code ]
-           ~build_info
-           ()
-     | `Cma cma when keep_unit_names ->
-         List.iter cma.lib_units ~f:(fun cmo ->
-             let output_file =
-               match output_file with
-               | x, false -> gen_unit_filename (Filename.dirname x) cmo
-               | x, true
-                 when String.length x > 0 && Char.equal x.[String.length x - 1] '/' ->
-                   gen_unit_filename x cmo
-               | _, true -> failwith "use [-o dirname/] or remove [--keep-unit-names]"
-             in
-             let t1 = Timer.make () in
-             let code =
-               Parse_bytecode.from_cmo
-                 ~target:`Wasm
-                 ~includes:include_dirs
-                 ~debug:need_debug
-                 cmo
-                 ic
-             in
-             if times ()
-             then
-               Format.eprintf
-                 "  parsing: %a (%s)@."
-                 Timer.print
-                 t1
-                 (Ocaml_compiler.Cmo_format.name cmo);
-             Wa_binaryen.gen_file (Filename.chop_extension output_file ^ ".wat")
-             @@ fun wat_file ->
-             let wasm_file = Filename.chop_extension output_file ^ ".wasm" in
-             Wa_binaryen.gen_file wasm_file
-             @@ fun tmp_wasm_file ->
-             let unit_info = Unit_info.of_cmo cmo in
-             let build_info = Build_info.create `Cmo in
-             let unit_name = StringSet.choose unit_info.provides in
-             let js_code =
-               output_gen wat_file (output code ~unit_name:(Some unit_name))
-             in
-             Wa_binaryen.optimize
-               ~debuginfo:(Config.Flag.pretty ())
-               ~profile
-               ~input_file:wat_file
-               ~output_file:tmp_wasm_file;
-             Wa_link.Custom_section.write
-               ~file:tmp_wasm_file
-               ~unit_data:[ unit_info, js_code ]
-               ~build_info
-               ())
+         let output_file = Filename.chop_extension (fst output_file) ^ ".wasm" in
+         Wa_binaryen.gen_file output_file
+         @@ fun tmp_output_file ->
+         let z = Zip.open_out tmp_output_file in
+         let unit_data = [ compile_cmo z cmo ] in
+         Wa_link.add_info z ~build_info:(Build_info.create `Cmo) ~unit_data;
+         Zip.close_out z
      | `Cma cma ->
-         let f ch =
-           Code.Var.reset ();
-           let context = Wa_generate.start () in
-           let infos =
-             List.fold_left cma.lib_units ~init:[] ~f:(fun infos cmo ->
-                 let t1 = Timer.make () in
-                 let code =
-                   Parse_bytecode.from_cmo
-                     ~target:`Wasm
-                     ~skip_variable_reset:true
-                     ~includes:include_dirs
-                     ~debug:need_debug
-                     cmo
-                     ic
-                 in
-                 if times ()
-                 then
-                   Format.eprintf
-                     "  parsing: %a (%s)@."
-                     Timer.print
-                     t1
-                     (Ocaml_compiler.Cmo_format.name cmo);
-                 let unit_info = Unit_info.of_cmo cmo in
-                 let unit_name = StringSet.choose unit_info.provides in
-                 let js_code = compile ~context ~unit_name:(Some unit_name) code in
-                 (unit_info, js_code) :: infos)
-           in
-           Wa_generate.output ch ~context;
-           List.rev infos
-         in
-         let output_file = fst output_file in
-         Wa_binaryen.gen_file (Filename.chop_extension output_file ^ ".wat")
-         @@ fun wat_file ->
-         let wasm_file = Filename.chop_extension output_file ^ ".wasm" in
-         Wa_binaryen.gen_file wasm_file
-         @@ fun tmp_wasm_file ->
-         let build_info = Build_info.create `Cma in
-         let unit_data = output_gen wat_file f in
-         Wa_binaryen.optimize
-           ~debuginfo:(Config.Flag.pretty ())
-           ~profile
-           ~input_file:wat_file
-           ~output_file:tmp_wasm_file;
-         Wa_link.Custom_section.write ~file:tmp_wasm_file ~unit_data ~build_info ());
+         let output_file = Filename.chop_extension (fst output_file) ^ ".wasm" in
+         Wa_binaryen.gen_file output_file
+         @@ fun tmp_output_file ->
+         let z = Zip.open_out tmp_output_file in
+         let unit_data = List.map ~f:(fun cmo -> compile_cmo z cmo) cma.lib_units in
+         Wa_link.add_info z ~build_info:(Build_info.create `Cma) ~unit_data;
+         Zip.close_out z);
+
      close_ic ());
   Debug.stop_profiling ()
 
