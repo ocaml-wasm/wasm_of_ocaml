@@ -20,6 +20,10 @@ open! Stdlib
 
 let times = Debug.find "times"
 
+open Stdlib
+
+let deps = Debug.find "deps"
+
 module Wasm_binary = struct
   let header = "\000asm\001\000\000\000"
 
@@ -203,6 +207,21 @@ type unit_data =
   ; strings : string list
   ; fragments : (string * Javascript.expression) list
   }
+
+let print_deps files =
+  Format.printf "@[<2>digrap {@ ";
+  List.iter
+    ~f:(fun (_, (_, info)) ->
+      List.iter
+        ~f:(fun (unit_data : unit_data) ->
+          let info = unit_data.unit_info in
+          let provides = StringSet.choose info.provides in
+          StringSet.iter
+            (fun requires -> Format.printf "%s -> %s;@ " provides requires)
+            info.requires)
+        info)
+    files;
+  Format.printf "@ }@."
 
 let info_to_json ~predefined_exceptions ~build_info ~unit_data =
   (*
@@ -525,6 +544,7 @@ let link ~output_file ~linkall ~files =
     if times () then Format.eprintf "linking@.";
     let t = Timer.make () in
     let predefined_exceptions, files = load_information files in
+    if true || deps () then print_deps files;
     (match files with
     | [] -> ()
     | (file, (bi, _)) :: r ->
