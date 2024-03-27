@@ -257,6 +257,21 @@ let info_to_json ~predefined_exceptions ~build_info ~unit_data =
 let info_from_json info =
   let open Yojson.Basic.Util in
   let build_info = info |> member "build_info" |> Build_info.from_json in
+  let crc_units =
+    info
+    |> member "crc_units"
+    |> to_option to_list
+    |> Option.value ~default:[]
+    |> List.map ~f:to_string
+  in
+  let crc_digests =
+    info
+    |> member "crc_digests"
+    |> to_option to_list
+    |> Option.value ~default:[]
+    |> List.map ~f:(fun s -> Digest.from_hex (to_string s))
+  in
+  let tbl = Array.of_list (List.combine crc_units crc_digests) in
   let predefined_exceptions =
     info
     |> member "predefined_exceptions"
@@ -271,7 +286,7 @@ let info_from_json info =
     |> to_option to_list
     |> Option.value ~default:[]
     |> List.map ~f:(fun u ->
-           let unit_info = u |> member "unit_info" |> Unit_info.from_json in
+           let unit_info = u |> member "unit_info" |> Unit_info.from_json tbl in
            let strings =
              u
              |> member "strings"

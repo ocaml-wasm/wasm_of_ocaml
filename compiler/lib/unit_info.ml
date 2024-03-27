@@ -148,7 +148,7 @@ let to_json tbl t : Yojson.Basic.t =
     |> bool "effects_without_cps" (fun t -> t.effects_without_cps)
     |> add "crcs" (List.is_empty digests) (`List digests))
 
-let from_json t =
+let from_json tbl t =
   let open Yojson.Basic.Util in
   let opt_list l = l |> to_option to_list |> Option.map ~f:(List.map ~f:to_string) in
   let list default l = Option.value ~default (opt_list l) in
@@ -156,14 +156,16 @@ let from_json t =
     Option.value ~default (Option.map ~f:StringSet.of_list (opt_list l))
   in
   let bool default v = Option.value ~default (to_option to_bool v) in
-  (*
   ignore (*ZZZZ*)
     (t
     |> member "crcs"
-    |> to_option to_assoc
+    |> to_option to_list
     |> Option.value ~default:[]
-    |> List.map ~f:(fun (k, v) -> k, v |> to_option to_string));
-  *)
+    |> List.fold_left
+         ~f:(fun m i ->
+           let k, v = tbl.(to_int i) in
+           StringMap.add k (Some v) m)
+         ~init:StringMap.empty);
   { provides = t |> member "provides" |> set empty.provides
   ; requires = t |> member "requires" |> set empty.requires
   ; primitives = t |> member "primitives" |> list empty.primitives
