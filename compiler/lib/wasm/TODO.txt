@@ -534,3 +534,5 @@ cmdline options: update description
 - check crcs
 - link to directory
 - generate javascript for primitives from the start
+
+hashtbl for requires?

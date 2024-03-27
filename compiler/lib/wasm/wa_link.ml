@@ -541,124 +541,130 @@ let compute_missing_primitives (runtime_intf, intfs) =
        intfs
 
 let link ~js_launcher ~output_file ~linkall ~files =
-  if times () then Format.eprintf "linking@.";
-  let t = Timer.make () in
-  let files =
-    List.map files ~f:(fun file ->
-        let z = Zip.open_in file in
-        let info = read_info z in
-        Zip.close_in z;
-        file, info)
-  in
-  (match files with
-  | [] -> ()
-  | (file, (bi, _)) :: r ->
-      Build_info.configure bi;
-      ignore
-        (List.fold_left
-           ~init:bi
-           ~f:(fun bi (file', (bi', _)) -> Build_info.merge file bi file' bi')
-           r));
-  if times () then Format.eprintf "    reading information: %a@." Timer.print t;
-  let t1 = Timer.make () in
-  let missing, to_link =
-    List.fold_right
-      files
-      ~init:(StringSet.empty, [])
-      ~f:(fun (_file, (build_info, units)) acc ->
-        let cmo_file =
-          match Build_info.kind build_info with
-          | `Cmo -> true
-          | `Cma | `Exe | `Runtime | `Unknown -> false
-        in
-        List.fold_right units ~init:acc ~f:(fun { unit_info; _ } (requires, to_link) ->
-            if (not (Config.Flag.auto_link ()))
-               || cmo_file
-               || linkall
-               || unit_info.force_link
-               || not (StringSet.is_empty (StringSet.inter requires unit_info.provides))
-            then
-              ( StringSet.diff
-                  (StringSet.union unit_info.requires requires)
-                  unit_info.provides
-              , StringSet.elements unit_info.provides @ to_link )
-            else requires, to_link))
-  in
-  let set_to_link = StringSet.of_list to_link in
-  let files =
-    if linkall
-    then files
-    else
-      List.filter
-        ~f:(fun (_file, (build_info, units)) ->
-          (match Build_info.kind build_info with
-          | `Cma | `Exe | `Unknown -> false
-          | `Cmo | `Runtime -> true)
-          || List.exists
-               ~f:(fun { unit_info; _ } ->
-                 StringSet.exists
-                   (fun nm -> StringSet.mem nm set_to_link)
-                   unit_info.provides)
-               units)
+  let rec loop n =
+    if times () then Format.eprintf "linking@.";
+    let t = Timer.make () in
+    let files =
+      List.map files ~f:(fun file ->
+          let z = Zip.open_in file in
+          let info = read_info z in
+          Zip.close_in z;
+          file, info)
+    in
+    (match files with
+    | [] -> ()
+    | (file, (bi, _)) :: r ->
+        Build_info.configure bi;
+        ignore
+          (List.fold_left
+             ~init:bi
+             ~f:(fun bi (file', (bi', _)) -> Build_info.merge file bi file' bi')
+             r));
+    if times () then Format.eprintf "    reading information: %a@." Timer.print t;
+    let t1 = Timer.make () in
+    let missing, to_link =
+      List.fold_right
         files
+        ~init:(StringSet.empty, [])
+        ~f:(fun (_file, (build_info, units)) acc ->
+          let cmo_file =
+            match Build_info.kind build_info with
+            | `Cmo -> true
+            | `Cma | `Exe | `Runtime | `Unknown -> false
+          in
+          List.fold_right units ~init:acc ~f:(fun { unit_info; _ } (requires, to_link) ->
+              if (not (Config.Flag.auto_link ()))
+                 || cmo_file
+                 || linkall
+                 || unit_info.force_link
+                 || not (StringSet.is_empty (StringSet.inter requires unit_info.provides))
+              then
+                ( StringSet.diff
+                    (StringSet.union unit_info.requires requires)
+                    unit_info.provides
+                , StringSet.elements unit_info.provides @ to_link )
+              else requires, to_link))
+    in
+    let set_to_link = StringSet.of_list to_link in
+    let files =
+      if linkall
+      then files
+      else
+        List.filter
+          ~f:(fun (_file, (build_info, units)) ->
+            (match Build_info.kind build_info with
+            | `Cma | `Exe | `Unknown -> false
+            | `Cmo | `Runtime -> true)
+            || List.exists
+                 ~f:(fun { unit_info; _ } ->
+                   StringSet.exists
+                     (fun nm -> StringSet.mem nm set_to_link)
+                     unit_info.provides)
+                 units)
+          files
+    in
+    if times () then Format.eprintf "    finding what to link: %a@." Timer.print t1;
+    let t1 = Timer.make () in
+    Wa_binaryen.with_intermediate_file (Filename.temp_file "prelude" ".wasm")
+    @@ fun prelude_file ->
+    let predefined_exceptions = generate_prelude ~out_file:prelude_file in
+    Wa_binaryen.with_intermediate_file (Filename.temp_file "start" ".wasm")
+    @@ fun start_file ->
+    generate_start_function ~to_link ~out_file:start_file;
+    let missing = StringSet.diff missing predefined_exceptions in
+    if not (StringSet.is_empty missing)
+    then
+      failwith
+        (Printf.sprintf
+           "Could not find compilation unit for %s"
+           (String.concat ~sep:", " (StringSet.elements missing)));
+    if times () then Format.eprintf "    generate prelude/start: %a@." Timer.print t1;
+    if times () then Format.eprintf "  scan: %a@." Timer.print t;
+    let t = Timer.make () in
+    let wasm_file = associated_wasm_file ~js_output_file:output_file in
+    Wa_binaryen.gen_file wasm_file
+    @@ fun tmp_wasm_file ->
+    let interfaces =
+      link_to_archive ~set_to_link ~prelude_file ~files ~start_file ~tmp_wasm_file
+    in
+    let missing_primitives = compute_missing_primitives interfaces in
+    if times () then Format.eprintf "    copy wasm files: %a@." Timer.print t;
+    let t1 = Timer.make () in
+    let prelude, primitives =
+      (*ZZZ The first file should exist and be a runtime; other files
+        should be cmas or cmos *)
+      match files with
+      | (file, _) :: _ ->
+          let z = Zip.open_in file in
+          let prelude = Zip.read_entry z ~name:"prelude.js" in
+          let primitives : Javascript.expression =
+            Marshal.from_string (Zip.read_entry z ~name:"primitives.js-marshalled") 0
+          in
+          Zip.close_in z;
+          prelude, primitives
+      | _ -> assert false
+    in
+    let generated_js =
+      List.concat
+      @@ List.map files ~f:(fun (_, (_, units)) ->
+             List.map units ~f:(fun { unit_info; strings; fragments } ->
+                 Some (StringSet.choose unit_info.provides), (strings, fragments)))
+    in
+    build_js_runtime
+      ~js_launcher
+      ~prelude
+      ~primitives
+      ~generated_js
+      ~tmp_wasm_file
+      ~separate_compilation:true
+      ~missing_primitives
+      wasm_file
+      output_file;
+    if times () then Format.eprintf "    build JS runtime: %a@." Timer.print t1;
+    if times () then Format.eprintf "  emit: %a@." Timer.print t;
+    if n > 0 then loop (n - 1)
   in
-  Wa_binaryen.with_intermediate_file (Filename.temp_file "prelude" ".wasm")
-  @@ fun prelude_file ->
-  let predefined_exceptions = generate_prelude ~out_file:prelude_file in
-  Wa_binaryen.with_intermediate_file (Filename.temp_file "start" ".wasm")
-  @@ fun start_file ->
-  generate_start_function ~to_link ~out_file:start_file;
-  let missing = StringSet.diff missing predefined_exceptions in
-  if not (StringSet.is_empty missing)
-  then
-    failwith
-      (Printf.sprintf
-         "Could not find compilation unit for %s"
-         (String.concat ~sep:", " (StringSet.elements missing)));
-  if times () then Format.eprintf "    finding what to link: %a@." Timer.print t1;
-  if times () then Format.eprintf "  scan: %a@." Timer.print t;
-  let t = Timer.make () in
-  let wasm_file = associated_wasm_file ~js_output_file:output_file in
-  Wa_binaryen.gen_file wasm_file
-  @@ fun tmp_wasm_file ->
-  let interfaces =
-    link_to_archive ~set_to_link ~prelude_file ~files ~start_file ~tmp_wasm_file
-  in
-  let missing_primitives = compute_missing_primitives interfaces in
-  if times () then Format.eprintf "    copy wasm files: %a@." Timer.print t;
-  let t1 = Timer.make () in
-  let prelude, primitives =
-    (*ZZZ The first file should exist and be a runtime; other files
-      should be cmas or cmos *)
-    match files with
-    | (file, _) :: _ ->
-        let z = Zip.open_in file in
-        let prelude = Zip.read_entry z ~name:"prelude.js" in
-        let primitives : Javascript.expression =
-          Marshal.from_string (Zip.read_entry z ~name:"primitives.js-marshalled") 0
-        in
-        Zip.close_in z;
-        prelude, primitives
-    | _ -> assert false
-  in
-  let generated_js =
-    List.concat
-    @@ List.map files ~f:(fun (_, (_, units)) ->
-           List.map units ~f:(fun { unit_info; strings; fragments } ->
-               Some (StringSet.choose unit_info.provides), (strings, fragments)))
-  in
-  build_js_runtime
-    ~js_launcher
-    ~prelude
-    ~primitives
-    ~generated_js
-    ~tmp_wasm_file
-    ~separate_compilation:true
-    ~missing_primitives
-    wasm_file
-    output_file;
-  if times () then Format.eprintf "    build JS runtime: %a@." Timer.print t1;
-  if times () then Format.eprintf "  emit: %a@." Timer.print t
+  loop 50
 
 let link ~js_launcher ~output_file ~linkall ~files =
   try link ~js_launcher ~output_file ~linkall ~files
