@@ -540,17 +540,18 @@ let compute_missing_primitives (runtime_intf, intfs) =
        ~init:StringSet.empty
        intfs
 
+let load_information files =
+  List.map files ~f:(fun file ->
+      let z = Zip.open_in file in
+      let info = read_info z in
+      Zip.close_in z;
+      file, info)
+
 let link ~js_launcher ~output_file ~linkall ~files =
   let rec loop n =
     if times () then Format.eprintf "linking@.";
     let t = Timer.make () in
-    let files =
-      List.map files ~f:(fun file ->
-          let z = Zip.open_in file in
-          let info = read_info z in
-          Zip.close_in z;
-          file, info)
-    in
+    let files = load_information files in
     (match files with
     | [] -> ()
     | (file, (bi, _)) :: r ->
