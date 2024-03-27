@@ -629,7 +629,7 @@ let link ~output_file ~linkall ~files =
     if times () then Format.eprintf "  emit: %a@." Timer.print t;
     if n > 0 then loop (n - 1)
   in
-  loop 99
+  loop 0
 
 let link ~output_file ~linkall ~files =
   try link ~output_file ~linkall ~files
