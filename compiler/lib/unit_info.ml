@@ -110,7 +110,7 @@ let to_json t : Yojson.Basic.t =
     |> set "primitives" (fun t -> t.primitives)
     |> bool "force_link" (fun t -> t.force_link)
     |> set "requires" (fun t -> StringSet.elements t.requires)
-    |> set "provides" (fun t -> StringSet.elements t.provides))
+    |> add "provides" false (`String (StringSet.choose t.provides)))
 
 let from_json t =
   let open Yojson.Basic.Util in
@@ -120,7 +120,7 @@ let from_json t =
     Option.value ~default (Option.map ~f:StringSet.of_list (opt_list l))
   in
   let bool default v = Option.value ~default (to_option to_bool v) in
-  { provides = t |> member "provides" |> set empty.provides
+  { provides = t |> member "provides" |> to_string |> StringSet.singleton
   ; requires = t |> member "requires" |> set empty.requires
   ; primitives = t |> member "primitives" |> list empty.primitives
   ; force_link = t |> member "force_link" |> bool empty.force_link

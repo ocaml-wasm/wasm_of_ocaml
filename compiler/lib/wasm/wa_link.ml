@@ -217,7 +217,8 @@ let info_to_json ~predefined_exceptions ~build_info ~unit_data =
     List.map
       ~f:(fun { unit_info; strings; fragments } ->
         `Assoc
-          ([]
+          (Unit_info.to_json unit_info
+          |> Yojson.Basic.Util.to_assoc
           |> add
                "strings"
                (List.is_empty strings)
@@ -226,8 +227,7 @@ let info_to_json ~predefined_exceptions ~build_info ~unit_data =
                "fragments"
                (List.is_empty fragments)
                (`Assoc
-                 (List.map ~f:(fun (nm, e) -> nm, `String (js_to_string e)) fragments))
-          |> add "unit_info" false (Unit_info.to_json unit_info)))
+                 (List.map ~f:(fun (nm, e) -> nm, `String (js_to_string e)) fragments))))
       unit_data
   in
   `Assoc
@@ -257,7 +257,7 @@ let info_from_json info =
     |> to_option to_list
     |> Option.value ~default:[]
     |> List.map ~f:(fun u ->
-           let unit_info = u |> member "unit_info" |> Unit_info.from_json in
+           let unit_info = u |> Unit_info.from_json in
            let strings =
              u
              |> member "strings"

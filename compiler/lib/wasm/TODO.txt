@@ -534,3 +534,5 @@ cmdline options: update description
 - link to directory
 - sourcemaps
 - asm output
+
+>>> Switch to binaryen 117 <<<
