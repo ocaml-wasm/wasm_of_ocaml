@@ -213,7 +213,6 @@ let info_to_json ~predefined_exceptions ~build_info ~unit_data =
     trim_semi (Buffer.contents b)
   in
   let add nm skip v rem = if skip then rem else (nm, v) :: rem in
-  let tbl = Hashtbl.create 128 in
   let units =
     List.map
       ~f:(fun { unit_info; strings; fragments } ->
@@ -228,24 +227,11 @@ let info_to_json ~predefined_exceptions ~build_info ~unit_data =
                (List.is_empty fragments)
                (`Assoc
                  (List.map ~f:(fun (nm, e) -> nm, `String (js_to_string e)) fragments))
-          |> add "unit_info" false (Unit_info.to_json tbl unit_info)))
+          |> add "unit_info" false (Unit_info.to_json unit_info)))
       unit_data
-  in
-  let crcs =
-    Hashtbl.fold (fun k i l -> (i, k) :: l) tbl []
-    |> List.sort ~cmp:(fun (i, _) (i', _) -> compare i i')
-    |> List.map ~f:snd
   in
   `Assoc
     ([]
-    |> add
-         "crc_digests"
-         (List.is_empty crcs)
-         (`List (List.map ~f:(fun (_, v) -> `String (Digest.to_hex v)) crcs))
-    |> add
-         "crc_units"
-         (List.is_empty crcs)
-         (`List (List.map ~f:(fun (k, _) -> `String k) crcs))
     |> add
          "predefined_exceptions"
          (StringSet.is_empty predefined_exceptions)
@@ -257,24 +243,6 @@ let info_to_json ~predefined_exceptions ~build_info ~unit_data =
 let info_from_json info =
   let open Yojson.Basic.Util in
   let build_info = info |> member "build_info" |> Build_info.from_json in
-  (*
-  let crc_units =
-    info
-    |> member "crc_units"
-    |> to_option to_list
-    |> Option.value ~default:[]
-    |> List.map ~f:to_string
-  in
-  let crc_digests =
-    info
-    |> member "crc_digests"
-    |> to_option to_list
-    |> Option.value ~default:[]
-    |> List.map ~f:(fun s -> to_string s)
-  in
-  let tbl = Array.of_list (List.combine crc_units crc_digests) in
-  *)
-  let tbl = [||] in
   let predefined_exceptions =
     info
     |> member "predefined_exceptions"
@@ -289,7 +257,7 @@ let info_from_json info =
     |> to_option to_list
     |> Option.value ~default:[]
     |> List.map ~f:(fun u ->
-           let unit_info = u |> member "unit_info" |> Unit_info.from_json tbl in
+           let unit_info = u |> member "unit_info" |> Unit_info.from_json in
            let strings =
              u
              |> member "strings"

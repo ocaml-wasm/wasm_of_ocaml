@@ -94,7 +94,7 @@ let to_string t =
   |> String.concat ~sep:"\n"
   |> fun x -> x ^ "\n"
 
-let to_json tbl t : Yojson.Basic.t =
+let to_json t : Yojson.Basic.t =
   let add nm skip v rem = if skip then rem else (nm, v) :: rem in
   let set nm f rem =
     add
@@ -104,39 +104,15 @@ let to_json tbl t : Yojson.Basic.t =
       rem
   in
   let bool nm f rem = add nm (Bool.equal (f empty) (f t)) (`Bool (f t)) rem in
-  (*
-  let map nm f conv rem =
-    let l = f t |> StringMap.bindings |> List.map ~f:(fun (k, v) -> k, conv v) in
-    add nm (List.is_empty l) (`Assoc l) rem
-  in
-  let opt f x =
-    match x with
-    | None -> `Null
-    | Some x -> f x
-  in
-  let digest d = `String (Digest.to_hex d) in
-  *)
-  let digests =
-    List.map
-      ~f:(fun (k, v) ->
-        `Int
-          (try Hashtbl.find tbl (k, v)
-           with Not_found ->
-             let i = Hashtbl.length tbl in
-             Hashtbl.add tbl (k, v) i;
-             i))
-      t.crcs
-  in
   `Assoc
     ([]
-    |> set "provides" (fun t -> StringSet.elements t.provides)
-    |> set "requires" (fun t -> StringSet.elements t.requires)
+    |> bool "effects_without_cps" (fun t -> t.effects_without_cps)
     |> set "primitives" (fun t -> t.primitives)
     |> bool "force_link" (fun t -> t.force_link)
-    |> bool "effects_without_cps" (fun t -> t.effects_without_cps)
-    |> add "crcs" (List.is_empty digests) (`List digests))
+    |> set "requires" (fun t -> StringSet.elements t.requires)
+    |> set "provides" (fun t -> StringSet.elements t.provides))
 
-let from_json tbl t =
+let from_json t =
   let open Yojson.Basic.Util in
   let opt_list l = l |> to_option to_list |> Option.map ~f:(List.map ~f:to_string) in
   let list default l = Option.value ~default (opt_list l) in
@@ -150,15 +126,7 @@ let from_json tbl t =
   ; force_link = t |> member "force_link" |> bool empty.force_link
   ; effects_without_cps =
       t |> member "effects_without_cps" |> bool empty.effects_without_cps
-  ; crcs =
-      []
-      (*
-      t
-      |> member "crcs"
-      |> to_option to_list
-      |> Option.value ~default:[]
-      |> List.map ~f:(fun i -> tbl.(to_int i))
-      *)
+  ; crcs = []
   }
 
 let parse_stringlist s =
