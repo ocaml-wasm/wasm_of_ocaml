@@ -1286,3 +1286,10 @@ let output ch ~context =
       let module G = Generate (Wa_gc_target) in
       let fields = G.output ~context in
       Wa_wat_output.f ch fields
+
+let wasm_output ch ~context =
+  match target with
+  | `GC ->
+      let module G = Generate (Wa_gc_target) in
+      let fields = G.output ~context in
+      Wa_wasm_output.f ch fields

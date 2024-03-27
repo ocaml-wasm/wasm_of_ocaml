@@ -205,6 +205,7 @@ type unit_data =
   }
 
 let info_to_json ~predefined_exceptions ~build_info ~unit_data =
+  (*
   let js_to_string e =
     let b = Buffer.create 128 in
     let f = Pretty_print.to_buffer b in
@@ -212,6 +213,7 @@ let info_to_json ~predefined_exceptions ~build_info ~unit_data =
     ignore (Js_output.program f [ Javascript.Expression_statement e, Javascript.N ]);
     trim_semi (Buffer.contents b)
   in
+*)
   let add nm skip v rem = if skip then rem else (nm, v) :: rem in
   let units =
     List.map
@@ -302,7 +304,7 @@ let generate_start_function ~to_link ~out_file =
   @@ fun ch ->
   let context = Wa_generate.start () in
   Wa_generate.add_init_function ~context ~to_link:("prelude" :: to_link);
-  Wa_generate.output ch ~context
+  Wa_generate.wasm_output ch ~context
 
 let associated_wasm_file ~js_output_file =
   if Filename.check_suffix js_output_file ".wasm.js"
@@ -453,6 +455,7 @@ let build_runtime_arguments
     ]
 
 let link_to_archive ~set_to_link ~files ~start_file ~tmp_wasm_file =
+  (*
   Wa_binaryen.with_intermediate_file (Filename.temp_file "start_file" ".wasm")
   @@ fun tmp_start_file ->
   Wa_binaryen.optimize
@@ -460,6 +463,7 @@ let link_to_archive ~set_to_link ~files ~start_file ~tmp_wasm_file =
     ~profile:(Driver.profile 1)
     ~input_file:start_file
     ~output_file:tmp_start_file;
+  *)
   let ch = Zip.open_out tmp_wasm_file in
   let read_interface z ~name =
     Wasm_binary.read_interface
@@ -486,7 +490,7 @@ let link_to_archive ~set_to_link ~files ~start_file ~tmp_wasm_file =
         units;
       Zip.close_in z)
     files;
-  Zip.add_file ch ~name:"start.wasm" ~file:tmp_start_file;
+  Zip.add_file ch ~name:"start.wasm" ~file:start_file;
   Zip.close_out ch;
   runtime_intf, List.rev !intfs
 
