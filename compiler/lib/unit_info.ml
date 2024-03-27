@@ -147,10 +147,7 @@ let from_json t =
     |> member "crcs"
     |> to_option to_assoc
     |> Option.value ~default:[]
-    |> List.fold_left
-         ~f:(fun m (k, v) ->
-           StringMap.add k (v |> to_option to_string |> Option.map ~f:Digest.from_hex) m)
-         ~init:StringMap.empty);
+    |> List.map ~f:(fun (k, v) -> k, v |> to_option to_string));
   { provides = t |> member "provides" |> set empty.provides
   ; requires = t |> member "requires" |> set empty.requires
   ; primitives = t |> member "primitives" |> list empty.primitives
