@@ -72,7 +72,7 @@ let generate_prelude ~out_file =
   let live_vars, in_cps, p =
     Driver.f ~target:Wasm (Parse_bytecode.Debug.create ~include_cmis:false false) code
   in
-  let _ = Wa_generate.f ~context ~unit_name:(Some "globals") ~live_vars ~in_cps p in
+  let _ = Wa_generate.f ~context ~unit_name:(Some "prelude") ~live_vars ~in_cps p in
   Wa_generate.output ch ~context;
   uinfo.provides
 

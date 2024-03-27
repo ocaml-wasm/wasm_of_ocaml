@@ -151,12 +151,14 @@ let from_json tbl t =
   ; effects_without_cps =
       t |> member "effects_without_cps" |> bool empty.effects_without_cps
   ; crcs =
+      []
+      (*
       t
       |> member "crcs"
       |> to_option to_list
       |> Option.value ~default:[]
       |> List.map ~f:(fun i -> tbl.(to_int i))
-      (*[]*)
+      *)
   }
 
 let parse_stringlist s =
