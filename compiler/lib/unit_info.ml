@@ -107,17 +107,18 @@ let to_string t =
   |> fun x -> x ^ "\n"
 
 let to_json t : Yojson.Basic.t =
+  let add nm skip v rem = if skip then rem else (nm, v) :: rem in
   let set nm f rem =
-    if List.equal ~eq:String.equal (f empty) (f t)
-    then rem
-    else (nm, `List (List.map ~f:(fun x -> `String x) (f t))) :: rem
+    add
+      nm
+      (List.equal ~eq:String.equal (f empty) (f t))
+      (`List (List.map ~f:(fun x -> `String x) (f t)))
+      rem
   in
-  let bool nm f rem =
-    if Bool.equal (f empty) (f t) then rem else (nm, `Bool (f t)) :: rem
-  in
+  let bool nm f rem = add nm (Bool.equal (f empty) (f t)) (`Bool (f t)) rem in
   let map nm f conv rem =
     let l = f t |> StringMap.bindings |> List.map ~f:(fun (k, v) -> k, conv v) in
-    if List.is_empty l then rem else (nm, `Assoc l) :: rem
+    add nm (List.is_empty l) (`Assoc l) rem
   in
   let opt f x =
     match x with
@@ -125,6 +126,16 @@ let to_json t : Yojson.Basic.t =
     | Some x -> f x
   in
   let digest d = `String (Digest.to_hex d) in
+  let digests =
+    String.concat
+      ~sep:";"
+      (List.filter_map
+         ~f:(fun (k, v) ->
+           match v with
+           | None -> None
+           | Some v -> Some (k ^ "," ^ v))
+         (StringMap.bindings t.crcs))
+  in
   `Assoc
     ([]
     |> set "provides" (fun t -> StringSet.elements t.provides)
@@ -132,7 +143,7 @@ let to_json t : Yojson.Basic.t =
     |> set "primitives" (fun t -> t.primitives)
     |> bool "force_link" (fun t -> t.force_link)
     |> bool "effects_without_cps" (fun t -> t.effects_without_cps)
-    |> map "crcs" (fun t -> t.crcs) (opt digest))
+    |> add "crcs" (String.length digests = 0) (`String digests))
 
 let from_json t =
   let open Yojson.Basic.Util in
@@ -142,12 +153,14 @@ let from_json t =
     Option.value ~default (Option.map ~f:StringSet.of_list (opt_list l))
   in
   let bool default v = Option.value ~default (to_option to_bool v) in
+  (*
   ignore (*ZZZZ*)
     (t
     |> member "crcs"
     |> to_option to_assoc
     |> Option.value ~default:[]
     |> List.map ~f:(fun (k, v) -> k, v |> to_option to_string));
+  *)
   { provides = t |> member "provides" |> set empty.provides
   ; requires = t |> member "requires" |> set empty.requires
   ; primitives = t |> member "primitives" |> list empty.primitives
