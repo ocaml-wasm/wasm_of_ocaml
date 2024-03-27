@@ -290,29 +290,6 @@ let add_info z ?(predefined_exceptions = StringSet.empty) ~build_info ~unit_data
 let read_info z =
   info_from_json (Yojson.Basic.from_string (Zip.read_entry z ~name:"info.json"))
 
-let build_prelude z =
-  Wa_binaryen.with_intermediate_file (Filename.temp_file "prelude" ".wat")
-  @@ fun prelude_file ->
-  Wa_binaryen.with_intermediate_file (Filename.temp_file "prelude_file" ".wasm")
-  @@ fun tmp_prelude_file ->
-  Filename.gen_file prelude_file
-  @@ fun ch ->
-  let code, uinfo = Parse_bytecode.predefined_exceptions ~target:`Wasm in
-  let context = Wa_generate.start () in
-  let live_vars, in_cps, p =
-    Driver.f ~target:Wasm (Parse_bytecode.Debug.create ~include_cmis:false false) code
-  in
-  let _ = Wa_generate.f ~context ~unit_name:(Some "prelude") ~live_vars ~in_cps p in
-  Wa_generate.output ch ~context;
-  let predefined_exceptions = uinfo.provides in
-  Wa_binaryen.optimize
-    ~debuginfo:false
-    ~profile:(Driver.profile 1)
-    ~input_file:prelude_file
-    ~output_file:tmp_prelude_file;
-  Zip.add_file z ~name:"prelude.wasm" ~file:tmp_prelude_file;
-  predefined_exceptions
-
 let generate_start_function ~to_link ~out_file =
   Filename.gen_file out_file
   @@ fun ch ->
@@ -327,11 +304,9 @@ let associated_wasm_file ~js_output_file =
 
 let output_js js =
   Code.Var.reset ();
-  Code.Var.set_pretty true;
-  Code.Var.set_stable (Config.Flag.stable_var ());
   let b = Buffer.create 1024 in
   let f = Pretty_print.to_buffer b in
-  Pretty_print.set_compact f (not (Config.Flag.pretty ()));
+  Driver.configure f;
   let traverse = new Js_traverse.free in
   let js = traverse#program js in
   let free = traverse#get_free in
@@ -470,51 +445,6 @@ let build_runtime_arguments
     ; "src", EStr (Utf8_string.of_string_exn (Filename.basename wasm_file))
     ]
 
-let link_js_files ~primitives =
-  let always_required_js, primitives =
-    let l =
-      StringSet.fold
-        (fun nm l ->
-          let id = Utf8_string.of_string_exn nm in
-          Javascript.Property (PNI id, EVar (S { name = id; var = None; loc = N })) :: l)
-        primitives
-        []
-    in
-    match
-      List.split_last
-      @@ Driver.link_and_pack [ Javascript.Return_statement (Some (EObj l)), N ]
-    with
-    | Some x -> x
-    | None -> assert false
-  in
-  let primitives =
-    match primitives with
-    | Javascript.Expression_statement e, N -> e
-    | _ -> assert false
-  in
-  output_js always_required_js, primitives
-
-let build_js_runtime ~js_launcher ~primitives ?runtime_arguments () =
-  let prelude, primitives = link_js_files ~primitives in
-  let init_fun =
-    match Parse_js.parse (Parse_js.Lexer.of_string js_launcher) with
-    | [ (Expression_statement f, _) ] -> f
-    | _ -> assert false
-  in
-  let launcher =
-    let js =
-      let js = Javascript.call init_fun [ primitives ] N in
-      let js =
-        match runtime_arguments with
-        | None -> js
-        | Some runtime_arguments -> Javascript.call js [ runtime_arguments ] N
-      in
-      [ Javascript.Expression_statement js, Javascript.N ]
-    in
-    output_js js
-  in
-  prelude ^ launcher
-
 let link_to_archive ~set_to_link ~files ~start_file ~tmp_wasm_file =
   Wa_binaryen.with_intermediate_file (Filename.temp_file "start_file" ".wasm")
   @@ fun tmp_start_file ->
@@ -579,7 +509,7 @@ let load_information files =
            in
            file, (build_info, unit_data)) )
 
-let link ~js_launcher ~output_file ~linkall ~files =
+let link ~output_file ~linkall ~files =
   let rec loop n =
     if times () then Format.eprintf "linking@.";
     let t = Timer.make () in
@@ -592,7 +522,7 @@ let link ~js_launcher ~output_file ~linkall ~files =
           (List.fold_left
              ~init:bi
              ~f:(fun bi (file', (bi', _)) -> Build_info.merge file bi file' bi')
-             files));
+             r));
     if times () then Format.eprintf "    reading information: %a@." Timer.print t;
     let t1 = Timer.make () in
     let missing, to_link =
@@ -694,8 +624,8 @@ let link ~js_launcher ~output_file ~linkall ~files =
   in
   loop 0
 
-let link ~js_launcher ~output_file ~linkall ~files =
-  try link ~js_launcher ~output_file ~linkall ~files
+let link ~output_file ~linkall ~files =
+  try link ~output_file ~linkall ~files
   with Build_info.Incompatible_build_info { key; first = f1, v1; second = f2, v2 } ->
     let string_of_v = function
       | None -> "<empty>"

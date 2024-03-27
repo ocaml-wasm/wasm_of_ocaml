@@ -20,8 +20,6 @@ open! Js_of_ocaml_compiler.Stdlib
 open Js_of_ocaml_compiler
 open Wasm_of_ocaml_compiler
 
-let times = Debug.find "times"
-
 let debug_mem = Debug.find "mem"
 
 let () = Sys.catch_break true
@@ -153,6 +151,51 @@ let simplify_unit_info l =
   if times () then Format.eprintf "unit info simplification: %a@." Timer.print t;
   res
 
+let link_js_files ~primitives =
+  let always_required_js, primitives =
+    let l =
+      StringSet.fold
+        (fun nm l ->
+          let id = Utf8_string.of_string_exn nm in
+          Javascript.Property (PNI id, EVar (S { name = id; var = None; loc = N })) :: l)
+        primitives
+        []
+    in
+    match
+      List.split_last
+      @@ Driver.link_and_pack [ Javascript.Return_statement (Some (EObj l)), N ]
+    with
+    | Some x -> x
+    | None -> assert false
+  in
+  let primitives =
+    match primitives with
+    | Javascript.Expression_statement e, N -> e
+    | _ -> assert false
+  in
+  Wa_link.output_js always_required_js, primitives
+
+let build_js_runtime ~js_launcher ~primitives ?runtime_arguments () =
+  let prelude, primitives = link_js_files ~primitives in
+  let init_fun =
+    match Parse_js.parse (Parse_js.Lexer.of_string js_launcher) with
+    | [ (Expression_statement f, _) ] -> f
+    | _ -> assert false
+  in
+  let launcher =
+    let js =
+      let js = Javascript.call init_fun [ primitives ] N in
+      let js =
+        match runtime_arguments with
+        | None -> js
+        | Some runtime_arguments -> Javascript.call js [ runtime_arguments ] N
+      in
+      [ Javascript.Expression_statement js, Javascript.N ]
+    in
+    Wa_link.output_js js
+  in
+  prelude ^ launcher
+
 let run
     { Cmd_arg.common
     ; profile
@@ -228,7 +271,7 @@ let run
        |> StringSet.of_list
      in
      let js_runtime =
-       Wa_link.build_js_runtime ~js_launcher:Wa_runtime.js_runtime ~primitives ()
+       build_js_runtime ~js_launcher:Wa_runtime.js_runtime ~primitives ()
      in
      let z = Zip.open_out tmp_output_file in
      Zip.add_file z ~name:"runtime.wasm" ~file:tmp_wasm_file;
@@ -315,7 +358,7 @@ let run
                  if String.equal module_ "env" then Some name else None)
                l
            in
-           Wa_link.build_js_runtime
+           build_js_runtime
              ~js_launcher:Wa_runtime.js_runtime
              ~primitives
              ~runtime_arguments:

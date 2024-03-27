@@ -71,7 +71,7 @@ let options =
 
 let f { common; output_file; js_files; linkall } =
   Jsoo_cmdline.Arg.eval common;
-  Wa_link.link ~js_launcher:Wa_runtime.js_runtime ~output_file ~linkall ~files:js_files
+  Wa_link.link ~output_file ~linkall ~files:js_files
 
 let info =
   Info.make

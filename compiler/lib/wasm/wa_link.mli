@@ -53,12 +53,6 @@ val build_runtime_arguments :
   -> unit
   -> Javascript.expression
 
-val build_js_runtime :
-     js_launcher:string
-  -> primitives:StringSet.t
-  -> ?runtime_arguments:Javascript.expression
-  -> unit
-  -> string
+val output_js : Javascript.program -> string
 
-val link :
-  js_launcher:string -> output_file:string -> linkall:bool -> files:string list -> unit
+val link : output_file:string -> linkall:bool -> files:string list -> unit
