@@ -185,12 +185,6 @@ module Wasm_binary = struct
     find_sections { imports = []; exports = [] }
 end
 
-type unit_data =
-  { unit_info : Unit_info.t
-  ; strings : string list
-  ; fragments : (string * Javascript.expression) list
-  }
-
 let trim_semi s =
   let l = ref (String.length s) in
   while
@@ -203,6 +197,12 @@ let trim_semi s =
     decr l
   done;
   String.sub s ~pos:0 ~len:!l
+
+type unit_data =
+  { unit_info : Unit_info.t
+  ; strings : string list
+  ; fragments : (string * Javascript.expression) list
+  }
 
 let info_to_json ~predefined_exceptions ~build_info ~unit_data =
   let js_to_string e =
@@ -293,24 +293,21 @@ let add_info z ?(predefined_exceptions = StringSet.empty) ~build_info ~unit_data
 let read_info z =
   info_from_json (Yojson.Basic.from_string (Zip.read_entry z ~name:"info.json"))
 
-let generate_prelude ~out_file =
-  Filename.gen_file out_file
+let build_prelude z =
+  Wa_binaryen.with_intermediate_file (Filename.temp_file "prelude" ".wat")
+  @@ fun prelude_file ->
+  Wa_binaryen.with_intermediate_file (Filename.temp_file "prelude_file" ".wasm")
+  @@ fun tmp_prelude_file ->
+  Filename.gen_file prelude_file
   @@ fun ch ->
   let code, uinfo = Parse_bytecode.predefined_exceptions ~target:`Wasm in
   let context = Wa_generate.start () in
   let live_vars, in_cps, p =
     Driver.f ~target:Wasm (Parse_bytecode.Debug.create ~include_cmis:false false) code
   in
-  let _ = Wa_generate.f ~context ~unit_name:(Some "globals") ~live_vars ~in_cps p in
+  let _ = Wa_generate.f ~context ~unit_name:(Some "prelude") ~live_vars ~in_cps p in
   Wa_generate.output ch ~context;
-  uinfo.provides
-
-let build_prelude z =
-  Wa_binaryen.with_intermediate_file (Filename.temp_file "prelude" ".wasm")
-  @@ fun prelude_file ->
-  Wa_binaryen.with_intermediate_file (Filename.temp_file "prelude_file" ".wasm")
-  @@ fun tmp_prelude_file ->
-  let predefined_exceptions = generate_prelude ~out_file:prelude_file in
+  let predefined_exceptions = uinfo.provides in
   Wa_binaryen.optimize
     ~debuginfo:false
     ~profile:(Driver.profile 1)
@@ -323,22 +320,13 @@ let generate_start_function ~to_link ~out_file =
   Filename.gen_file out_file
   @@ fun ch ->
   let context = Wa_generate.start () in
-  Wa_generate.add_init_function ~context ~to_link:("globals" :: to_link);
+  Wa_generate.add_init_function ~context ~to_link:("prelude" :: to_link);
   Wa_generate.output ch ~context
 
 let associated_wasm_file ~js_output_file =
   if Filename.check_suffix js_output_file ".wasm.js"
   then Filename.chop_extension js_output_file
   else Filename.chop_extension js_output_file ^ ".wasm"
-
-let report_missing_primitives missing =
-  if not (List.is_empty missing)
-  then (
-    warn "There are some missing Wasm primitives@.";
-    warn "Dummy implementations (raising an exception) ";
-    warn "will be provided.@.";
-    warn "Missing primitives:@.";
-    List.iter ~f:(fun nm -> warn "  %s@." nm) missing)
 
 let output_js js =
   Code.Var.reset ();
@@ -365,36 +353,14 @@ let output_js js =
   ignore (Js_output.program f js);
   Buffer.contents b
 
-let link_js_files ~primitives =
-  let always_required_js, primitives =
-    let l =
-      StringSet.fold
-        (fun nm l ->
-          let id = Utf8_string.of_string_exn nm in
-          Javascript.Property (PNI id, EVar (S { name = id; var = None; loc = N })) :: l)
-        primitives
-        []
-    in
-    match
-      List.split_last
-      @@ Driver.link_and_pack [ Javascript.Return_statement (Some (EObj l)), N ]
-    with
-    | Some x -> x
-    | None -> assert false
-  in
-  let primitives =
-    match primitives with
-    | Javascript.Expression_statement e, N -> e
-    | _ -> assert false
-  in
-  output_js always_required_js, primitives
-
-let read_missing_primitives ~tmp_wasm_file =
-  let l = Wasm_binary.read_imports ~file:tmp_wasm_file in
-  List.filter_map
-    ~f:(fun { Wasm_binary.module_; name; _ } ->
-      if String.equal module_ "env" then Some name else None)
-    l
+let report_missing_primitives missing =
+  if not (List.is_empty missing)
+  then (
+    warn "There are some missing Wasm primitives@.";
+    warn "Dummy implementations (raising an exception) ";
+    warn "will be provided.@.";
+    warn "Missing primitives:@.";
+    List.iter ~f:(fun nm -> warn "  %s@." nm) missing)
 
 let build_runtime_arguments
     ?(separate_compilation = false)
@@ -507,6 +473,30 @@ let build_runtime_arguments
     ; "src", EStr (Utf8_string.of_string_exn (Filename.basename wasm_file))
     ]
 
+let link_js_files ~primitives =
+  let always_required_js, primitives =
+    let l =
+      StringSet.fold
+        (fun nm l ->
+          let id = Utf8_string.of_string_exn nm in
+          Javascript.Property (PNI id, EVar (S { name = id; var = None; loc = N })) :: l)
+        primitives
+        []
+    in
+    match
+      List.split_last
+      @@ Driver.link_and_pack [ Javascript.Return_statement (Some (EObj l)), N ]
+    with
+    | Some x -> x
+    | None -> assert false
+  in
+  let primitives =
+    match primitives with
+    | Javascript.Expression_statement e, N -> e
+    | _ -> assert false
+  in
+  output_js always_required_js, primitives
+
 let build_js_runtime ~js_launcher ~primitives ?runtime_arguments () =
   let prelude, primitives = link_js_files ~primitives in
   let init_fun =
@@ -581,7 +571,7 @@ let compute_missing_primitives (runtime_intf, intfs) =
        ~init:StringSet.empty
        intfs
 
-let[@inline never] [@local never] load_information files =
+let load_information files =
   let file = List.hd files in
   let build_info, predefined_exceptions, _unit_data = Zip.with_open_in file read_info in
   ( predefined_exceptions
@@ -705,7 +695,7 @@ let link ~js_launcher ~output_file ~linkall ~files =
     if times () then Format.eprintf "  emit: %a@." Timer.print t;
     if n > 0 then loop (n - 1)
   in
-  loop 99
+  loop 0
 
 let link ~js_launcher ~output_file ~linkall ~files =
   try link ~js_launcher ~output_file ~linkall ~files

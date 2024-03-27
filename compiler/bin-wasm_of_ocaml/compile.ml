@@ -245,12 +245,19 @@ let run
            link_and_optimize ~profile runtime_wasm_files [ wat_file ] tmp_wasm_file
          in
          let js_runtime =
+           let missing_primitives =
+             let l = Wa_link.Wasm_binary.read_imports ~file:tmp_wasm_file in
+             List.filter_map
+               ~f:(fun { Wa_link.Wasm_binary.module_; name; _ } ->
+                 if String.equal module_ "env" then Some name else None)
+               l
+           in
            Wa_link.build_js_runtime
              ~js_launcher:Wa_runtime.js_runtime
              ~primitives
              ~runtime_arguments:
                (Wa_link.build_runtime_arguments
-                  ~missing_primitives:(Wa_link.read_missing_primitives ~tmp_wasm_file)
+                  ~missing_primitives
                   ~wasm_file
                   ~generated_js
                   ())

@@ -44,8 +44,6 @@ val add_info :
 
 val associated_wasm_file : js_output_file:string -> string
 
-val read_missing_primitives : tmp_wasm_file:string -> string list
-
 val build_runtime_arguments :
      ?separate_compilation:bool
   -> missing_primitives:string list

@@ -132,7 +132,7 @@ let to_json t : Yojson.Basic.t =
     |> set "primitives" (fun t -> t.primitives)
     |> bool "force_link" (fun t -> t.force_link)
     |> bool "effects_without_cps" (fun t -> t.effects_without_cps)
-       (*ZZZZ   |> map "crcs" (fun t -> t.crcs) (opt digest)*))
+    |> map "crcs" (fun t -> t.crcs) (opt digest))
 
 let from_json t =
   let open Yojson.Basic.Util in
@@ -142,21 +142,22 @@ let from_json t =
     Option.value ~default (Option.map ~f:StringSet.of_list (opt_list l))
   in
   let bool default v = Option.value ~default (to_option to_bool v) in
+  ignore (*ZZZZ*)
+    (t
+    |> member "crcs"
+    |> to_option to_assoc
+    |> Option.value ~default:[]
+    |> List.fold_left
+         ~f:(fun m (k, v) ->
+           StringMap.add k (v |> to_option to_string |> Option.map ~f:Digest.from_hex) m)
+         ~init:StringMap.empty);
   { provides = t |> member "provides" |> set empty.provides
   ; requires = t |> member "requires" |> set empty.requires
   ; primitives = t |> member "primitives" |> list empty.primitives
   ; force_link = t |> member "force_link" |> bool empty.force_link
   ; effects_without_cps =
       t |> member "effects_without_cps" |> bool empty.effects_without_cps
-  ; crcs =
-      t
-      |> member "crcs"
-      |> to_option to_assoc
-      |> Option.value ~default:[]
-      |> List.fold_left
-           ~f:(fun m (k, v) ->
-             StringMap.add k (v |> to_option to_string |> Option.map ~f:Digest.from_hex) m)
-           ~init:StringMap.empty
+  ; crcs = StringMap.empty
   }
 
 let parse_stringlist s =
