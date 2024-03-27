@@ -108,17 +108,15 @@ let simplify_unit_info l =
             (fun dep crcs ->
               match Hashtbl.find prev dep with
               | (u : Unit_info.t) ->
-                  StringMap.union
-                    (fun _ c c' ->
-                      match c, c' with
-                      | None, _ -> Some c'
-                      | _, None -> Some c
-                      | Some c, Some c' ->
-                          (*ZZZ*)
+                  List.fold_left
+                    ~f:(fun crcs (k, c) ->
+                      match StringMap.find k crcs with
+                      | c' ->
                           assert (Digest.equal c c');
-                          Some (Some c))
+                          crcs
+                      | exception Not_found -> StringMap.add k c crcs)
+                    ~init:crcs
                     u.crcs
-                    crcs
               | exception Not_found -> crcs)
             info.requires
             StringMap.empty
@@ -126,18 +124,14 @@ let simplify_unit_info l =
         let info =
           { info with
             crcs =
-              StringMap.filter
-                (fun k c ->
-                  match c with
-                  | None -> false
-                  | Some c -> (
-                      match StringMap.find k crcs with
-                      | exception Not_found -> true
-                      | None -> true
-                      | Some c' ->
-                          (*ZZZ*)
-                          assert (Digest.equal c c');
-                          false))
+              List.filter
+                ~f:(fun (k, c) ->
+                  match StringMap.find k crcs with
+                  | exception Not_found -> true
+                  | c' ->
+                      (*ZZZ*)
+                      assert (Digest.equal c c');
+                      false)
                 info.crcs
           }
         in

@@ -23,7 +23,7 @@ type t =
   { provides : StringSet.t
   ; requires : StringSet.t
   ; primitives : string list
-  ; crcs : Digest.t option StringMap.t
+  ; crcs : (string * Digest.t) list
   ; force_link : bool
   ; effects_without_cps : bool
   }
@@ -32,7 +32,7 @@ let empty =
   { provides = StringSet.empty
   ; requires = StringSet.empty
   ; primitives = []
-  ; crcs = StringMap.empty
+  ; crcs = []
   ; force_link = false
   ; effects_without_cps = false
   }
@@ -50,8 +50,10 @@ let of_cmo (cmo : Cmo_format.compilation_unit) =
   in
   let force_link = Cmo_format.force_link cmo in
   let crcs =
-    List.fold_left (Cmo_format.imports cmo) ~init:StringMap.empty ~f:(fun acc (s, o) ->
-        StringMap.add s o acc)
+    List.filter_map (Cmo_format.imports cmo) ~f:(fun (s, o) ->
+        match o with
+        | None -> None
+        | Some o -> Some (s, o))
   in
   { provides; requires; primitives = []; force_link; effects_without_cps; crcs }
 
@@ -60,21 +62,7 @@ let union t1 t2 =
   let requires = StringSet.union t1.requires t2.requires in
   let requires = StringSet.diff requires provides in
   let primitives = t1.primitives @ t2.primitives in
-  let crcs =
-    StringMap.merge
-      (fun _ v1 v2 ->
-        match v1, v2 with
-        | None, x -> x
-        | x, None -> x
-        | Some None, Some x -> Some x
-        | Some x, Some None -> Some x
-        | Some (Some x), Some (Some y) ->
-            if String.equal x y
-            then Some (Some x)
-            else failwith (Printf.sprintf "Inconsistent assumption blah.."))
-      t1.crcs
-      t2.crcs
-  in
+  let crcs = t1.crcs @ t2.crcs in
   { provides
   ; requires
   ; primitives
@@ -137,7 +125,7 @@ let to_json tbl t : Yojson.Basic.t =
              let i = Hashtbl.length tbl in
              Hashtbl.add tbl (k, v) i;
              i))
-      (StringMap.bindings (StringMap.filter_map (fun _ v -> v) t.crcs))
+      t.crcs
   in
   `Assoc
     ([]
@@ -156,23 +144,19 @@ let from_json tbl t =
     Option.value ~default (Option.map ~f:StringSet.of_list (opt_list l))
   in
   let bool default v = Option.value ~default (to_option to_bool v) in
-  ignore (*ZZZZ*)
-    (t
-    |> member "crcs"
-    |> to_option to_list
-    |> Option.value ~default:[]
-    |> List.fold_left
-         ~f:(fun m i ->
-           let k, v = tbl.(to_int i) in
-           StringMap.add k (Some v) m)
-         ~init:StringMap.empty);
   { provides = t |> member "provides" |> set empty.provides
   ; requires = t |> member "requires" |> set empty.requires
   ; primitives = t |> member "primitives" |> list empty.primitives
   ; force_link = t |> member "force_link" |> bool empty.force_link
   ; effects_without_cps =
       t |> member "effects_without_cps" |> bool empty.effects_without_cps
-  ; crcs = StringMap.empty
+  ; crcs =
+      t
+      |> member "crcs"
+      |> to_option to_list
+      |> Option.value ~default:[]
+      |> List.map ~f:(fun i -> tbl.(to_int i))
+      (*[]*)
   }
 
 let parse_stringlist s =
