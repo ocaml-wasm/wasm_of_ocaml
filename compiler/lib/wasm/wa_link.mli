@@ -44,18 +44,23 @@ val add_info :
 
 val associated_wasm_file : js_output_file:string -> string
 
-val build_js_runtime :
-     js_launcher:string
-  -> prelude:string
-  -> primitives:Javascript.expression
+val read_missing_primitives : tmp_wasm_file:string -> string list
+
+val build_runtime_arguments :
+     ?separate_compilation:bool
+  -> missing_primitives:string list
+  -> wasm_file:string
   -> generated_js:
        (string option * (string list * (string * Javascript.expression) list)) list
-  -> tmp_wasm_file:string
-  -> ?separate_compilation:bool
-  -> ?missing_primitives:string list
-  -> string
-  -> string
   -> unit
+  -> Javascript.expression
+
+val build_js_runtime :
+     js_launcher:string
+  -> primitives:StringSet.t
+  -> ?runtime_arguments:Javascript.expression
+  -> unit
+  -> string
 
 val link :
   js_launcher:string -> output_file:string -> linkall:bool -> files:string list -> unit

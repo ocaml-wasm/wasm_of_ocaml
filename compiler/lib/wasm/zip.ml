@@ -406,6 +406,10 @@ let open_in name =
   done;
   { ch; files = !m }
 
+let with_open_in name f =
+  let z = open_in name in
+  Fun.protect ~finally:(fun () -> close_in_noerr z.ch) (fun () -> f z)
+
 let get_pos z ~name =
   try StringMap.find name z.files
   with Not_found -> failwith (Printf.sprintf "File %s not found in archive" name)

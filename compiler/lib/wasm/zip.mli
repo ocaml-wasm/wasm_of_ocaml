@@ -12,6 +12,8 @@ type input
 
 val open_in : string -> input
 
+val with_open_in : string -> (input -> 'a) -> 'a
+
 val read_entry : input -> name:string -> string
 
 val get_entry : input -> name:string -> in_channel * int (* pos *) * int (* len *)

@@ -1,6 +1,6 @@
-(async (link, src, js, generated)=> {
+((js) => async (args) => {
     "use strict";
-
+    let {link, src, generated} = args;
     async function extract (f, acc, s) {
       let reader = s.getReader()
       let chunk, ofs

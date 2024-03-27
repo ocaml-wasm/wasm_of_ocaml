@@ -191,21 +191,25 @@ type unit_data =
   ; fragments : (string * Javascript.expression) list
   }
 
+let trim_semi s =
+  let l = ref (String.length s) in
+  while
+    !l > 0
+    &&
+    match s.[!l - 1] with
+    | ';' | '\n' -> true
+    | _ -> false
+  do
+    decr l
+  done;
+  String.sub s ~pos:0 ~len:!l
+
 let info_to_json ~predefined_exceptions ~build_info ~unit_data =
   let js_to_string e =
     let b = Buffer.create 128 in
     let f = Pretty_print.to_buffer b in
     Pretty_print.set_compact f true;
     ignore (Js_output.program f [ Javascript.Expression_statement e, Javascript.N ]);
-    let rec trim_semi s =
-      let l = String.length s in
-      if l = 0
-      then s
-      else
-        match s.[l - 1] with
-        | ';' | '\n' -> trim_semi (String.sub s ~pos:0 ~len:(l - 1))
-        | _ -> s
-    in
     trim_semi (Buffer.contents b)
   in
   let add nm skip v rem = if skip then rem else (nm, v) :: rem in
@@ -336,26 +340,68 @@ let report_missing_primitives missing =
     warn "Missing primitives:@.";
     List.iter ~f:(fun nm -> warn "  %s@." nm) missing)
 
-let build_js_runtime
-    ~js_launcher
-    ~prelude
-    ~primitives
-    ~generated_js
-    ~tmp_wasm_file
-    ?(separate_compilation = false)
-    ?missing_primitives
-    wasm_file
-    output_file =
-  let missing_primitives =
-    match missing_primitives with
-    | Some l -> l
-    | None ->
-        let l = Wasm_binary.read_imports ~file:tmp_wasm_file in
-        List.filter_map
-          ~f:(fun { Wasm_binary.module_; name; _ } ->
-            if String.equal module_ "env" then Some name else None)
-          l
+let output_js js =
+  Code.Var.reset ();
+  Code.Var.set_pretty true;
+  Code.Var.set_stable (Config.Flag.stable_var ());
+  let b = Buffer.create 1024 in
+  let f = Pretty_print.to_buffer b in
+  Pretty_print.set_compact f (not (Config.Flag.pretty ()));
+  let traverse = new Js_traverse.free in
+  let js = traverse#program js in
+  let free = traverse#get_free in
+  Javascript.IdentSet.iter
+    (fun x ->
+      match x with
+      | V _ -> assert false
+      | S { name = Utf8 x; _ } -> Var_printer.add_reserved x)
+    free;
+  let js =
+    if Config.Flag.shortvar () then (new Js_traverse.rename_variable)#program js else js
   in
+  let js = (new Js_traverse.simpl)#program js in
+  let js = (new Js_traverse.clean)#program js in
+  let js = Js_assign.program js in
+  ignore (Js_output.program f js);
+  Buffer.contents b
+
+let link_js_files ~primitives =
+  let always_required_js, primitives =
+    let l =
+      StringSet.fold
+        (fun nm l ->
+          let id = Utf8_string.of_string_exn nm in
+          Javascript.Property (PNI id, EVar (S { name = id; var = None; loc = N })) :: l)
+        primitives
+        []
+    in
+    match
+      List.split_last
+      @@ Driver.link_and_pack [ Javascript.Return_statement (Some (EObj l)), N ]
+    with
+    | Some x -> x
+    | None -> assert false
+  in
+  let primitives =
+    match primitives with
+    | Javascript.Expression_statement e, N -> e
+    | _ -> assert false
+  in
+  output_js always_required_js, primitives
+
+let read_missing_primitives ~tmp_wasm_file =
+  let l = Wasm_binary.read_imports ~file:tmp_wasm_file in
+  List.filter_map
+    ~f:(fun { Wasm_binary.module_; name; _ } ->
+      if String.equal module_ "env" then Some name else None)
+    l
+
+let build_runtime_arguments
+    ?(separate_compilation = false)
+    ~missing_primitives
+    ~wasm_file
+    ~generated_js
+    () =
   let missing_primitives = if Config.Flag.genprim () then missing_primitives else [] in
   if not separate_compilation then report_missing_primitives missing_primitives;
   let obj l =
@@ -422,11 +468,6 @@ let build_js_runtime
       :: generated_js
     else generated_js
   in
-  let init_fun =
-    match Parse_js.parse (Parse_js.Lexer.of_string js_launcher) with
-    | [ (Expression_statement f, _) ] -> f
-    | _ -> assert false
-  in
   let generated_js =
     if List.is_empty generated_js
     then obj generated_js
@@ -460,54 +501,32 @@ let build_js_runtime
         [ EVar (Javascript.ident Constant.global_object_) ]
         N
   in
-  let launcher =
-    Code.Var.reset ();
-    Code.Var.set_pretty true;
-    Code.Var.set_stable (Config.Flag.stable_var ());
-    let b = Buffer.create 1024 in
-    let f = Pretty_print.to_buffer b in
-    Pretty_print.set_compact f (not (Config.Flag.pretty ()));
-    let js =
-      [ ( Javascript.Expression_statement
-            (Javascript.call
-               init_fun
-               [ ENum (Javascript.Num.of_int32 (if separate_compilation then 1l else 0l))
-               ; EStr (Utf8_string.of_string_exn (Filename.basename wasm_file))
-               ; primitives
-               ; generated_js
-               ]
-               N)
-        , Javascript.N )
-      ]
-    in
-    List.iter ~f:Var_printer.add_reserved [ "joo_global_object"; "jsoo_exports" ];
-    let traverse = new Js_traverse.free in
-    let js = traverse#program js in
-    let free = traverse#get_free in
-    Javascript.IdentSet.iter
-      (fun x ->
-        match x with
-        | V _ -> assert false
-        | S { name = Utf8 x; _ } -> Var_printer.add_reserved x)
-      free;
-    let js =
-      if Config.Flag.shortvar ()
-      then (
-        let t5 = Timer.make () in
-        let js = (new Js_traverse.rename_variable)#program js in
-        if times () then Format.eprintf "    shorten vars: %a@." Timer.print t5;
-        js)
-      else js
-    in
-    let js = (new Js_traverse.simpl)#program js in
-    let js = (new Js_traverse.clean)#program js in
-    let js = Js_assign.program js in
-    ignore (Js_output.program f js);
-    Buffer.contents b
+  obj
+    [ "link", ENum (Javascript.Num.of_int32 (if separate_compilation then 1l else 0l))
+    ; "generated", generated_js
+    ; "src", EStr (Utf8_string.of_string_exn (Filename.basename wasm_file))
+    ]
+
+let build_js_runtime ~js_launcher ~primitives ?runtime_arguments () =
+  let prelude, primitives = link_js_files ~primitives in
+  let init_fun =
+    match Parse_js.parse (Parse_js.Lexer.of_string js_launcher) with
+    | [ (Expression_statement f, _) ] -> f
+    | _ -> assert false
   in
-  Wa_binaryen.gen_file output_file
-  @@ fun tmp_output_file ->
-  Wa_binaryen.write_file ~name:tmp_output_file ~contents:(prelude ^ launcher)
+  let launcher =
+    let js =
+      let js = Javascript.call init_fun [ primitives ] N in
+      let js =
+        match runtime_arguments with
+        | None -> js
+        | Some runtime_arguments -> Javascript.call js [ runtime_arguments ] N
+      in
+      [ Javascript.Expression_statement js, Javascript.N ]
+    in
+    output_js js
+  in
+  prelude ^ launcher
 
 let link_to_archive ~set_to_link ~files ~start_file ~tmp_wasm_file =
   Wa_binaryen.with_intermediate_file (Filename.temp_file "start_file" ".wasm")
@@ -564,15 +583,13 @@ let compute_missing_primitives (runtime_intf, intfs) =
 
 let[@inline never] [@local never] load_information files =
   let file = List.hd files in
-  let z = Zip.open_in file in
-  let build_info, predefined_exceptions, _unit_data = read_info z in
-  Zip.close_in z;
+  let build_info, predefined_exceptions, _unit_data = Zip.with_open_in file read_info in
   ( predefined_exceptions
   , (file, (build_info, []))
     :: List.map files ~f:(fun file ->
-           let z = Zip.open_in file in
-           let build_info, _predefined_exceptions, unit_data = read_info z in
-           Zip.close_in z;
+           let build_info, _predefined_exceptions, unit_data =
+             Zip.with_open_in file read_info
+           in
            file, (build_info, unit_data)) )
 
 let link ~js_launcher ~output_file ~linkall ~files =
@@ -588,7 +605,7 @@ let link ~js_launcher ~output_file ~linkall ~files =
           (List.fold_left
              ~init:bi
              ~f:(fun bi (file', (bi', _)) -> Build_info.merge file bi file' bi')
-             r));
+             files));
     if times () then Format.eprintf "    reading information: %a@." Timer.print t;
     let t1 = Timer.make () in
     let missing, to_link =
@@ -644,7 +661,7 @@ let link ~js_launcher ~output_file ~linkall ~files =
         (Printf.sprintf
            "Could not find compilation unit for %s"
            (String.concat ~sep:", " (StringSet.elements missing)));
-    if times () then Format.eprintf "    generate prelude/start: %a@." Timer.print t1;
+    if times () then Format.eprintf "    generate start: %a@." Timer.print t1;
     if times () then Format.eprintf "  scan: %a@." Timer.print t;
     let t = Timer.make () in
     let wasm_file = associated_wasm_file ~js_output_file:output_file in
@@ -654,18 +671,12 @@ let link ~js_launcher ~output_file ~linkall ~files =
     let missing_primitives = compute_missing_primitives interfaces in
     if times () then Format.eprintf "    copy wasm files: %a@." Timer.print t;
     let t1 = Timer.make () in
-    let prelude, primitives =
+    let js_runtime =
       (*ZZZ The first file should exist and be a runtime; other files
         should be cmas or cmos *)
       match files with
       | (file, _) :: _ ->
-          let z = Zip.open_in file in
-          let prelude = Zip.read_entry z ~name:"prelude.js" in
-          let primitives : Javascript.expression =
-            Marshal.from_string (Zip.read_entry z ~name:"primitives.js-marshalled") 0
-          in
-          Zip.close_in z;
-          prelude, primitives
+          Zip.with_open_in file (fun z -> Zip.read_entry z ~name:"runtime.js")
       | _ -> assert false
     in
     let generated_js =
@@ -674,21 +685,27 @@ let link ~js_launcher ~output_file ~linkall ~files =
              List.map units ~f:(fun { unit_info; strings; fragments } ->
                  Some (StringSet.choose unit_info.provides), (strings, fragments)))
     in
-    build_js_runtime
-      ~js_launcher
-      ~prelude
-      ~primitives
-      ~generated_js
-      ~tmp_wasm_file
-      ~separate_compilation:true
-      ~missing_primitives
-      wasm_file
-      output_file;
+    let runtime_args =
+      let js =
+        build_runtime_arguments
+          ~separate_compilation:true
+          ~missing_primitives
+          ~wasm_file
+          ~generated_js
+          ()
+      in
+      output_js [ Javascript.Expression_statement js, Javascript.N ]
+    in
+    Wa_binaryen.gen_file output_file
+    @@ fun tmp_output_file ->
+    Wa_binaryen.write_file
+      ~name:tmp_output_file
+      ~contents:(trim_semi js_runtime ^ "\n" ^ runtime_args);
     if times () then Format.eprintf "    build JS runtime: %a@." Timer.print t1;
     if times () then Format.eprintf "  emit: %a@." Timer.print t;
     if n > 0 then loop (n - 1)
   in
-  loop 50
+  loop 99
 
 let link ~js_launcher ~output_file ~linkall ~files =
   try link ~js_launcher ~output_file ~linkall ~files

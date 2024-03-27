@@ -64,37 +64,6 @@ let link_runtime ~profile runtime_wasm_files output_file =
     ~output_file:temp_file;
   Wa_binaryen.optimize ~debuginfo ~profile ~input_file:temp_file ~output_file
 
-let link_js_files ~primitives =
-  let always_required_js, primitives =
-    let l =
-      StringSet.fold
-        (fun nm l ->
-          let id = Utf8_string.of_string_exn nm in
-          Javascript.Property (PNI id, EVar (S { name = id; var = None; loc = N })) :: l)
-        primitives
-        []
-    in
-    match
-      List.split_last
-      @@ Driver.link_and_pack [ Javascript.Return_statement (Some (EObj l)), N ]
-    with
-    | Some x -> x
-    | None -> assert false
-  in
-  let primitives =
-    match primitives with
-    | Javascript.Expression_statement e, N -> e
-    | _ -> assert false
-  in
-  let b = Buffer.create 1024 in
-  Code.Var.set_pretty true;
-  Code.Var.set_stable (Config.Flag.stable_var ());
-  (*ZZZ minify? *)
-  let f = Pretty_print.to_buffer b in
-  Pretty_print.set_compact f (not (Config.Flag.pretty ()));
-  ignore (Js_output.program f always_required_js);
-  Buffer.contents b, primitives
-
 let generate_prelude ~out_file =
   Filename.gen_file out_file
   @@ fun ch ->
@@ -195,14 +164,12 @@ let run
               if String.equal module_ "js" then Some name else None)
        |> StringSet.of_list
      in
-     let prelude, primitives = link_js_files ~primitives in
+     let js_runtime =
+       Wa_link.build_js_runtime ~js_launcher:Wa_runtime.js_runtime ~primitives ()
+     in
      let z = Zip.open_out tmp_output_file in
      Zip.add_file z ~name:"runtime.wasm" ~file:tmp_wasm_file;
-     Zip.add_entry z ~name:"prelude.js" ~contents:prelude;
-     Zip.add_entry
-       z
-       ~name:"primitives.js-marshalled"
-       ~contents:(Marshal.to_string (primitives : Javascript.expression) []);
+     Zip.add_entry z ~name:"runtime.js" ~contents:js_runtime;
      let predefined_exceptions = build_prelude z in
      Wa_link.add_info
        z
@@ -277,15 +244,21 @@ let run
          let primitives =
            link_and_optimize ~profile runtime_wasm_files [ wat_file ] tmp_wasm_file
          in
-         let prelude, primitives = link_js_files ~primitives in
-         Wa_link.build_js_runtime
-           ~js_launcher:Wa_runtime.js_runtime
-           ~prelude
-           ~primitives
-           ~generated_js
-           ~tmp_wasm_file
-           wasm_file
-           output_file
+         let js_runtime =
+           Wa_link.build_js_runtime
+             ~js_launcher:Wa_runtime.js_runtime
+             ~primitives
+             ~runtime_arguments:
+               (Wa_link.build_runtime_arguments
+                  ~missing_primitives:(Wa_link.read_missing_primitives ~tmp_wasm_file)
+                  ~wasm_file
+                  ~generated_js
+                  ())
+             ()
+         in
+         Wa_binaryen.gen_file output_file
+         @@ fun tmp_output_file ->
+         Wa_binaryen.write_file ~name:tmp_output_file ~contents:js_runtime
      | `Cmo cmo ->
          let output_file = Filename.chop_extension (fst output_file) ^ ".wasm" in
          Wa_binaryen.gen_file output_file

@@ -536,3 +536,6 @@ cmdline options: update description
 - generate javascript for primitives from the start
 
 hashtbl for requires?
+
+
+(prelude + runtime + primitive) preapplied
