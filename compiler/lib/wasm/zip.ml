@@ -154,7 +154,10 @@ module CRC32 : CRC = struct
         : CRC)
 end
 
-let copy buffer in_ch out_ch ?(iter = fun _ _ _ -> ()) len =
+let buffer = lazy (Bytes.create 65536)
+
+let copy in_ch out_ch ?(iter = fun _ _ _ -> ()) len =
+  let buffer = Lazy.force buffer in
   let buffer_len = Bytes.length buffer in
   let rec copy rem =
     if rem > 0
@@ -177,10 +180,9 @@ type file =
 type output =
   { ch : out_channel
   ; mutable files : file list
-  ; mutable buffer : bytes option
   }
 
-let open_out name = { ch = open_out_bin name; files = []; buffer = None }
+let open_out name = { ch = open_out_bin name; files = [] }
 
 let output_16 ch c =
   output_byte ch c;
@@ -219,14 +221,6 @@ let output_local_file_header ch ?(crc = 0l) { name; len; _ } =
   output_string ch name;
   crc_pos
 
-let get_buffer z =
-  match z.buffer with
-  | Some b -> b
-  | None ->
-      let b = Bytes.create 65536 in
-      z.buffer <- Some b;
-      b
-
 let add_file z ~name ~file =
   let ch = open_in_bin file in
   let pos = pos_out z.ch in
@@ -235,12 +229,7 @@ let add_file z ~name ~file =
   z.files <- file :: z.files;
   let crc_pos = output_local_file_header z.ch file in
   let crc = ref CRC32.start in
-  copy
-    (get_buffer z)
-    ch
-    z.ch
-    ~iter:(fun b pos len -> crc := CRC32.update_from_bytes b pos len !crc)
-    len;
+  copy ch z.ch ~iter:(fun b pos len -> crc := CRC32.update_from_bytes b pos len !crc) len;
   let crc = CRC32.finish !crc in
   file.crc <- crc;
   let pos = pos_out z.ch in
@@ -387,7 +376,6 @@ let read_file_header ch =
 type input =
   { ch : in_channel
   ; files : int StringMap.t
-  ; mutable buffer : bytes option
   }
 
 let open_in name =
@@ -419,7 +407,7 @@ let open_in name =
     let name, entry = read_file_header ch in
     m := StringMap.add name entry !m
   done;
-  { ch; files = !m; buffer = None }
+  { ch; files = !m }
 
 let with_open_in name f =
   let z = open_in name in
@@ -445,15 +433,7 @@ let extract_file z ~name ~file =
   let { pos; len; _ } = read_local_file_header z.ch pos in
   seek_in z.ch pos;
   let ch = open_out_bin file in
-  let buffer =
-    match z.buffer with
-    | Some b -> b
-    | None ->
-        let b = Bytes.create 65536 in
-        z.buffer <- Some b;
-        b
-  in
-  copy buffer z.ch ch len;
+  copy z.ch ch len;
   stdlib_close_out ch
 
 let close_in z = close_in z.ch
@@ -466,9 +446,4 @@ let copy_file z (z' : output) ~src_name ~dst_name =
   let file = { name = dst_name; pos = pos'; len; crc } in
   z'.files <- file :: z'.files;
   let _ = output_local_file_header z'.ch ~crc file in
-  let buffer =
-    match z.buffer with
-    | Some b -> b
-    | None -> get_buffer z'
-  in
-  copy buffer z.ch z'.ch len
+  copy z.ch z'.ch len
