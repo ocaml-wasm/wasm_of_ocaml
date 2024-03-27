@@ -406,19 +406,23 @@ let open_in name =
   done;
   { ch; files = !m }
 
+let get_pos z ~name =
+  try StringMap.find name z.files
+  with Not_found -> failwith (Printf.sprintf "File %s not found in archive" name)
+
 let read_entry z ~name =
-  let pos = StringMap.find name z.files in
+  let pos = get_pos z ~name in
   let { pos; len; _ } = read_local_file_header z.ch pos in
   seek_in z.ch pos;
   really_input_string z.ch len
 
 let get_entry z ~name =
-  let pos = StringMap.find name z.files in
+  let pos = get_pos z ~name in
   let { pos; len; _ } = read_local_file_header z.ch pos in
   z.ch, pos, len
 
 let extract_file z ~name ~file =
-  let pos = StringMap.find name z.files in
+  let pos = get_pos z ~name in
   let { pos; len; _ } = read_local_file_header z.ch pos in
   seek_in z.ch pos;
   let ch = open_out_bin file in

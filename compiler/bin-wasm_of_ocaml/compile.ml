@@ -95,6 +95,32 @@ let link_js_files ~primitives =
   ignore (Js_output.program f always_required_js);
   Buffer.contents b, primitives
 
+let generate_prelude ~out_file =
+  Filename.gen_file out_file
+  @@ fun ch ->
+  let code, uinfo = Parse_bytecode.predefined_exceptions ~target:`Wasm in
+  let context = Wa_generate.start () in
+  let live_vars, in_cps, p =
+    Driver.f ~target:Wasm (Parse_bytecode.Debug.create ~include_cmis:false false) code
+  in
+  let _ = Wa_generate.f ~context ~unit_name:(Some "globals") ~live_vars ~in_cps p in
+  Wa_generate.output ch ~context;
+  uinfo.provides
+
+let build_prelude z =
+  Wa_binaryen.with_intermediate_file (Filename.temp_file "prelude" ".wasm")
+  @@ fun prelude_file ->
+  Wa_binaryen.with_intermediate_file (Filename.temp_file "prelude_file" ".wasm")
+  @@ fun tmp_prelude_file ->
+  let predefined_exceptions = generate_prelude ~out_file:prelude_file in
+  Wa_binaryen.optimize
+    ~debuginfo:false
+    ~profile:(Driver.profile 1)
+    ~input_file:prelude_file
+    ~output_file:tmp_prelude_file;
+  Zip.add_file z ~name:"prelude.wasm" ~file:tmp_prelude_file;
+  predefined_exceptions
+
 let run
     { Cmd_arg.common
     ; profile
@@ -171,13 +197,19 @@ let run
      in
      let prelude, primitives = link_js_files ~primitives in
      let z = Zip.open_out tmp_output_file in
-     Wa_link.add_info z ~build_info:(Build_info.create `Runtime) ~unit_data:[];
      Zip.add_file z ~name:"runtime.wasm" ~file:tmp_wasm_file;
      Zip.add_entry z ~name:"prelude.js" ~contents:prelude;
      Zip.add_entry
        z
        ~name:"primitives.js-marshalled"
        ~contents:(Marshal.to_string (primitives : Javascript.expression) []);
+     let predefined_exceptions = build_prelude z in
+     Wa_link.add_info
+       z
+       ~predefined_exceptions
+       ~build_info:(Build_info.create `Runtime)
+       ~unit_data:[]
+       ();
      Zip.close_out z)
    else
      let kind, ic, close_ic, include_dirs =
@@ -260,7 +292,7 @@ let run
          @@ fun tmp_output_file ->
          let z = Zip.open_out tmp_output_file in
          let unit_data = [ compile_cmo z cmo ] in
-         Wa_link.add_info z ~build_info:(Build_info.create `Cmo) ~unit_data;
+         Wa_link.add_info z ~build_info:(Build_info.create `Cmo) ~unit_data ();
          Zip.close_out z
      | `Cma cma ->
          let output_file = Filename.chop_extension (fst output_file) ^ ".wasm" in
@@ -268,7 +300,7 @@ let run
          @@ fun tmp_output_file ->
          let z = Zip.open_out tmp_output_file in
          let unit_data = List.map ~f:(fun cmo -> compile_cmo z cmo) cma.lib_units in
-         Wa_link.add_info z ~build_info:(Build_info.create `Cma) ~unit_data;
+         Wa_link.add_info z ~build_info:(Build_info.create `Cma) ~unit_data ();
          Zip.close_out z);
 
      close_ic ());

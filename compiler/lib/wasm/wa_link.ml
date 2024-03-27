@@ -191,7 +191,7 @@ type unit_data =
   ; fragments : (string * Javascript.expression) list
   }
 
-let info_to_json ~build_info ~unit_data =
+let info_to_json ~predefined_exceptions ~build_info ~unit_data =
   let js_to_string e =
     let b = Buffer.create 128 in
     let f = Pretty_print.to_buffer b in
@@ -211,6 +211,11 @@ let info_to_json ~build_info ~unit_data =
   let add nm skip v rem = if skip then rem else (nm, v) :: rem in
   `Assoc
     ([]
+    |> add
+         "predefined_exceptions"
+         (StringSet.is_empty predefined_exceptions)
+         (`List
+           (List.map ~f:(fun s -> `String s) (StringSet.elements predefined_exceptions)))
     |> add
          "units"
          (List.is_empty unit_data)
@@ -237,6 +242,14 @@ let info_to_json ~build_info ~unit_data =
 let info_from_json info =
   let open Yojson.Basic.Util in
   let build_info = info |> member "build_info" |> Build_info.from_json in
+  let predefined_exceptions =
+    info
+    |> member "predefined_exceptions"
+    |> to_option to_list
+    |> Option.value ~default:[]
+    |> List.map ~f:to_string
+    |> StringSet.of_list
+  in
   let unit_data =
     info
     |> member "units"
@@ -263,13 +276,15 @@ let info_from_json info =
            in
            { unit_info; strings; fragments })
   in
-  build_info, unit_data
+  build_info, predefined_exceptions, unit_data
 
-let add_info z ~build_info ~unit_data =
+let add_info z ?(predefined_exceptions = StringSet.empty) ~build_info ~unit_data () =
   Zip.add_entry
     z
     ~name:"info.json"
-    ~contents:(Yojson.Basic.to_string (info_to_json ~build_info ~unit_data))
+    ~contents:
+      (Yojson.Basic.to_string
+         (info_to_json ~predefined_exceptions ~build_info ~unit_data))
 
 let read_info z =
   info_from_json (Yojson.Basic.from_string (Zip.read_entry z ~name:"info.json"))
@@ -285,6 +300,20 @@ let generate_prelude ~out_file =
   let _ = Wa_generate.f ~context ~unit_name:(Some "globals") ~live_vars ~in_cps p in
   Wa_generate.output ch ~context;
   uinfo.provides
+
+let build_prelude z =
+  Wa_binaryen.with_intermediate_file (Filename.temp_file "prelude" ".wasm")
+  @@ fun prelude_file ->
+  Wa_binaryen.with_intermediate_file (Filename.temp_file "prelude_file" ".wasm")
+  @@ fun tmp_prelude_file ->
+  let predefined_exceptions = generate_prelude ~out_file:prelude_file in
+  Wa_binaryen.optimize
+    ~debuginfo:false
+    ~profile:(Driver.profile 1)
+    ~input_file:prelude_file
+    ~output_file:tmp_prelude_file;
+  Zip.add_file z ~name:"prelude.wasm" ~file:tmp_prelude_file;
+  predefined_exceptions
 
 let generate_start_function ~to_link ~out_file =
   Filename.gen_file out_file
@@ -480,14 +509,7 @@ let build_js_runtime
   @@ fun tmp_output_file ->
   Wa_binaryen.write_file ~name:tmp_output_file ~contents:(prelude ^ launcher)
 
-let link_to_archive ~set_to_link ~prelude_file ~files ~start_file ~tmp_wasm_file =
-  Wa_binaryen.with_intermediate_file (Filename.temp_file "prelude_file" ".wasm")
-  @@ fun tmp_prelude_file ->
-  Wa_binaryen.optimize
-    ~debuginfo:false
-    ~profile:(Driver.profile 1)
-    ~input_file:prelude_file
-    ~output_file:tmp_prelude_file;
+let link_to_archive ~set_to_link ~files ~start_file ~tmp_wasm_file =
   Wa_binaryen.with_intermediate_file (Filename.temp_file "start_file" ".wasm")
   @@ fun tmp_start_file ->
   Wa_binaryen.optimize
@@ -504,8 +526,8 @@ let link_to_archive ~set_to_link ~prelude_file ~files ~start_file ~tmp_wasm_file
   let z = Zip.open_in (fst (List.hd files)) in
   let runtime_intf = read_interface z ~name:"runtime.wasm" in
   Zip.copy_file z ch ~src_name:"runtime.wasm" ~dst_name:"runtime.wasm";
+  Zip.copy_file z ch ~src_name:"prelude.wasm" ~dst_name:"prelude.wasm";
   Zip.close_in z;
-  Zip.add_file ch ~name:"prelude.wasm" ~file:tmp_prelude_file;
   let intfs = ref [] in
   List.iter
     ~f:(fun (file, (_, units)) ->
@@ -540,18 +562,24 @@ let compute_missing_primitives (runtime_intf, intfs) =
        ~init:StringSet.empty
        intfs
 
-let load_information files =
-  List.map files ~f:(fun file ->
-      let z = Zip.open_in file in
-      let info = read_info z in
-      Zip.close_in z;
-      file, info)
+let[@inline never] [@local never] load_information files =
+  let file = List.hd files in
+  let z = Zip.open_in file in
+  let build_info, predefined_exceptions, _unit_data = read_info z in
+  Zip.close_in z;
+  ( predefined_exceptions
+  , (file, (build_info, []))
+    :: List.map files ~f:(fun file ->
+           let z = Zip.open_in file in
+           let build_info, _predefined_exceptions, unit_data = read_info z in
+           Zip.close_in z;
+           file, (build_info, unit_data)) )
 
 let link ~js_launcher ~output_file ~linkall ~files =
   let rec loop n =
     if times () then Format.eprintf "linking@.";
     let t = Timer.make () in
-    let files = load_information files in
+    let predefined_exceptions, files = load_information files in
     (match files with
     | [] -> ()
     | (file, (bi, _)) :: r ->
@@ -606,9 +634,6 @@ let link ~js_launcher ~output_file ~linkall ~files =
     in
     if times () then Format.eprintf "    finding what to link: %a@." Timer.print t1;
     let t1 = Timer.make () in
-    Wa_binaryen.with_intermediate_file (Filename.temp_file "prelude" ".wasm")
-    @@ fun prelude_file ->
-    let predefined_exceptions = generate_prelude ~out_file:prelude_file in
     Wa_binaryen.with_intermediate_file (Filename.temp_file "start" ".wasm")
     @@ fun start_file ->
     generate_start_function ~to_link ~out_file:start_file;
@@ -625,9 +650,7 @@ let link ~js_launcher ~output_file ~linkall ~files =
     let wasm_file = associated_wasm_file ~js_output_file:output_file in
     Wa_binaryen.gen_file wasm_file
     @@ fun tmp_wasm_file ->
-    let interfaces =
-      link_to_archive ~set_to_link ~prelude_file ~files ~start_file ~tmp_wasm_file
-    in
+    let interfaces = link_to_archive ~set_to_link ~files ~start_file ~tmp_wasm_file in
     let missing_primitives = compute_missing_primitives interfaces in
     if times () then Format.eprintf "    copy wasm files: %a@." Timer.print t;
     let t1 = Timer.make () in

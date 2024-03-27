@@ -17,6 +17,8 @@
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *)
 
+open Stdlib
+
 module Wasm_binary : sig
   type import =
     { module_ : string
@@ -32,7 +34,13 @@ type unit_data =
   ; fragments : (string * Javascript.expression) list
   }
 
-val add_info : Zip.output -> build_info:Build_info.t -> unit_data:unit_data list -> unit
+val add_info :
+     Zip.output
+  -> ?predefined_exceptions:StringSet.t
+  -> build_info:Build_info.t
+  -> unit_data:unit_data list
+  -> unit
+  -> unit
 
 val associated_wasm_file : js_output_file:string -> string
 
