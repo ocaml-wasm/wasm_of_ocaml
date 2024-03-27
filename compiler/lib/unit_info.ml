@@ -116,6 +116,7 @@ let to_json t : Yojson.Basic.t =
       rem
   in
   let bool nm f rem = add nm (Bool.equal (f empty) (f t)) (`Bool (f t)) rem in
+  (*
   let map nm f conv rem =
     let l = f t |> StringMap.bindings |> List.map ~f:(fun (k, v) -> k, conv v) in
     add nm (List.is_empty l) (`Assoc l) rem
@@ -126,6 +127,7 @@ let to_json t : Yojson.Basic.t =
     | Some x -> f x
   in
   let digest d = `String (Digest.to_hex d) in
+  *)
   let digests =
     String.concat
       ~sep:";"
@@ -133,7 +135,7 @@ let to_json t : Yojson.Basic.t =
          ~f:(fun (k, v) ->
            match v with
            | None -> None
-           | Some v -> Some (k ^ "," ^ v))
+           | Some v -> Some (k ^ "," ^ Digest.to_hex v))
          (StringMap.bindings t.crcs))
   in
   `Assoc
