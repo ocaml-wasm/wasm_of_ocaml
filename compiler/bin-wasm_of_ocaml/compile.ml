@@ -90,9 +90,9 @@ let build_prelude z =
 
 let times = Debug.find "times"
 
+(* Remove some unnecessary dependencies *)
 let simplify_unit_info l =
   let t = Timer.make () in
-  let prev = Hashtbl.create 16 in
   let prev_requires = Hashtbl.create 16 in
   let res =
     List.map
@@ -101,39 +101,6 @@ let simplify_unit_info l =
         assert (StringSet.cardinal info.provides = 1);
         let name = StringSet.choose info.provides in
         assert (not (StringSet.mem name info.requires));
-        let crcs =
-          StringSet.fold
-            (fun dep crcs ->
-              match Hashtbl.find prev dep with
-              | (u : Unit_info.t) ->
-                  List.fold_left
-                    ~f:(fun crcs (k, c) ->
-                      match StringMap.find k crcs with
-                      | c' ->
-                          assert (Digest.equal c c');
-                          crcs
-                      | exception Not_found -> StringMap.add k c crcs)
-                    ~init:crcs
-                    u.crcs
-              | exception Not_found -> crcs)
-            info.requires
-            StringMap.empty
-        in
-        let info =
-          { info with
-            crcs =
-              List.filter
-                ~f:(fun (k, c) ->
-                  match StringMap.find k crcs with
-                  | exception Not_found -> true
-                  | c' ->
-                      (*ZZZ*)
-                      assert (Digest.equal c c');
-                      false)
-                info.crcs
-          }
-        in
-        Hashtbl.add prev name info;
         let requires =
           StringSet.fold
             (fun dep (requires : StringSet.t) ->
