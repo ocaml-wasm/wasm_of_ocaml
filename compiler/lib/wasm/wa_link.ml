@@ -226,8 +226,11 @@ let info_to_json ~predefined_exceptions ~build_info ~unit_data =
           |> add
                "fragments"
                (List.is_empty fragments)
+               (*
                (`Assoc
-                 (List.map ~f:(fun (nm, e) -> nm, `String (js_to_string e)) fragments))))
+                 (List.map ~f:(fun (nm, e) -> nm, `String (js_to_string e)) fragments))
+          *)
+               (`String (Marshal.to_string fragments []))))
       unit_data
   in
   `Assoc
@@ -268,12 +271,16 @@ let info_from_json info =
            let fragments =
              u
              |> member "fragments"
-             |> to_option to_assoc
+             |> to_option to_string
+             |> Option.map ~f:(fun s -> Marshal.from_string s 0)
              |> Option.value ~default:[]
-             |> List.map ~f:(fun (nm, e) ->
-                    ( nm
-                    , let lex = Parse_js.Lexer.of_string (to_string e) in
-                      Parse_js.parse_expr lex ))
+             (*
+                           |> to_option to_assoc
+                           |> Option.value ~default:[]
+                           |> List.map ~f:(fun (nm, e) ->
+                                  ( nm
+                                  , let lex = Parse_js.Lexer.of_string (to_string e) in
+                                    Parse_js.parse_expr lex ))*)
            in
            { unit_info; strings; fragments })
   in
