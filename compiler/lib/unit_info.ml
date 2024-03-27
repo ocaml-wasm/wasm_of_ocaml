@@ -106,7 +106,7 @@ let to_string t =
   |> String.concat ~sep:"\n"
   |> fun x -> x ^ "\n"
 
-let to_json t : Yojson.Basic.t =
+let to_json tbl t : Yojson.Basic.t =
   let add nm skip v rem = if skip then rem else (nm, v) :: rem in
   let set nm f rem =
     add
@@ -129,14 +129,15 @@ let to_json t : Yojson.Basic.t =
   let digest d = `String (Digest.to_hex d) in
   *)
   let digests =
-    String.concat
-      ~sep:";"
-      (List.filter_map
-         ~f:(fun (k, v) ->
-           match v with
-           | None -> None
-           | Some v -> Some (k ^ "," ^ Digest.to_hex v))
-         (StringMap.bindings t.crcs))
+    List.map
+      ~f:(fun (k, v) ->
+        `Int
+          (try Hashtbl.find tbl (k, v)
+           with Not_found ->
+             let i = Hashtbl.length tbl in
+             Hashtbl.add tbl (k, v) i;
+             i))
+      (StringMap.bindings (StringMap.filter_map (fun _ v -> v) t.crcs))
   in
   `Assoc
     ([]
@@ -145,7 +146,7 @@ let to_json t : Yojson.Basic.t =
     |> set "primitives" (fun t -> t.primitives)
     |> bool "force_link" (fun t -> t.force_link)
     |> bool "effects_without_cps" (fun t -> t.effects_without_cps)
-    |> add "crcs" (String.length digests = 0) (`String digests))
+    |> add "crcs" (List.is_empty digests) (`List digests))
 
 let from_json t =
   let open Yojson.Basic.Util in

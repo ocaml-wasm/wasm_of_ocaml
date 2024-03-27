@@ -213,34 +213,45 @@ let info_to_json ~predefined_exceptions ~build_info ~unit_data =
     trim_semi (Buffer.contents b)
   in
   let add nm skip v rem = if skip then rem else (nm, v) :: rem in
+  let tbl = Hashtbl.create 128 in
+  let units =
+    List.map
+      ~f:(fun { unit_info; strings; fragments } ->
+        `Assoc
+          ([]
+          |> add
+               "strings"
+               (List.is_empty strings)
+               (`List (List.map ~f:(fun s -> `String s) strings))
+          |> add
+               "fragments"
+               (List.is_empty fragments)
+               (`Assoc
+                 (List.map ~f:(fun (nm, e) -> nm, `String (js_to_string e)) fragments))
+          |> add "unit_info" false (Unit_info.to_json tbl unit_info)))
+      unit_data
+  in
+  let crcs =
+    Hashtbl.fold (fun k i l -> (i, k) :: l) tbl []
+    |> List.sort ~cmp:(fun (i, _) (i', _) -> compare i i')
+    |> List.map ~f:snd
+  in
   `Assoc
     ([]
+    |> add
+         "crc_digests"
+         (List.is_empty crcs)
+         (`List (List.map ~f:(fun (_, v) -> `String (Digest.to_hex v)) crcs))
+    |> add
+         "crc_units"
+         (List.is_empty crcs)
+         (`List (List.map ~f:(fun (k, _) -> `String k) crcs))
     |> add
          "predefined_exceptions"
          (StringSet.is_empty predefined_exceptions)
          (`List
            (List.map ~f:(fun s -> `String s) (StringSet.elements predefined_exceptions)))
-    |> add
-         "units"
-         (List.is_empty unit_data)
-         (`List
-           (List.map
-              ~f:(fun { unit_info; strings; fragments } ->
-                `Assoc
-                  ([]
-                  |> add
-                       "strings"
-                       (List.is_empty strings)
-                       (`List (List.map ~f:(fun s -> `String s) strings))
-                  |> add
-                       "fragments"
-                       (List.is_empty fragments)
-                       (`Assoc
-                         (List.map
-                            ~f:(fun (nm, e) -> nm, `String (js_to_string e))
-                            fragments))
-                  |> add "unit_info" false (Unit_info.to_json unit_info)))
-              unit_data))
+    |> add "units" (List.is_empty unit_data) (`List units)
     |> add "build_info" false (Build_info.to_json build_info))
 
 let info_from_json info =

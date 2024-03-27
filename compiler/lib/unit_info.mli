@@ -40,6 +40,6 @@ val to_string : t -> string
 
 val parse : t -> string -> t option
 
-val to_json : t -> Yojson.Basic.t
+val to_json : (string * Digest.t, int) Hashtbl.t -> t -> Yojson.Basic.t
 
 val from_json : Yojson.Basic.t -> t
