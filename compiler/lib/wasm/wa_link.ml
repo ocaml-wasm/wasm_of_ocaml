@@ -587,7 +587,9 @@ let simplify_unit_info l =
 let compute_dependencies ~set_to_link ~files =
   let h = Hashtbl.create 128 in
   let l = List.concat (List.map ~f:(fun (_, (_, units)) -> units) files) in
+  (*
   let l = simplify_unit_info l in
+  *)
   List.filter_map
     ~f:(fun { unit_info; _ } ->
       let unit_name = StringSet.choose unit_info.provides in
