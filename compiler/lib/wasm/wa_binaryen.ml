@@ -93,7 +93,14 @@ let optimization_options =
    ; [ "-O3"; "--traps-never-happen" ]
   |]
 
-let optimize ~profile ?sourcemap_file ?sourcemap_url ~input_file ~output_file () =
+let optimize
+    ~profile
+    ?input_sourcemap_file
+    ?output_sourcemap_file
+    ?sourcemap_url
+    ~input_file
+    ~output_file
+    () =
   let level =
     match profile with
     | None -> 1
@@ -102,20 +109,18 @@ let optimize ~profile ?sourcemap_file ?sourcemap_url ~input_file ~output_file ()
   let sourcemap_url =
     match sourcemap_url with
     | Some url -> Some url
-    | None -> sourcemap_file
+    | None -> output_sourcemap_file
   in
   command
     ("wasm-opt"
      :: (common_options ()
         @ optimization_options.(level - 1)
         @ [ Filename.quote input_file; "-o"; Filename.quote output_file ])
-    @ (match sourcemap_file with
-      | Some sourcemap_file ->
-          [ "--input-source-map"
-          ; Filename.quote (input_file ^ ".map")
-          ; "--output-source-map"
-          ; Filename.quote sourcemap_file
-          ]
+    @ (match input_sourcemap_file with
+      | Some sourcemap_file -> [ "--input-source-map"; Filename.quote sourcemap_file ]
+      | None -> [])
+    @ (match output_sourcemap_file with
+      | Some sourcemap_file -> [ "--output-source-map"; Filename.quote sourcemap_file ]
       | None -> [])
     @
     match sourcemap_url with

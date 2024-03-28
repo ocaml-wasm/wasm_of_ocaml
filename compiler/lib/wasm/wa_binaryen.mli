@@ -14,7 +14,8 @@ val dead_code_elimination :
 
 val optimize :
      profile:Driver.profile option
-  -> ?sourcemap_file:string
+  -> ?input_sourcemap_file:string
+  -> ?output_sourcemap_file:string
   -> ?sourcemap_url:string
   -> input_file:string
   -> output_file:string

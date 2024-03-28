@@ -24,6 +24,21 @@ let debug_mem = Debug.find "mem"
 
 let () = Sys.catch_break true
 
+let add_sources_to_source_map sourcemap_file =
+  Option.iter sourcemap_file ~f:(fun sourcemap_file ->
+      let open Source_map in
+      let source_map, mappings = Source_map_io.of_file_no_mappings sourcemap_file in
+      assert (List.is_empty (Option.value source_map.sources_content ~default:[]));
+      let sources_content =
+        Some
+          (List.map source_map.sources ~f:(fun file ->
+               if Sys.file_exists file && not (Sys.is_directory file)
+               then Some (Fs.read_file file)
+               else None))
+      in
+      let source_map = { source_map with sources_content } in
+      Source_map_io.to_file ?mappings source_map ~file:sourcemap_file)
+
 let link_and_optimize ~profile ?sourcemap_file runtime_wasm_files wat_files output_file =
   let sourcemap_file =
     (* Check that Binaryen supports the necessary sourcemaps options (requires
@@ -52,21 +67,14 @@ let link_and_optimize ~profile ?sourcemap_file runtime_wasm_files wat_files outp
       ~input_file:temp_file
       ~output_file:temp_file'
   in
-  Wa_binaryen.optimize ~profile ?sourcemap_file ~input_file:temp_file' ~output_file ();
-  (* Add source file contents to source map *)
-  Option.iter sourcemap_file ~f:(fun sourcemap_file ->
-      let open Source_map in
-      let source_map, mappings = Source_map_io.of_file_no_mappings sourcemap_file in
-      assert (List.is_empty (Option.value source_map.sources_content ~default:[]));
-      let sources_content =
-        Some
-          (List.map source_map.sources ~f:(fun file ->
-               if Sys.file_exists file && not (Sys.is_directory file)
-               then Some (Fs.read_file file)
-               else None))
-      in
-      let source_map = { source_map with sources_content } in
-      Source_map_io.to_file ?mappings source_map ~file:sourcemap_file);
+  Wa_binaryen.optimize
+    ~profile
+    ?input_sourcemap_file:(Option.map ~f:(fun _ -> temp_file' ^ ".map") sourcemap_file)
+    ?output_sourcemap_file:sourcemap_file
+    ~input_file:temp_file'
+    ~output_file
+    ();
+  add_sources_to_source_map sourcemap_file;
   primitives
 
 let link_runtime ~profile runtime_wasm_files output_file =
@@ -273,14 +281,18 @@ let run
        let strings, fragments =
          Filename.gen_file wat_file (output code ~unit_name:(Some unit_name))
        in
+       let output_sourcemap_file =
+         if enable_source_maps then Some tmp_map_file else None
+       in
        Wa_binaryen.optimize
          ~profile
-         ?sourcemap_file:(if enable_source_maps then Some tmp_map_file else None)
+         ?output_sourcemap_file
          ?sourcemap_url:
            (if enable_source_maps then Some (unit_name ^ ".wasm.map") else None)
          ~input_file:wat_file
          ~output_file:tmp_wasm_file
          ();
+       add_sources_to_source_map output_sourcemap_file;
        Zip.add_file z ~name:(unit_name ^ ".wasm") ~file:tmp_wasm_file;
        if enable_source_maps
        then Zip.add_file z ~name:(unit_name ^ ".wasm.map") ~file:tmp_map_file;
