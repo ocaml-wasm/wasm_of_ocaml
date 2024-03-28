@@ -86,10 +86,8 @@
       const url = base?new URL(src, base):src;
       return fetch(url)
     }
-    function loadCode(src) {
-        return isNode?loadRelative(src):fetchRelative(src);
-    }
     const isNode = globalThis?.process?.versions?.node;
+    const loadCode= isNode?loadRelative:fetchRelative;
 
     let math =
         {cos:Math.cos, sin:Math.sin, tan:Math.tan,
@@ -458,7 +456,8 @@ else
 count++
       return imports
     }
-    async function instantiateFromArchive(code, imports) {
+    async function instantiateFromArchive() {
+      const code = loadCode(src)
       var stream;
       if (isNode) {
           code = await code;
@@ -476,53 +475,39 @@ count++
       return {instance:
               {exports: Object.assign(imports.env, imports.OCaml)}}
     }
-    async function instantiateModule(src, imports) {
-        return isNode?await WebAssembly.instantiate(await loadCode(src), imports, options)
-            :await WebAssembly.instantiateStreaming(loadCode(src),imports, options)
+    async function instantiateModule(code) {
+      return isNode?WebAssembly.instantiate(await code, imports, options)
+               :WebAssembly.instantiateStreaming(code,imports, options)
     }
     async function instantiateFromDir() {
       imports.OCaml = {};
-      const path = require('path');
-      const dir = path.join(path.dirname(require.main.filename),src);
-      const fs = require('fs/promises')
-
       const deps = []
-
       for (const module of link) {
-          async function instantiate () {
-              const code = fs.readFile(path.join(dir, module[0] + ".wasm"))
-              if (module[1].constructor=== Array) {
-//console.log(module[0] + ' waiting for ' + module[1].map((i)=>link[i]));
-                  await Promise.all(module[1].map((i)=>deps[i]));
-              } else {
+        const sync = module[1].constructor !== Array
+        async function instantiate () {
+          const code = loadCode(src + "/" + module[0] + ".wasm")
+//          if (sync) {
 //console.log(module[0] + ' waiting for all');
-                  await Promise.all(deps);
-              }
+//          } else {
+//console.log(module[0] + ' waiting for ' + module[1].map((i)=>link[i]));
+//          }
+          await Promise.all(sync?deps:module[1].map((i)=>deps[i]));
 //console.log('compiling' + module[0]);
-              const wasmModule =
-                    await WebAssembly.instantiate(await code, imports, options)
-              if (count)
-                  Object.assign(imports.OCaml, wasmModule.instance.exports);
-              else
-                  Object.assign(imports.env, wasmModule.instance.exports);
+          const wasmModule = await instantiateModule(code)
+          Object.assign(deps.length?imports.OCaml:imports.env,
+                        wasmModule.instance.exports);
 //console.log(module[0] + ' done');
-              count++
-          }
-          if (!(module[1].constructor=== Array)) {
-              deps.push(await instantiate())
-          } else {
-              deps.push(instantiate())
-          }
+        }
+        deps.push(sync?await instantiate():instantiate())
       }
-      await deps[deps.length - 1];
-
-      return {instance:
-              {exports: Object.assign(imports.env, imports.OCaml)}}
+      await deps.pop();
+      return {instance:{exports: Object.assign(imports.env, imports.OCaml)}}
     }
     const wasmModule =
-          (link.constructor===Array)?await instantiateFromDir():
-          link?await instantiateFromArchive(loadCode(src), imports, options):
-               instantiateModule(src, imports, options)
+       await
+          ((link.constructor===Array)?instantiateFromDir():
+           link?instantiateFromArchive():
+                instantiateModule(loadCode(src)))
     var {caml_callback, caml_alloc_tm, caml_start_fiber,
          caml_handle_uncaught_exception, caml_buffer,
          caml_extract_string, _initialize} =

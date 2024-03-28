@@ -365,7 +365,7 @@ let report_missing_primitives missing =
     List.iter ~f:(fun nm -> warn "  %s@." nm) missing)
 
 let build_runtime_arguments
-    ?(to_link = [])
+    ?(link_spec = [])
     ?(separate_compilation = false)
     ~missing_primitives
     ~wasm_file
@@ -472,7 +472,7 @@ let build_runtime_arguments
   in
   obj
     [ ( "link"
-      , if List.is_empty to_link
+      , if List.is_empty link_spec
         then ENum (Javascript.Num.of_int32 (if separate_compilation then 1l else 0l))
         else
           EArr
@@ -492,7 +492,7 @@ let build_runtime_arguments
                                        (ENum (Javascript.Num.of_int32 (Int32.of_int i))))
                                    l))
                       ]))
-               to_link) )
+               link_spec) )
     ; "generated", generated_js
     ; "src", EStr (Utf8_string.of_string_exn (Filename.basename wasm_file))
     ]
@@ -700,7 +700,7 @@ let link ~output_file ~linkall ~files =
     if times () then Format.eprintf "    finding what to link: %a@." Timer.print t1;
     if times () then Format.eprintf "  scan: %a@." Timer.print t;
     let t = Timer.make () in
-    let interfaces, wasm_file =
+    let interfaces, wasm_file, link_spec =
       if false
       then (
         let wasm_file = associated_wasm_file ~js_output_file:output_file in
@@ -709,7 +709,7 @@ let link ~output_file ~linkall ~files =
         Wa_binaryen.with_intermediate_file (Filename.temp_file "start" ".wasm")
         @@ fun start_file ->
         generate_start_function ~to_link ~out_file:start_file;
-        link_to_archive ~set_to_link ~files ~start_file ~tmp_wasm_file, wasm_file)
+        link_to_archive ~set_to_link ~files ~start_file ~tmp_wasm_file, wasm_file, [])
       else
         let dir = associated_wasm_file ~js_output_file:output_file in
         (*ZZZ Filename.chop_extension output_file ^ ".assets" in*)
@@ -717,7 +717,10 @@ let link ~output_file ~linkall ~files =
         @@ fun tmp_dir ->
         Sys.mkdir tmp_dir 0o777;
         generate_start_function ~to_link ~out_file:(Filename.concat tmp_dir "start.wasm");
-        link_to_directory ~set_to_link ~files ~dir:tmp_dir, dir
+        ( link_to_directory ~set_to_link ~files ~dir:tmp_dir
+        , dir
+        , let to_link = compute_dependencies ~set_to_link ~files in
+          ("runtime", None) :: ("prelude", None) :: (to_link @ [ "start", None ]) )
     in
     let missing_primitives = compute_missing_primitives interfaces in
     if times () then Format.eprintf "    copy wasm files: %a@." Timer.print t;
@@ -737,11 +740,9 @@ let link ~output_file ~linkall ~files =
                  Some (StringSet.choose unit_info.provides), (strings, fragments)))
     in
     let runtime_args =
-      let to_link = compute_dependencies ~set_to_link ~files in
       let js =
         build_runtime_arguments
-          ~to_link:
-            (("runtime", None) :: ("prelude", None) :: (to_link @ [ "start", None ]))
+          ~link_spec
           ~separate_compilation:true
           ~missing_primitives
           ~wasm_file
