@@ -530,14 +530,9 @@ cmdline options: update description
 
 ---
 
-1) link to directory
+1) link to directory ==> dune
 2) sourcemaps
+   ==> include files
+   ==> remove warning
 3) support linking archives into archives
-4) asm output
-
->>> Switch to binaryen 117 <<<
-
-
-- iter over all modules, pushing a promise that waits for its
-  dependencies then compile the code
-- wait over all modules
+4) asm output (+ sourcemaps)
