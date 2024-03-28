@@ -477,7 +477,21 @@ let build_runtime_arguments
         else
           EArr
             (List.map
-               ~f:(fun m -> Javascript.Element (EStr (Utf8_string.of_string_exn m)))
+               ~f:(fun (m, deps) ->
+                 Javascript.Element
+                   (EArr
+                      [ Element (EStr (Utf8_string.of_string_exn m))
+                      ; Element
+                          (match deps with
+                          | None -> ENum (Javascript.Num.of_int32 0l)
+                          | Some l ->
+                              EArr
+                                (List.map
+                                   ~f:(fun i ->
+                                     Javascript.Element
+                                       (ENum (Javascript.Num.of_int32 (Int32.of_int i))))
+                                   l))
+                      ]))
                to_link) )
     ; "generated", generated_js
     ; "src", EStr (Utf8_string.of_string_exn (Filename.basename wasm_file))
@@ -541,6 +555,27 @@ let link_to_directory ~set_to_link ~files ~dir =
       Zip.close_in z)
     files;
   runtime_intf, List.rev !intfs
+
+let compute_dependencies ~set_to_link ~files =
+  let h = Hashtbl.create 128 in
+  List.flatten
+  @@ List.map
+       ~f:(fun (file, (_, units)) ->
+         List.filter_map
+           ~f:(fun { unit_info; _ } ->
+             let unit_name = StringSet.choose unit_info.provides in
+             if StringSet.mem unit_name set_to_link
+             then (
+               Hashtbl.add h unit_name (Hashtbl.length h);
+               Some
+                 ( unit_name
+                 , Some
+                     (List.filter_map
+                        ~f:(fun req -> Hashtbl.find_opt h req)
+                        (StringSet.elements unit_info.requires)) ))
+             else None)
+           units)
+       files
 
 let compute_missing_primitives (runtime_intf, intfs) =
   let provided_primitives = StringSet.of_list runtime_intf.Wasm_binary.exports in
@@ -673,9 +708,11 @@ let link ~output_file ~linkall ~files =
                  Some (StringSet.choose unit_info.provides), (strings, fragments)))
     in
     let runtime_args =
+      let to_link = compute_dependencies ~set_to_link ~files in
       let js =
         build_runtime_arguments
-          ~to_link:("runtime" :: "prelude" :: (to_link @ [ "start" ]))
+          ~to_link:
+            (("runtime", None) :: ("prelude", None) :: (to_link @ [ "start", None ]))
           ~separate_compilation:true
           ~missing_primitives
           ~wasm_file
