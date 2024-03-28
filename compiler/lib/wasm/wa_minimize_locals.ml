@@ -111,6 +111,7 @@ and scan_instruction ctx i =
   | Return_call_indirect (_, e', l) | Return_call_ref (_, e', l) ->
       scan_expressions ctx l;
       scan_expression ctx e'
+  | Location (_, i') -> scan_instruction ctx i'
 
 and scan_instructions ctx l = List.iter ~f:(fun i -> scan_instruction ctx i) l
 
@@ -307,6 +308,7 @@ and rewrite_instruction ctx i =
       let l = rewrite_expressions ctx l in
       let e' = rewrite_expression ctx e' in
       Return_call_ref (typ, e', l)
+  | Location (loc, i') -> Location (loc, rewrite_instruction ctx i')
 
 and rewrite_instructions ctx l = List.map ~f:(fun i -> rewrite_instruction ctx i) l
 

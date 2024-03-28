@@ -468,6 +468,7 @@ and rewrite_instruction i =
         (let* l = rewrite_expressions l in
          let* e' = rewrite_expression e' in
          return (Wa_ast.Return_call_ref (typ, e', l)))
+  | Location (_, i') -> (*ZZZ*) rewrite_instruction i'
 
 and rewrite_block_rec l =
   match l with

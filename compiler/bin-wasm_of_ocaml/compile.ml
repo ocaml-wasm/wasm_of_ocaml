@@ -33,17 +33,17 @@ let link_and_optimize ~profile ?sourcemap_file runtime_wasm_files wat_files outp
     | Some _ | None -> sourcemap_file
   in
   let enable_source_maps = Option.is_some sourcemap_file in
-  Wa_binaryen.with_intermediate_file (Filename.temp_file "runtime" ".wasm")
+  Fs.with_intermediate_file (Filename.temp_file "runtime" ".wasm")
   @@ fun runtime_file ->
-  Wa_binaryen.write_file ~name:runtime_file ~contents:Wa_runtime.wasm_runtime;
-  Wa_binaryen.with_intermediate_file (Filename.temp_file "wasm-merged" ".wasm")
+  Fs.write_file ~name:runtime_file ~contents:Wa_runtime.wasm_runtime;
+  Fs.with_intermediate_file (Filename.temp_file "wasm-merged" ".wasm")
   @@ fun temp_file ->
   Wa_binaryen.link
     ~enable_source_maps
     ~runtime_files:(runtime_file :: runtime_wasm_files)
     ~input_files:wat_files
     ~output_file:temp_file;
-  Wa_binaryen.with_intermediate_file (Filename.temp_file "wasm-dce" ".wasm")
+  Fs.with_intermediate_file (Filename.temp_file "wasm-dce" ".wasm")
   @@ fun temp_file' ->
   let primitives =
     Wa_binaryen.dead_code_elimination
@@ -70,10 +70,10 @@ let link_and_optimize ~profile ?sourcemap_file runtime_wasm_files wat_files outp
   primitives
 
 let link_runtime ~profile runtime_wasm_files output_file =
-  Wa_binaryen.with_intermediate_file (Filename.temp_file "runtime" ".wasm")
+  Fs.with_intermediate_file (Filename.temp_file "runtime" ".wasm")
   @@ fun runtime_file ->
-  Wa_binaryen.write_file ~name:runtime_file ~contents:Wa_runtime.wasm_runtime;
-  Wa_binaryen.with_intermediate_file (Filename.temp_file "wasm-merged" ".wasm")
+  Fs.write_file ~name:runtime_file ~contents:Wa_runtime.wasm_runtime;
+  Fs.with_intermediate_file (Filename.temp_file "wasm-merged" ".wasm")
   @@ fun temp_file ->
   Wa_binaryen.link
     ~enable_source_maps:false
@@ -95,9 +95,9 @@ let generate_prelude ~out_file =
   uinfo.provides
 
 let build_prelude z =
-  Wa_binaryen.with_intermediate_file (Filename.temp_file "prelude" ".wasm")
+  Fs.with_intermediate_file (Filename.temp_file "prelude" ".wasm")
   @@ fun prelude_file ->
-  Wa_binaryen.with_intermediate_file (Filename.temp_file "prelude_file" ".wasm")
+  Fs.with_intermediate_file (Filename.temp_file "prelude_file" ".wasm")
   @@ fun tmp_prelude_file ->
   let predefined_exceptions = generate_prelude ~out_file:prelude_file in
   Wa_binaryen.optimize
@@ -158,9 +158,9 @@ let run
     ; runtime_files
     ; input_file
     ; output_file
+    ; enable_source_maps
     ; params
     ; runtime_only
-    ; enable_source_maps
     } =
   Jsoo_cmdline.Arg.eval common;
   Wa_generate.init ();
@@ -213,9 +213,9 @@ let run
   in
   (if runtime_only
    then (
-     Wa_binaryen.gen_file (fst output_file)
+     Fs.gen_file (fst output_file)
      @@ fun tmp_output_file ->
-     Wa_binaryen.with_intermediate_file (Filename.temp_file "wasm" ".wasm")
+     Fs.with_intermediate_file (Filename.temp_file "wasm" ".wasm")
      @@ fun tmp_wasm_file ->
      link_runtime ~profile runtime_wasm_files tmp_wasm_file;
      let primitives =
@@ -264,15 +264,26 @@ let run
        let unit_info = Unit_info.of_cmo cmo in
        let unit_name = StringSet.choose unit_info.provides in
        if times () then Format.eprintf "  parsing: %a (%s)@." Timer.print t1 unit_name;
-       Wa_binaryen.with_intermediate_file (Filename.temp_file unit_name ".wat")
+       Fs.with_intermediate_file (Filename.temp_file unit_name ".wat")
        @@ fun wat_file ->
-       Wa_binaryen.with_intermediate_file (Filename.temp_file unit_name ".wasm")
+       Fs.with_intermediate_file (Filename.temp_file unit_name ".wasm")
        @@ fun tmp_wasm_file ->
+       Fs.with_intermediate_file (Filename.temp_file unit_name ".wasm.map")
+       @@ fun tmp_map_file ->
        let strings, fragments =
          Filename.gen_file wat_file (output code ~unit_name:(Some unit_name))
        in
-       Wa_binaryen.optimize ~profile ~input_file:wat_file ~output_file:tmp_wasm_file ();
+       Wa_binaryen.optimize
+         ~profile
+         ?sourcemap_file:(if enable_source_maps then Some tmp_map_file else None)
+         ?sourcemap_url:
+           (if enable_source_maps then Some (unit_name ^ ".wasm.map") else None)
+         ~input_file:wat_file
+         ~output_file:tmp_wasm_file
+         ();
        Zip.add_file z ~name:(unit_name ^ ".wasm") ~file:tmp_wasm_file;
+       if enable_source_maps
+       then Zip.add_file z ~name:(unit_name ^ ".wasm.map") ~file:tmp_map_file;
        { Wa_link.unit_info; strings; fragments }
      in
      (match kind with
@@ -290,16 +301,22 @@ let run
          in
          if times () then Format.eprintf "  parsing: %a@." Timer.print t1;
          let output_file = fst output_file in
-         Wa_binaryen.gen_file (Filename.chop_extension output_file ^ ".wat")
+         Fs.gen_file (Filename.chop_extension output_file ^ ".wat")
          @@ fun wat_file ->
          let wasm_file = Wa_link.associated_wasm_file ~js_output_file:output_file in
-         Wa_binaryen.gen_file wasm_file
+         Fs.gen_file wasm_file
          @@ fun tmp_wasm_file ->
          let generated_js =
            [ None, Filename.gen_file wat_file (output code ~unit_name:None) ]
          in
          let primitives =
-           link_and_optimize ~profile runtime_wasm_files [ wat_file ] tmp_wasm_file
+           link_and_optimize
+             ~profile
+             ?sourcemap_file:
+               (if enable_source_maps then Some (wasm_file ^ ".map") else None)
+             runtime_wasm_files
+             [ wat_file ]
+             tmp_wasm_file
          in
          let js_runtime =
            let missing_primitives =
@@ -320,12 +337,12 @@ let run
                   ())
              ()
          in
-         Wa_binaryen.gen_file output_file
+         Fs.gen_file output_file
          @@ fun tmp_output_file ->
-         Wa_binaryen.write_file ~name:tmp_output_file ~contents:js_runtime
+         Fs.write_file ~name:tmp_output_file ~contents:js_runtime
      | `Cmo cmo ->
          let output_file = Filename.chop_extension (fst output_file) ^ ".wasm" in
-         Wa_binaryen.gen_file output_file
+         Fs.gen_file output_file
          @@ fun tmp_output_file ->
          let z = Zip.open_out tmp_output_file in
          let unit_data = [ compile_cmo z cmo ] in
@@ -333,7 +350,7 @@ let run
          Zip.close_out z
      | `Cma cma ->
          let output_file = Filename.chop_extension (fst output_file) ^ ".wasm" in
-         Wa_binaryen.gen_file output_file
+         Fs.gen_file output_file
          @@ fun tmp_output_file ->
          let z = Zip.open_out tmp_output_file in
          let unit_data = List.map ~f:(fun cmo -> compile_cmo z cmo) cma.lib_units in

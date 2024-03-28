@@ -417,6 +417,8 @@ let get_pos z ~name =
   try StringMap.find name z.files
   with Not_found -> failwith (Printf.sprintf "File %s not found in archive" name)
 
+let has_entry z ~name = StringMap.mem name z.files
+
 let read_entry z ~name =
   let pos = get_pos z ~name in
   let { pos; len; _ } = read_local_file_header z.ch pos in

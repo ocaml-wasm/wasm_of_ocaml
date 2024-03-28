@@ -520,7 +520,10 @@ let link_to_archive ~set_to_link ~files ~start_file ~tmp_wasm_file =
           then (
             let name = unit_name ^ ".wasm" in
             intfs := read_interface z ~name :: !intfs;
-            Zip.copy_file z ch ~src_name:name ~dst_name:name))
+            Zip.copy_file z ch ~src_name:name ~dst_name:name;
+            let map = name ^ ".map" in
+            if Zip.has_entry z ~name:map
+            then Zip.copy_file z ch ~src_name:map ~dst_name:map))
         units;
       Zip.close_in z)
     files;
@@ -550,7 +553,10 @@ let link_to_directory ~set_to_link ~files ~dir =
           then (
             let name = unit_name ^ ".wasm" in
             intfs := read_interface z ~name :: !intfs;
-            Zip.extract_file z ~name ~file:(Filename.concat dir name)))
+            Zip.extract_file z ~name ~file:(Filename.concat dir name);
+            let map = name ^ ".map" in
+            if Zip.has_entry z ~name:map
+            then Zip.extract_file z ~name:map ~file:(Filename.concat dir map)))
         units;
       Zip.close_in z)
     files;
@@ -704,16 +710,16 @@ let link ~output_file ~linkall ~files =
       if false
       then (
         let wasm_file = associated_wasm_file ~js_output_file:output_file in
-        Wa_binaryen.gen_file wasm_file
+        Fs.gen_file wasm_file
         @@ fun tmp_wasm_file ->
-        Wa_binaryen.with_intermediate_file (Filename.temp_file "start" ".wasm")
+        Fs.with_intermediate_file (Filename.temp_file "start" ".wasm")
         @@ fun start_file ->
         generate_start_function ~to_link ~out_file:start_file;
         link_to_archive ~set_to_link ~files ~start_file ~tmp_wasm_file, wasm_file, [])
       else
         let dir = associated_wasm_file ~js_output_file:output_file in
         (*ZZZ Filename.chop_extension output_file ^ ".assets" in*)
-        Wa_binaryen.gen_file dir
+        Fs.gen_file dir
         @@ fun tmp_dir ->
         Sys.mkdir tmp_dir 0o777;
         generate_start_function ~to_link ~out_file:(Filename.concat tmp_dir "start.wasm");
@@ -751,9 +757,9 @@ let link ~output_file ~linkall ~files =
       in
       output_js [ Javascript.Expression_statement js, Javascript.N ]
     in
-    Wa_binaryen.gen_file output_file
+    Fs.gen_file output_file
     @@ fun tmp_output_file ->
-    Wa_binaryen.write_file
+    Fs.write_file
       ~name:tmp_output_file
       ~contents:(trim_semi js_runtime ^ "\n" ^ runtime_args);
     if times () then Format.eprintf "    build JS runtime: %a@." Timer.print t1;

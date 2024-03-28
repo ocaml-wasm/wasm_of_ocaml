@@ -8,40 +8,6 @@ let command cmdline =
   let res = Sys.command cmdline in
   if res <> 0 then failwith ("the following command terminated unsuccessfully: " ^ cmdline)
 
-let remove_file file = try Sys.remove file with Sys_error _ -> ()
-
-let gen_file file f =
-  let f_tmp =
-    Filename.temp_file_name
-      ~temp_dir:(Filename.dirname file)
-      (Filename.basename file)
-      ".tmp"
-  in
-  try
-    let res = f f_tmp in
-    remove_file file;
-    Sys.rename f_tmp file;
-    res
-  with exc ->
-    remove_file file;
-    raise exc
-
-let write_file ~name ~contents =
-  let ch = open_out_bin name in
-  output_string ch contents;
-  close_out ch
-
-let with_intermediate_file ?(keep = false) name f =
-  match f name with
-  | res ->
-      if not keep then remove_file name;
-      res
-  | exception e ->
-      remove_file name;
-      raise e
-
-(***)
-
 let common_options () =
   let l =
     [ "--enable-gc"
@@ -101,12 +67,12 @@ let filter_unused_primitives primitives usage_file =
   !s
 
 let dead_code_elimination ~dependencies ~enable_source_maps ~input_file ~output_file =
-  with_intermediate_file (Filename.temp_file "deps" ".json")
+  Fs.with_intermediate_file (Filename.temp_file "deps" ".json")
   @@ fun deps_file ->
-  with_intermediate_file (Filename.temp_file "usage" ".txt")
+  Fs.with_intermediate_file (Filename.temp_file "usage" ".txt")
   @@ fun usage_file ->
   let primitives = Linker.get_provided () in
-  write_file ~name:deps_file ~contents:(generate_dependencies ~dependencies primitives);
+  Fs.write_file ~name:deps_file ~contents:(generate_dependencies ~dependencies primitives);
   command
     ("wasm-metadce"
     :: (common_options ()
@@ -127,25 +93,31 @@ let optimization_options =
    ; [ "-O3"; "--traps-never-happen" ]
   |]
 
-let optimize ~profile ?sourcemap_file ~input_file ~output_file () =
+let optimize ~profile ?sourcemap_file ?sourcemap_url ~input_file ~output_file () =
   let level =
     match profile with
     | None -> 1
     | Some p -> fst (List.find ~f:(fun (_, p') -> Poly.equal p p') Driver.profiles)
+  in
+  let sourcemap_url =
+    match sourcemap_url with
+    | Some url -> Some url
+    | None -> sourcemap_file
   in
   command
     ("wasm-opt"
      :: (common_options ()
         @ optimization_options.(level - 1)
         @ [ Filename.quote input_file; "-o"; Filename.quote output_file ])
+    @ (match sourcemap_file with
+      | Some sourcemap_file ->
+          [ "--input-source-map"
+          ; Filename.quote (input_file ^ ".map")
+          ; "--output-source-map"
+          ; Filename.quote sourcemap_file
+          ]
+      | None -> [])
     @
-    match sourcemap_file with
-    | Some sourcemap_file ->
-        [ "--input-source-map"
-        ; Filename.quote (input_file ^ ".map")
-        ; "--output-source-map"
-        ; Filename.quote sourcemap_file
-        ; "--output-source-map-url"
-        ; Filename.quote sourcemap_file
-        ]
+    match sourcemap_url with
+    | Some sourcemap_url -> [ "--output-source-map-url"; Filename.quote sourcemap_url ]
     | None -> [])
