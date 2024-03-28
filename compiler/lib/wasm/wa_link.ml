@@ -319,11 +319,13 @@ let read_info z =
   info_from_json (Yojson.Basic.from_string (Zip.read_entry z ~name:"info.json"))
 
 let generate_start_function ~to_link ~out_file =
+  let t1 = Timer.make () in
   Filename.gen_file out_file
   @@ fun ch ->
   let context = Wa_generate.start () in
   Wa_generate.add_init_function ~context ~to_link:("prelude" :: to_link);
-  Wa_generate.wasm_output ch ~context
+  Wa_generate.wasm_output ch ~context;
+  if times () then Format.eprintf "    generate start: %a@." Timer.print t1
 
 let associated_wasm_file ~js_output_file =
   if Filename.check_suffix js_output_file ".wasm.js"
@@ -363,6 +365,7 @@ let report_missing_primitives missing =
     List.iter ~f:(fun nm -> warn "  %s@." nm) missing)
 
 let build_runtime_arguments
+    ?(to_link = [])
     ?(separate_compilation = false)
     ~missing_primitives
     ~wasm_file
@@ -468,21 +471,19 @@ let build_runtime_arguments
         N
   in
   obj
-    [ "link", ENum (Javascript.Num.of_int32 (if separate_compilation then 1l else 0l))
+    [ ( "link"
+      , if List.is_empty to_link
+        then ENum (Javascript.Num.of_int32 (if separate_compilation then 1l else 0l))
+        else
+          EArr
+            (List.map
+               ~f:(fun m -> Javascript.Element (EStr (Utf8_string.of_string_exn m)))
+               to_link) )
     ; "generated", generated_js
     ; "src", EStr (Utf8_string.of_string_exn (Filename.basename wasm_file))
     ]
 
 let link_to_archive ~set_to_link ~files ~start_file ~tmp_wasm_file =
-  (*
-  Wa_binaryen.with_intermediate_file (Filename.temp_file "start_file" ".wasm")
-  @@ fun tmp_start_file ->
-  Wa_binaryen.optimize
-    ~debuginfo:false
-    ~profile:(Driver.profile 1)
-    ~input_file:start_file
-    ~output_file:tmp_start_file;
-  *)
   let ch = Zip.open_out tmp_wasm_file in
   let read_interface z ~name =
     Wasm_binary.read_interface
@@ -511,6 +512,34 @@ let link_to_archive ~set_to_link ~files ~start_file ~tmp_wasm_file =
     files;
   Zip.add_file ch ~name:"start.wasm" ~file:start_file;
   Zip.close_out ch;
+  runtime_intf, List.rev !intfs
+
+let link_to_directory ~set_to_link ~files ~dir =
+  let read_interface z ~name =
+    Wasm_binary.read_interface
+      (let ch, pos, len = Zip.get_entry z ~name in
+       Wasm_binary.from_channel ~name ch pos len)
+  in
+  let z = Zip.open_in (fst (List.hd files)) in
+  let runtime_intf = read_interface z ~name:"runtime.wasm" in
+  Zip.extract_file z ~name:"runtime.wasm" ~file:(Filename.concat dir "runtime.wasm");
+  Zip.extract_file z ~name:"prelude.wasm" ~file:(Filename.concat dir "prelude.wasm");
+  Zip.close_in z;
+  let intfs = ref [] in
+  List.iter
+    ~f:(fun (file, (_, units)) ->
+      let z = Zip.open_in file in
+      List.iter
+        ~f:(fun { unit_info; _ } ->
+          let unit_name = StringSet.choose unit_info.provides in
+          if StringSet.mem unit_name set_to_link
+          then (
+            let name = unit_name ^ ".wasm" in
+            intfs := read_interface z ~name :: !intfs;
+            Zip.extract_file z ~name ~file:(Filename.concat dir name)))
+        units;
+      Zip.close_in z)
+    files;
   runtime_intf, List.rev !intfs
 
 let compute_missing_primitives (runtime_intf, intfs) =
@@ -544,7 +573,7 @@ let link ~output_file ~linkall ~files =
     if times () then Format.eprintf "linking@.";
     let t = Timer.make () in
     let predefined_exceptions, files = load_information files in
-    if true || deps () then print_deps files;
+    if deps () then print_deps files;
     (match files with
     | [] -> ()
     | (file, (bi, _)) :: r ->
@@ -597,11 +626,6 @@ let link ~output_file ~linkall ~files =
                  units)
           files
     in
-    if times () then Format.eprintf "    finding what to link: %a@." Timer.print t1;
-    let t1 = Timer.make () in
-    Wa_binaryen.with_intermediate_file (Filename.temp_file "start" ".wasm")
-    @@ fun start_file ->
-    generate_start_function ~to_link ~out_file:start_file;
     let missing = StringSet.diff missing predefined_exceptions in
     if not (StringSet.is_empty missing)
     then
@@ -609,13 +633,28 @@ let link ~output_file ~linkall ~files =
         (Printf.sprintf
            "Could not find compilation unit for %s"
            (String.concat ~sep:", " (StringSet.elements missing)));
-    if times () then Format.eprintf "    generate start: %a@." Timer.print t1;
+    if times () then Format.eprintf "    finding what to link: %a@." Timer.print t1;
     if times () then Format.eprintf "  scan: %a@." Timer.print t;
     let t = Timer.make () in
-    let wasm_file = associated_wasm_file ~js_output_file:output_file in
-    Wa_binaryen.gen_file wasm_file
-    @@ fun tmp_wasm_file ->
-    let interfaces = link_to_archive ~set_to_link ~files ~start_file ~tmp_wasm_file in
+    let interfaces, wasm_file =
+      if false
+      then (
+        let wasm_file = associated_wasm_file ~js_output_file:output_file in
+        Wa_binaryen.gen_file wasm_file
+        @@ fun tmp_wasm_file ->
+        Wa_binaryen.with_intermediate_file (Filename.temp_file "start" ".wasm")
+        @@ fun start_file ->
+        generate_start_function ~to_link ~out_file:start_file;
+        link_to_archive ~set_to_link ~files ~start_file ~tmp_wasm_file, wasm_file)
+      else
+        let dir = associated_wasm_file ~js_output_file:output_file in
+        (*ZZZ Filename.chop_extension output_file ^ ".assets" in*)
+        Wa_binaryen.gen_file dir
+        @@ fun tmp_dir ->
+        Sys.mkdir tmp_dir 0o777;
+        generate_start_function ~to_link ~out_file:(Filename.concat tmp_dir "start.wasm");
+        link_to_directory ~set_to_link ~files ~dir:tmp_dir, dir
+    in
     let missing_primitives = compute_missing_primitives interfaces in
     if times () then Format.eprintf "    copy wasm files: %a@." Timer.print t;
     let t1 = Timer.make () in
@@ -636,6 +675,7 @@ let link ~output_file ~linkall ~files =
     let runtime_args =
       let js =
         build_runtime_arguments
+          ~to_link:("runtime" :: "prelude" :: (to_link @ [ "start" ]))
           ~separate_compilation:true
           ~missing_primitives
           ~wasm_file

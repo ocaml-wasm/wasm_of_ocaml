@@ -530,9 +530,14 @@ cmdline options: update description
 
 ---
 
-- support linking archives into archives
-- link to directory
-- sourcemaps
-- asm output
+1) link to directory
+2) sourcemaps
+3) support linking archives into archives
+4) asm output
 
 >>> Switch to binaryen 117 <<<
+
+
+- iter over all modules, pushing a promise that waits for its
+  dependencies then compile the code
+- wait over all modules

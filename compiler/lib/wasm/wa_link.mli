@@ -45,7 +45,8 @@ val add_info :
 val associated_wasm_file : js_output_file:string -> string
 
 val build_runtime_arguments :
-     ?separate_compilation:bool
+     ?to_link:string list
+  -> ?separate_compilation:bool
   -> missing_primitives:string list
   -> wasm_file:string
   -> generated_js:

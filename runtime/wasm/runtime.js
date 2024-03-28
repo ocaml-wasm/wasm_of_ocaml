@@ -86,8 +86,10 @@
       const url = base?new URL(src, base):src;
       return fetch(url)
     }
+    function loadCode(src) {
+        return isNode?loadRelative(src):fetchRelative(src);
+    }
     const isNode = globalThis?.process?.versions?.node;
-    const code = isNode?loadRelative(src):fetchRelative(src);
 
     let math =
         {cos:Math.cos, sin:Math.sin, tan:Math.tan,
@@ -474,10 +476,32 @@ count++
       return {instance:
               {exports: Object.assign(imports.env, imports.OCaml)}}
     }
+    async function instantiateModule(src, imports) {
+        return isNode?await WebAssembly.instantiate(await loadCode(src), imports, options)
+            :await WebAssembly.instantiateStreaming(loadCode(src),imports, options)
+    }
+    async function instantiateFromDir() {
+      imports.OCaml = {};
+
+      for (const module of link) {
+//console.log('OOOOOOOO', module);
+          const wasmModule =
+            await instantiateModule(src + "/" + module + ".wasm", imports, options)
+//console.log('ZZZ', wasmModule.instance.exports);
+if (count)
+      Object.assign(imports.OCaml, wasmModule.instance.exports);
+else
+      Object.assign(imports.env, wasmModule.instance.exports);
+count++
+      }
+
+      return {instance:
+              {exports: Object.assign(imports.env, imports.OCaml)}}
+    }
     const wasmModule =
-          link?await instantiateFromArchive(code, imports, options):
-               isNode?await WebAssembly.instantiate(await code, imports, options)
-                     :await WebAssembly.instantiateStreaming(code,imports, options)
+          (link.constructor===Array)?await instantiateFromDir():
+          link?await instantiateFromArchive(loadCode(src), imports, options):
+               instantiateModule(src, imports, options)
 
     var {caml_callback, caml_alloc_tm, caml_start_fiber,
          caml_handle_uncaught_exception, caml_buffer,

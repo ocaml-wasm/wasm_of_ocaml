@@ -19,7 +19,7 @@ val optimize :
   -> output_file:string
   -> unit
 
-val gen_file : string -> (string -> unit) -> unit
+val gen_file : string -> (string -> 'a) -> 'a
 
 val write_file : name:string -> contents:string -> unit
 

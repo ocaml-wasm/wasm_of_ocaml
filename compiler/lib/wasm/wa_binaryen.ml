@@ -19,9 +19,10 @@ let gen_file file f =
       ".tmp"
   in
   try
-    f f_tmp;
+    let res = f f_tmp in
     remove_file file;
-    Sys.rename f_tmp file
+    Sys.rename f_tmp file;
+    res
   with exc ->
     remove_file file;
     raise exc
