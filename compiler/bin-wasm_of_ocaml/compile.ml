@@ -25,14 +25,12 @@ let debug_mem = Debug.find "mem"
 let () = Sys.catch_break true
 
 let link_and_optimize ~profile runtime_wasm_files wat_files output_file =
-  let debuginfo = Config.Flag.pretty () in
   Wa_binaryen.with_intermediate_file (Filename.temp_file "runtime" ".wasm")
   @@ fun runtime_file ->
   Wa_binaryen.write_file ~name:runtime_file ~contents:Wa_runtime.wasm_runtime;
   Wa_binaryen.with_intermediate_file (Filename.temp_file "wasm-merged" ".wasm")
   @@ fun temp_file ->
   Wa_binaryen.link
-    ~debuginfo
     ~runtime_files:(runtime_file :: runtime_wasm_files)
     ~input_files:wat_files
     ~output_file:temp_file;
@@ -40,27 +38,24 @@ let link_and_optimize ~profile runtime_wasm_files wat_files output_file =
   @@ fun temp_file' ->
   let primitives =
     Wa_binaryen.dead_code_elimination
-      ~debuginfo
       ~dependencies:Wa_runtime.dependencies
       ~input_file:temp_file
       ~output_file:temp_file'
   in
-  Wa_binaryen.optimize ~debuginfo ~profile ~input_file:temp_file' ~output_file;
+  Wa_binaryen.optimize ~profile ~input_file:temp_file' ~output_file;
   primitives
 
 let link_runtime ~profile runtime_wasm_files output_file =
-  let debuginfo = Config.Flag.pretty () in
   Wa_binaryen.with_intermediate_file (Filename.temp_file "runtime" ".wasm")
   @@ fun runtime_file ->
   Wa_binaryen.write_file ~name:runtime_file ~contents:Wa_runtime.wasm_runtime;
   Wa_binaryen.with_intermediate_file (Filename.temp_file "wasm-merged" ".wasm")
   @@ fun temp_file ->
   Wa_binaryen.link
-    ~debuginfo
     ~runtime_files:(runtime_file :: runtime_wasm_files)
     ~input_files:[]
     ~output_file:temp_file;
-  Wa_binaryen.optimize ~debuginfo ~profile ~input_file:temp_file ~output_file
+  Wa_binaryen.optimize ~profile ~input_file:temp_file ~output_file
 
 let generate_prelude ~out_file =
   Filename.gen_file out_file
@@ -81,7 +76,6 @@ let build_prelude z =
   @@ fun tmp_prelude_file ->
   let predefined_exceptions = generate_prelude ~out_file:prelude_file in
   Wa_binaryen.optimize
-    ~debuginfo:false
     ~profile:(Driver.profile 1)
     ~input_file:prelude_file
     ~output_file:tmp_prelude_file;
@@ -90,7 +84,7 @@ let build_prelude z =
 
 let times = Debug.find "times"
 
-let link_js_files ~primitives =
+let build_js_runtime ~js_launcher ~primitives ?runtime_arguments () =
   let always_required_js, primitives =
     let l =
       StringSet.fold
@@ -112,10 +106,7 @@ let link_js_files ~primitives =
     | Javascript.Expression_statement e, N -> e
     | _ -> assert false
   in
-  Wa_link.output_js always_required_js, primitives
-
-let build_js_runtime ~js_launcher ~primitives ?runtime_arguments () =
-  let prelude, primitives = link_js_files ~primitives in
+  let prelude = Wa_link.output_js always_required_js in
   let init_fun =
     match Parse_js.parse (Parse_js.Lexer.of_string js_launcher) with
     | [ (Expression_statement f, _) ] -> f
@@ -257,11 +248,7 @@ let run
        let strings, fragments =
          Filename.gen_file wat_file (output code ~unit_name:(Some unit_name))
        in
-       Wa_binaryen.optimize
-         ~debuginfo:(Config.Flag.pretty ())
-         ~profile
-         ~input_file:wat_file
-         ~output_file:tmp_wasm_file;
+       Wa_binaryen.optimize ~profile ~input_file:wat_file ~output_file:tmp_wasm_file;
        Zip.add_file z ~name:(unit_name ^ ".wasm") ~file:tmp_wasm_file;
        { Wa_link.unit_info; strings; fragments }
      in

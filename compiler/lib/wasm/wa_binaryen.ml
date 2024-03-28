@@ -6,7 +6,6 @@ let command cmdline =
   let cmdline = String.concat ~sep:" " cmdline in
   if debug () then Format.eprintf "+ %s@." cmdline;
   let res = Sys.command cmdline in
-  if res = 127 then raise (Sys_error cmdline);
   if res <> 0 then failwith ("the following command terminated unsuccessfully: " ^ cmdline)
 
 let remove_file file = try Sys.remove file with Sys_error _ -> ()
@@ -43,7 +42,7 @@ let with_intermediate_file ?(keep = false) name f =
 
 (***)
 
-let common_options ~debuginfo =
+let common_options () =
   let l =
     [ "--enable-gc"
     ; "--enable-multivalue"
@@ -55,12 +54,12 @@ let common_options ~debuginfo =
     ; "--enable-strings"
     ]
   in
-  if debuginfo then "-g" :: l else l
+  if Config.Flag.pretty () then "-g" :: l else l
 
-let link ~debuginfo ~runtime_files ~input_files ~output_file =
+let link ~runtime_files ~input_files ~output_file =
   command
     ("wasm-merge"
-    :: (common_options ~debuginfo
+    :: (common_options ()
        @ List.flatten
            (List.map
               ~f:(fun runtime_file -> [ Filename.quote runtime_file; "env" ])
@@ -97,7 +96,7 @@ let filter_unused_primitives primitives usage_file =
    with End_of_file -> ());
   !s
 
-let dead_code_elimination ~debuginfo ~dependencies ~input_file ~output_file =
+let dead_code_elimination ~dependencies ~input_file ~output_file =
   with_intermediate_file (Filename.temp_file "deps" ".json")
   @@ fun deps_file ->
   with_intermediate_file (Filename.temp_file "usage" ".txt")
@@ -106,7 +105,7 @@ let dead_code_elimination ~debuginfo ~dependencies ~input_file ~output_file =
   write_file ~name:deps_file ~contents:(generate_dependencies ~dependencies primitives);
   command
     ("wasm-metadce"
-    :: (common_options ~debuginfo
+    :: (common_options ()
        @ [ "--graph-file"
          ; Filename.quote deps_file
          ; Filename.quote input_file
@@ -123,7 +122,7 @@ let optimization_options =
    ; [ "-O3"; "--traps-never-happen" ]
   |]
 
-let optimize ~debuginfo ~profile ~input_file ~output_file =
+let optimize ~profile ~input_file ~output_file =
   let level =
     match profile with
     | None -> 1
@@ -131,6 +130,6 @@ let optimize ~debuginfo ~profile ~input_file ~output_file =
   in
   command
     ("wasm-opt"
-    :: (common_options ~debuginfo
+    :: (common_options ()
        @ optimization_options.(level - 1)
        @ [ Filename.quote input_file; "-o"; Filename.quote output_file ]))
