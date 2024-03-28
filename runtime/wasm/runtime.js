@@ -492,8 +492,8 @@ count++
           async function instantiate () {
               const code = fs.readFile(path.join(dir, module[0] + ".wasm"))
               if (module[1].constructor=== Array) {
-//console.log(module[0] + ' waiting for ' + module[1].map((i)=>link[i+2]));
-                  await Promise.all(module[1].map((i)=>deps[i+2]));
+//console.log(module[0] + ' waiting for ' + module[1].map((i)=>link[i]));
+                  await Promise.all(module[1].map((i)=>deps[i]));
               } else {
 //console.log(module[0] + ' waiting for all');
                   await Promise.all(deps);

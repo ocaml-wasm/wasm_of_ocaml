@@ -90,34 +90,6 @@ let build_prelude z =
 
 let times = Debug.find "times"
 
-(* Remove some unnecessary dependencies *)
-let simplify_unit_info l =
-  let t = Timer.make () in
-  let prev_requires = Hashtbl.create 16 in
-  let res =
-    List.map
-      ~f:(fun (unit_data : Wa_link.unit_data) ->
-        let info = unit_data.unit_info in
-        assert (StringSet.cardinal info.provides = 1);
-        let name = StringSet.choose info.provides in
-        assert (not (StringSet.mem name info.requires));
-        let requires =
-          StringSet.fold
-            (fun dep (requires : StringSet.t) ->
-              match Hashtbl.find prev_requires dep with
-              | exception Not_found -> requires
-              | s -> StringSet.union s requires)
-            info.requires
-            StringSet.empty
-        in
-        let info = { info with requires = StringSet.diff info.requires requires } in
-        Hashtbl.add prev_requires name (StringSet.union info.requires requires);
-        { unit_data with unit_info = info })
-      l
-  in
-  if times () then Format.eprintf "unit info simplification: %a@." Timer.print t;
-  res
-
 let link_js_files ~primitives =
   let always_required_js, primitives =
     let l =
@@ -353,7 +325,7 @@ let run
          @@ fun tmp_output_file ->
          let z = Zip.open_out tmp_output_file in
          let unit_data = List.map ~f:(fun cmo -> compile_cmo z cmo) cma.lib_units in
-         let unit_data = simplify_unit_info unit_data in
+         let unit_data = Wa_link.simplify_unit_info unit_data in
          Wa_link.add_info z ~build_info:(Build_info.create `Cma) ~unit_data ();
          Zip.close_out z);
 

@@ -556,26 +556,53 @@ let link_to_directory ~set_to_link ~files ~dir =
     files;
   runtime_intf, List.rev !intfs
 
+(* Remove some unnecessary dependencies *)
+let simplify_unit_info l =
+  let t = Timer.make () in
+  let prev_requires = Hashtbl.create 16 in
+  let res =
+    List.map
+      ~f:(fun (unit_data : unit_data) ->
+        let info = unit_data.unit_info in
+        assert (StringSet.cardinal info.provides = 1);
+        let name = StringSet.choose info.provides in
+        assert (not (StringSet.mem name info.requires));
+        let requires =
+          StringSet.fold
+            (fun dep (requires : StringSet.t) ->
+              match Hashtbl.find prev_requires dep with
+              | exception Not_found -> requires
+              | s -> StringSet.union s requires)
+            info.requires
+            StringSet.empty
+        in
+        let info = { info with requires = StringSet.diff info.requires requires } in
+        Hashtbl.add prev_requires name (StringSet.union info.requires requires);
+        { unit_data with unit_info = info })
+      l
+  in
+  if times () then Format.eprintf "unit info simplification: %a@." Timer.print t;
+  res
+
 let compute_dependencies ~set_to_link ~files =
   let h = Hashtbl.create 128 in
-  List.flatten
-  @@ List.map
-       ~f:(fun (file, (_, units)) ->
-         List.filter_map
-           ~f:(fun { unit_info; _ } ->
-             let unit_name = StringSet.choose unit_info.provides in
-             if StringSet.mem unit_name set_to_link
-             then (
-               Hashtbl.add h unit_name (Hashtbl.length h);
-               Some
-                 ( unit_name
-                 , Some
-                     (List.filter_map
-                        ~f:(fun req -> Hashtbl.find_opt h req)
-                        (StringSet.elements unit_info.requires)) ))
-             else None)
-           units)
-       files
+  let l = List.concat (List.map ~f:(fun (_, (_, units)) -> units) files) in
+  let l = simplify_unit_info l in
+  List.filter_map
+    ~f:(fun { unit_info; _ } ->
+      let unit_name = StringSet.choose unit_info.provides in
+      if StringSet.mem unit_name set_to_link
+      then (
+        Hashtbl.add h unit_name (Hashtbl.length h);
+        Some
+          ( unit_name
+          , Some
+              (List.sort ~cmp:compare
+              @@ List.filter_map
+                   ~f:(fun req -> Option.map ~f:(fun i -> i + 2) (Hashtbl.find_opt h req))
+                   (StringSet.elements unit_info.requires)) ))
+      else None)
+    l
 
 let compute_missing_primitives (runtime_intf, intfs) =
   let provided_primitives = StringSet.of_list runtime_intf.Wasm_binary.exports in

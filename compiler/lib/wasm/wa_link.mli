@@ -54,6 +54,8 @@ val build_runtime_arguments :
   -> unit
   -> Javascript.expression
 
+val simplify_unit_info : unit_data list -> unit_data list
+
 val output_js : Javascript.program -> string
 
 val link : output_file:string -> linkall:bool -> files:string list -> unit
