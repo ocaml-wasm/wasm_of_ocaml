@@ -577,6 +577,8 @@ let data_offsets fields =
     fields
 
 let f ch fields =
+  Code.Var.set_pretty (Config.Flag.pretty () && not (Config.Flag.shortvar ()));
+  Code.Var.set_stable (Config.Flag.stable_var ());
   let heap_base, addresses = data_offsets fields in
   let ctx =
     { addresses

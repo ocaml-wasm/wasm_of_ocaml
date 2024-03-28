@@ -61,10 +61,10 @@ let generate_prelude ~out_file =
   Filename.gen_file out_file
   @@ fun ch ->
   let code, uinfo = Parse_bytecode.predefined_exceptions ~target:`Wasm in
-  let context = Wa_generate.start () in
   let live_vars, in_cps, p =
     Driver.f ~target:Wasm (Parse_bytecode.Debug.create ~include_cmis:false false) code
   in
+  let context = Wa_generate.start () in
   let _ = Wa_generate.f ~context ~unit_name:(Some "prelude") ~live_vars ~in_cps p in
   Wa_generate.output ch ~context;
   uinfo.provides
@@ -175,15 +175,15 @@ let run
     let standalone = Option.is_none unit_name in
     let code = one.code in
     let live_vars, in_cps, p = Driver.f ~target:Wasm ?profile one.debug code in
-    let toplevel_name, js_code = Wa_generate.f ~context ~unit_name ~live_vars ~in_cps p in
+    let toplevel_name, generated_js =
+      Wa_generate.f ~context ~unit_name ~live_vars ~in_cps p
+    in
     if standalone then Wa_generate.add_start_function ~context toplevel_name;
-    js_code
+    generated_js
   in
   let output (one : Parse_bytecode.one) ~unit_name ch =
     let context = Wa_generate.start () in
     let js_code = compile ~context ~unit_name one in
-    Code.Var.set_pretty (Config.Flag.pretty () && not (Config.Flag.shortvar ()));
-    Code.Var.set_stable (Config.Flag.stable_var ());
     Wa_generate.output ch ~context;
     if times () then Format.eprintf "compilation: %a@." Timer.print t;
     js_code
