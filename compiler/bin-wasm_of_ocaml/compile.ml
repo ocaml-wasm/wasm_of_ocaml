@@ -191,6 +191,8 @@ let run
   let output (one : Parse_bytecode.one) ~unit_name ch =
     let context = Wa_generate.start () in
     let js_code = compile ~context ~unit_name one in
+    Code.Var.set_pretty (Config.Flag.pretty () && not (Config.Flag.shortvar ()));
+    Code.Var.set_stable (Config.Flag.stable_var ());
     Wa_generate.output ch ~context;
     if times () then Format.eprintf "compilation: %a@." Timer.print t;
     js_code
