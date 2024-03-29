@@ -717,7 +717,7 @@ let link ~output_file ~linkall ~files =
         generate_start_function ~to_link ~out_file:start_file;
         link_to_archive ~set_to_link ~files ~start_file ~tmp_wasm_file, wasm_file, [])
       else
-        let dir = associated_wasm_file ~js_output_file:output_file in
+        let dir = Filename.chop_extension output_file ^ ".assets" in
         (*ZZZ Filename.chop_extension output_file ^ ".assets" in*)
         Fs.gen_file dir
         @@ fun tmp_dir ->
