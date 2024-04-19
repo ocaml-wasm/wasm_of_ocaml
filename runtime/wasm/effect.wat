@@ -32,8 +32,7 @@
    (import "bindings" "start_fiber" (func $start_fiber (param (ref eq))))
    (import "bindings" "suspend_fiber"
       (func $suspend_fiber
-         (param externref) (param $f funcref) (param $env eqref)
-         (result eqref)))
+         (param $f funcref) (param $env eqref) (result anyref)))
    (import "bindings" "resume_fiber"
       (func $resume_fiber (param externref) (param (ref eq))))
 
@@ -58,9 +57,6 @@
          (struct.get $closure 0 (ref.cast (ref $closure) (local.get $f)))))
 
    ;; Low-level primitives
-
-   (global $current_suspender (export "current_suspender") (mut externref)
-      (ref.null extern))
 
    ;; Capturing the current continuation
 
@@ -101,7 +97,6 @@
       (return_call $apply_pair
          (ref.cast (ref $pair)
             (call $suspend_fiber
-               (global.get $current_suspender)
                (ref.func $apply_continuation)
                (struct.new $thunk (local.get $f) (local.get $v))))))
 
@@ -120,7 +115,6 @@
          (struct
             (field $handlers (mut (ref $handlers)))
             (field $cont (ref $cont))
-            (field $suspender externref)
             (field $next (ref null $fiber)))))
 
    (type $continuation (struct (mut eqref)))
@@ -178,7 +172,6 @@
                (ref.func $dummy_fun)
                (ref.func $uncaught_effect_handler)))
          (struct.new $cont (ref.func $default_continuation))
-         (ref.null extern)
          (ref.null $fiber)))
 
    ;; Utility functions moving fibers between a continuation and the
@@ -189,8 +182,6 @@
       (local.set $f (ref.as_non_null (global.get $stack)))
       (global.set $stack
          (struct.get $fiber $next (local.get $f)))
-      (global.set $current_suspender
-         (struct.get $fiber $suspender (local.get $f)))
       (struct.get $fiber $cont (local.get $f)))
 
    (func $push_stack
@@ -202,10 +193,7 @@
                (struct.new $fiber
                   (struct.get $fiber $handlers (local.get $stack))
                   (local.get $k)
-                  (global.get $current_suspender)
                   (global.get $stack)))
-            (global.set $current_suspender
-               (struct.get $fiber $suspender (local.get $stack)))
             (local.set $k
                (struct.get $fiber $cont (local.get $stack)))
             (local.set $stack
@@ -289,7 +277,6 @@
          (struct.new $fiber
              (struct.get $fiber $handlers (global.get $stack))
              (local.get $k0)
-             (global.get $current_suspender)
              (ref.cast (ref null $fiber)
                 (struct.get $continuation 0 (local.get $cont)))))
       (local.set $k1 (call $pop_fiber))
@@ -325,12 +312,10 @@
          (local.tee $cont (call $pop_fiber))
          (struct.get $cont $cont_func (local.get $cont))))
 
-   (func (export "caml_start_fiber")
-      (param $suspender externref) (param $p eqref)
+   (func (export "caml_start_fiber") (param $p eqref)
       ;; Start executing some code in a new fiber
       (local $exn (ref eq))
       (local $res (ref eq))
-      (global.set $current_suspender (local.get $suspender))
       (local.set $res
          (try (result (ref eq))
             (do
@@ -360,7 +345,6 @@
       (struct.new $fiber
          (struct.new $handlers (local.get $hv) (local.get $hx) (local.get $hf))
          (struct.new $cont (ref.func $initial_cont))
-         (ref.null extern)
          (ref.null $fiber)))
 
    ;; Other functions
@@ -397,9 +381,6 @@
 
    (func (export "caml_is_continuation") (param (ref eq)) (result i32)
       (ref.test (ref $continuation) (local.get 0)))
-
-   (func (export "caml_initialize_effects") (param $s externref)
-      (global.set $current_suspender (local.get $s)))
 
    ;; Effects through CPS transformation
 
@@ -728,6 +709,6 @@
             (local.get $ms)))
       (call $raise_unhandled (local.get $eff) (ref.i31 (i32.const 0))))
 
-   (func (export "caml_cps_initialize_effects") (param externref)
+   (func (export "caml_cps_initialize_effects")
       (global.set $caml_trampoline_ref (ref.func $caml_trampoline)))
 )
