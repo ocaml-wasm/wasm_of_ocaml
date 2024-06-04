@@ -466,11 +466,70 @@ let build_runtime_arguments
     ; "src", EStr (Utf8_string.of_string_exn (Filename.basename wasm_file))
     ]
 
-let link_to_directory ~set_to_link ~files ~enable_source_maps ~dir =
-  let process_file z ~name =
+let source_name i j file =
+  let prefix =
+    match i, j with
+    | None, None -> "src-"
+    | Some i, None -> Printf.sprintf "src-%d-" i
+    | None, Some j -> Printf.sprintf "src-%d-" j
+    | Some i, Some j -> Printf.sprintf "src-%d.%d-" i j
+  in
+  prefix ^ Filename.basename file ^ ".json"
+
+let append_source_map_section ~dir ~name =
+  let ch =
+    open_out_gen
+      [ Open_wronly; Open_append; Open_binary ]
+      0o666
+      (Filename.concat dir (name ^ ".wasm"))
+  in
+  let rec output_uint buf i =
+    if i < 128
+    then Buffer.add_char buf (Char.chr i)
+    else (
+      Buffer.add_char buf (Char.chr (128 + (i land 127)));
+      output_uint buf (i lsr 7))
+  in
+  let buf = Buffer.create 16 in
+  let output_name buf s =
+    output_uint buf (String.length s);
+    Buffer.add_string buf s
+  in
+  output_name buf "sourceMappingURL";
+  output_name buf (name ^ ".wasm.map");
+  let section_contents = Buffer.contents buf in
+  Buffer.clear buf;
+  Buffer.add_char buf '\000';
+  output_uint buf (String.length section_contents);
+  output_string ch (Buffer.contents buf);
+  output_string ch section_contents;
+  close_out ch
+
+let extract_source_map ~dir ~name z =
+  if Zip.has_entry z ~name:"source_map.map"
+  then (
+    let sm = Wa_source_map.parse (Zip.read_entry z ~name:"source_map.map") in
+    let sm =
+      let rewrite_path path =
+        if Filename.is_relative path
+        then path
+        else
+          match Build_path_prefix_map.get_build_path_prefix_map () with
+          | Some map -> Build_path_prefix_map.rewrite map path
+          | None -> path
+      in
+      Wa_source_map.insert_source_contents ~rewrite_path sm (fun i j file ->
+          let name = source_name i j file in
+          if Zip.has_entry z ~name then Some (Zip.read_entry z ~name) else None)
+    in
+    Wa_source_map.write (Filename.concat dir (name ^ ".wasm.map")) sm;
+    append_source_map_section ~dir ~name)
+
+let link_to_directory ~files_to_link ~files ~enable_source_maps ~dir =
+  let process_file z ~name ~name' =
     let ch, pos, len, crc = Zip.get_entry z ~name:(name ^ ".wasm") in
     let intf = Wasm_binary.read_interface (Wasm_binary.from_channel ~name ch pos len) in
-    let name' = Printf.sprintf "%s-%08lx" name crc in
+    let name' = Printf.sprintf "%s-%08lx" name' crc in
     Zip.extract_file
       z
       ~name:(name ^ ".wasm")
@@ -478,32 +537,22 @@ let link_to_directory ~set_to_link ~files ~enable_source_maps ~dir =
     name', intf
   in
   let z = Zip.open_in (fst (List.hd files)) in
-  let runtime, runtime_intf = process_file z ~name:"runtime" in
-  let prelude, _ = process_file z ~name:"prelude" in
+  let runtime, runtime_intf = process_file z ~name:"runtime" ~name':"runtime" in
+  let prelude, _ = process_file z ~name:"prelude" ~name':"prelude" in
   Zip.close_in z;
   let lst =
-    List.map
-      ~f:(fun (file, (_, units)) ->
-        let z = Zip.open_in file in
-        let res =
-          List.map
-            ~f:(fun { unit_info; _ } ->
-              let unit_name = StringSet.choose unit_info.provides in
-              if StringSet.mem unit_name set_to_link
-              then (
-                let name = unit_name ^ ".wasm" in
-                let res = process_file z ~name:unit_name in
-                let map = name ^ ".map" in
-                if enable_source_maps && Zip.has_entry z ~name:map
-                then Zip.extract_file z ~name:map ~file:(Filename.concat dir map);
-                Some res)
-              else None)
-            units
-        in
-        Zip.close_in z;
-        List.filter_map ~f:(fun x -> x) res)
-      files
-    |> List.flatten
+    List.tl files
+    |> List.map ~f:(fun (file, _) ->
+           if StringSet.mem file files_to_link
+           then (
+             let z = Zip.open_in file in
+             let name' = file |> Filename.basename |> Filename.remove_extension in
+             let ((name', _) as res) = process_file z ~name:"code" ~name' in
+             if enable_source_maps then extract_source_map ~dir ~name:name' z;
+             Zip.close_in z;
+             Some res)
+           else None)
+    |> List.filter_map ~f:(fun x -> x)
   in
   runtime :: prelude :: List.map ~f:fst lst, (runtime_intf, List.map ~f:snd lst)
 
@@ -535,26 +584,34 @@ let simplify_unit_info l =
   if times () then Format.eprintf "unit info simplification: %a@." Timer.print t;
   res
 
-let compute_dependencies ~set_to_link ~files =
+let compute_dependencies ~files_to_link ~files =
   let h = Hashtbl.create 128 in
-  let l = List.concat (List.map ~f:(fun (_, (_, units)) -> units) files) in
-  (*
-  let l = simplify_unit_info l in
-  *)
+  let i = ref 2 in
   List.filter_map
-    ~f:(fun { unit_info; _ } ->
-      let unit_name = StringSet.choose unit_info.provides in
-      if StringSet.mem unit_name set_to_link
+    ~f:(fun (file, (_, units)) ->
+      if StringSet.mem file files_to_link
       then (
-        Hashtbl.add h unit_name (Hashtbl.length h);
-        Some
-          (Some
-             (List.sort ~cmp:compare
-             @@ List.filter_map
-                  ~f:(fun req -> Option.map ~f:(fun i -> i + 2) (Hashtbl.find_opt h req))
-                  (StringSet.elements unit_info.requires))))
+        let s =
+          List.fold_left
+            ~f:(fun s { unit_info; _ } ->
+              StringSet.fold
+                (fun unit_name s ->
+                  try IntSet.add (Hashtbl.find h unit_name) s with Not_found -> s)
+                unit_info.requires
+                s)
+            ~init:IntSet.empty
+            units
+        in
+        List.iter
+          ~f:(fun { unit_info; _ } ->
+            StringSet.iter
+              (fun unit_name -> Hashtbl.add h unit_name !i)
+              unit_info.provides)
+          units;
+        incr i;
+        Some (Some (IntSet.elements s)))
       else None)
-    l
+    (List.tl files)
 
 let compute_missing_primitives (runtime_intf, intfs) =
   let provided_primitives = StringSet.of_list runtime_intf.Wasm_binary.exports in
@@ -587,143 +644,147 @@ let load_information files =
                file, (build_info, unit_data)) )
 
 let link ~output_file ~linkall ~enable_source_maps ~files =
-  let rec loop n =
-    if times () then Format.eprintf "linking@.";
-    let t = Timer.make () in
-    let predefined_exceptions, files = load_information files in
-    (match files with
-    | [] -> assert false
-    | (file, (bi, _)) :: r ->
-        (match Build_info.kind bi with
-        | `Runtime -> ()
-        | _ ->
-            failwith
-              "The first input file should be a runtime built using 'wasm_of_ocaml \
-               build-runtime'.");
-        Build_info.configure bi;
-        ignore
-          (List.fold_left
-             ~init:bi
-             ~f:(fun bi (file', (bi', _)) ->
-               (match Build_info.kind bi' with
-               | `Runtime ->
-                   failwith "The runtime file should be listed first on the command line."
-               | _ -> ());
-               Build_info.merge file bi file' bi')
-             r));
-    if times () then Format.eprintf "    reading information: %a@." Timer.print t;
-    let t1 = Timer.make () in
-    let missing, to_link =
-      List.fold_right
-        files
-        ~init:(StringSet.empty, [])
-        ~f:(fun (_file, (build_info, units)) acc ->
-          let cmo_file =
-            match Build_info.kind build_info with
-            | `Cmo -> true
-            | `Cma | `Exe | `Runtime | `Unknown -> false
-          in
-          List.fold_right units ~init:acc ~f:(fun { unit_info; _ } (requires, to_link) ->
-              if (not (Config.Flag.auto_link ()))
-                 || cmo_file
-                 || linkall
-                 || unit_info.force_link
-                 || not (StringSet.is_empty (StringSet.inter requires unit_info.provides))
-              then
-                ( StringSet.diff
-                    (StringSet.union unit_info.requires requires)
-                    unit_info.provides
-                , StringSet.elements unit_info.provides @ to_link )
-              else requires, to_link))
-    in
-    let set_to_link = StringSet.of_list to_link in
-    let files =
-      if linkall
-      then files
-      else
-        List.filter
-          ~f:(fun (_file, (build_info, units)) ->
-            (match Build_info.kind build_info with
-            | `Cma | `Exe | `Unknown -> false
-            | `Cmo | `Runtime -> true)
-            || List.exists
-                 ~f:(fun { unit_info; _ } ->
-                   StringSet.exists
-                     (fun nm -> StringSet.mem nm set_to_link)
-                     unit_info.provides)
-                 units)
-          files
-    in
-    let missing = StringSet.diff missing predefined_exceptions in
-    if not (StringSet.is_empty missing)
-    then
-      failwith
-        (Printf.sprintf
-           "Could not find compilation unit for %s"
-           (String.concat ~sep:", " (StringSet.elements missing)));
-    if times () then Format.eprintf "    finding what to link: %a@." Timer.print t1;
-    if times () then Format.eprintf "  scan: %a@." Timer.print t;
-    let t = Timer.make () in
-    let interfaces, wasm_file, link_spec =
-      let dir = Filename.chop_extension output_file ^ ".assets" in
-      Fs.gen_file dir
-      @@ fun tmp_dir ->
-      Sys.mkdir tmp_dir 0o777;
-      let start_module =
-        "start-"
-        ^ String.sub
-            (Digest.to_hex (Digest.string (String.concat ~sep:"/" to_link)))
-            ~pos:0
-            ~len:8
-      in
-      generate_start_function
-        ~to_link
-        ~out_file:(Filename.concat tmp_dir (start_module ^ ".wasm"));
-      let module_names, interfaces =
-        link_to_directory ~set_to_link ~files ~enable_source_maps ~dir:tmp_dir
-      in
-      ( interfaces
-      , dir
-      , let to_link = compute_dependencies ~set_to_link ~files in
-        List.combine module_names (None :: None :: to_link) @ [ start_module, None ] )
-    in
-    let missing_primitives = compute_missing_primitives interfaces in
-    if times () then Format.eprintf "    copy wasm files: %a@." Timer.print t;
-    let t1 = Timer.make () in
-    let js_runtime =
-      match files with
-      | (file, _) :: _ ->
-          Zip.with_open_in file (fun z -> Zip.read_entry z ~name:"runtime.js")
-      | _ -> assert false
-    in
-    let generated_js =
-      List.concat
-      @@ List.map files ~f:(fun (_, (_, units)) ->
-             List.map units ~f:(fun { unit_info; strings; fragments } ->
-                 Some (StringSet.choose unit_info.provides), (strings, fragments)))
-    in
-    let runtime_args =
-      let js =
-        build_runtime_arguments
-          ~link_spec
-          ~separate_compilation:true
-          ~missing_primitives
-          ~wasm_file
-          ~generated_js
-          ()
-      in
-      output_js [ Javascript.Expression_statement js, Javascript.N ]
-    in
-    Fs.gen_file output_file
-    @@ fun tmp_output_file ->
-    Fs.write_file
-      ~name:tmp_output_file
-      ~contents:(trim_semi js_runtime ^ "\n" ^ runtime_args);
-    if times () then Format.eprintf "    build JS runtime: %a@." Timer.print t1;
-    if times () then Format.eprintf "  emit: %a@." Timer.print t;
-    if n > 0 then loop (n - 1)
+  if times () then Format.eprintf "linking@.";
+  let t = Timer.make () in
+  let predefined_exceptions, files = load_information files in
+  (match files with
+  | [] -> assert false
+  | (file, (bi, _)) :: r ->
+      (match Build_info.kind bi with
+      | `Runtime -> ()
+      | _ ->
+          failwith
+            "The first input file should be a runtime built using 'wasm_of_ocaml \
+             build-runtime'.");
+      Build_info.configure bi;
+      ignore
+        (List.fold_left
+           ~init:bi
+           ~f:(fun bi (file', (bi', _)) ->
+             (match Build_info.kind bi' with
+             | `Runtime ->
+                 failwith "The runtime file should be listed first on the command line."
+             | _ -> ());
+             Build_info.merge file bi file' bi')
+           r));
+  if times () then Format.eprintf "    reading information: %a@." Timer.print t;
+  let t1 = Timer.make () in
+  let missing, files_to_link =
+    List.fold_right
+      files
+      ~init:(StringSet.empty, StringSet.empty)
+      ~f:(fun (file, (build_info, units)) (requires, files_to_link) ->
+        let cmo_file =
+          match Build_info.kind build_info with
+          | `Cmo -> true
+          | `Cma | `Exe | `Runtime | `Unknown -> false
+        in
+        if (not (Config.Flag.auto_link ()))
+           || cmo_file
+           || linkall
+           || List.exists ~f:(fun { unit_info; _ } -> unit_info.force_link) units
+           || List.exists
+                ~f:(fun { unit_info; _ } ->
+                  not (StringSet.is_empty (StringSet.inter requires unit_info.provides)))
+                units
+        then
+          ( List.fold_right units ~init:requires ~f:(fun { unit_info; _ } requires ->
+                StringSet.diff
+                  (StringSet.union unit_info.requires requires)
+                  unit_info.provides)
+          , StringSet.add file files_to_link )
+        else requires, files_to_link)
   in
-  loop 0
+  let _, to_link =
+    List.fold_right
+      files
+      ~init:(StringSet.empty, [])
+      ~f:(fun (_file, (build_info, units)) acc ->
+        let cmo_file =
+          match Build_info.kind build_info with
+          | `Cmo -> true
+          | `Cma | `Exe | `Runtime | `Unknown -> false
+        in
+        List.fold_right units ~init:acc ~f:(fun { unit_info; _ } (requires, to_link) ->
+            if (not (Config.Flag.auto_link ()))
+               || cmo_file
+               || linkall
+               || unit_info.force_link
+               || not (StringSet.is_empty (StringSet.inter requires unit_info.provides))
+            then
+              ( StringSet.diff
+                  (StringSet.union unit_info.requires requires)
+                  unit_info.provides
+              , StringSet.elements unit_info.provides @ to_link )
+            else requires, to_link))
+  in
+  let missing = StringSet.diff missing predefined_exceptions in
+  if not (StringSet.is_empty missing)
+  then
+    failwith
+      (Printf.sprintf
+         "Could not find compilation unit for %s"
+         (String.concat ~sep:", " (StringSet.elements missing)));
+  if times () then Format.eprintf "    finding what to link: %a@." Timer.print t1;
+  if times () then Format.eprintf "  scan: %a@." Timer.print t;
+  let t = Timer.make () in
+  let interfaces, wasm_file, link_spec =
+    let dir = Filename.chop_extension output_file ^ ".assets" in
+    Fs.gen_file dir
+    @@ fun tmp_dir ->
+    Sys.mkdir tmp_dir 0o777;
+    let start_module =
+      "start-"
+      ^ String.sub
+          (Digest.to_hex (Digest.string (String.concat ~sep:"/" to_link)))
+          ~pos:0
+          ~len:8
+    in
+    generate_start_function
+      ~to_link
+      ~out_file:(Filename.concat tmp_dir (start_module ^ ".wasm"));
+    let module_names, interfaces =
+      link_to_directory ~files_to_link ~files ~enable_source_maps ~dir:tmp_dir
+    in
+    ( interfaces
+    , dir
+    , let to_link = compute_dependencies ~files_to_link ~files in
+      List.combine module_names (None :: None :: to_link) @ [ start_module, None ] )
+  in
+  let missing_primitives = compute_missing_primitives interfaces in
+  if times () then Format.eprintf "    copy wasm files: %a@." Timer.print t;
+  let t1 = Timer.make () in
+  let js_runtime =
+    match files with
+    | (file, _) :: _ ->
+        Zip.with_open_in file (fun z -> Zip.read_entry z ~name:"runtime.js")
+    | _ -> assert false
+  in
+  let generated_js =
+    List.concat
+    @@ List.map files ~f:(fun (_, (_, units)) ->
+           List.map units ~f:(fun { unit_info; strings; fragments } ->
+               Some (StringSet.choose unit_info.provides), (strings, fragments)))
+  in
+  let runtime_args =
+    let js =
+      build_runtime_arguments
+        ~link_spec
+        ~separate_compilation:true
+        ~missing_primitives
+        ~wasm_file
+        ~generated_js
+        ()
+    in
+    output_js [ Javascript.Expression_statement js, Javascript.N ]
+  in
+  Fs.gen_file output_file
+  @@ fun tmp_output_file ->
+  Fs.write_file
+    ~name:tmp_output_file
+    ~contents:(trim_semi js_runtime ^ "\n" ^ runtime_args);
+  if times () then Format.eprintf "    build JS runtime: %a@." Timer.print t1;
+  if times () then Format.eprintf "  emit: %a@." Timer.print t
 
 let link ~output_file ~linkall ~enable_source_maps ~files =
   try link ~output_file ~linkall ~enable_source_maps ~files
