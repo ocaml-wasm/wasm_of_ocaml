@@ -19,3 +19,5 @@ val output :
   -> context:Wa_code_generation.context
   -> debug:Parse_bytecode.Debug.t
   -> unit
+
+val wasm_output : out_channel -> context:Wa_code_generation.context -> unit
