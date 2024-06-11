@@ -49,7 +49,7 @@ let specialize_instr info i =
       match the_string_of info y with
       | Some s when Primitive.need_named_value s ->
           Let (x, Prim (Extern prim, [ Pc (String s); z ]))
-      | Some _ -> Let (x, Constant (Int 0l))
+      | Some _ -> Let (x, Constant (Int (Regular, 0l)))
       | None -> i)
   | Let (x, Prim (Extern "caml_js_call", [ f; o; a ])) -> (
       match the_def_of info a with
@@ -165,13 +165,19 @@ let specialize_instrs info l =
             ( u1
             , Prim
                 ( Extern "caml_blit_string"
-                , [ Pv a'; Pc (Int 0l); Pv bytes'; Pc (Int 0l); Pv alen'' ] ) )
+                , [ Pv a'
+                  ; Pc (Int (Regular, 0l))
+                  ; Pv bytes'
+                  ; Pc (Int (Regular, 0l))
+                  ; Pv alen''
+                  ] ) )
         , _ )
       ; ( Let
             ( u2
             , Prim
                 ( Extern "caml_blit_string"
-                , [ Pv b'; Pc (Int 0l); Pv bytes''; Pv alen'''; Pv blen'' ] ) )
+                , [ Pv b'; Pc (Int (Regular, 0l)); Pv bytes''; Pv alen'''; Pv blen'' ] )
+            )
         , _ )
       ; (Let (res, Prim (Extern "caml_string_of_bytes", [ Pv bytes''' ])), _)
       ]
@@ -184,8 +190,8 @@ let specialize_instrs info l =
         [ len1
         ; len2
         ; len3
-        ; Let (u1, Constant (Int 0l)), No
-        ; Let (u2, Constant (Int 0l)), No
+        ; Let (u1, Constant (Int (Regular, 0l))), No
+        ; Let (u2, Constant (Int (Regular, 0l))), No
         ; Let (res, Prim (Extern "caml_string_concat", [ Pv a; Pv b ])), No
         ; Let (bytes, Prim (Extern "caml_bytes_of_string", [ Pv res ])), No
         ]
@@ -275,7 +281,9 @@ let f_once p =
                      | "caml_floatarray_unsafe_set" )
                  , [ _; _; _ ] ) as p) ) ->
             let x' = Code.Var.fork x in
-            let acc = (Let (x', p), loc) :: (Let (x, Constant (Int 0l)), loc) :: acc in
+            let acc =
+              (Let (x', p), loc) :: (Let (x, Constant (Int (Regular, 0l))), loc) :: acc
+            in
             loop acc r
         | _ -> loop ((i, loc) :: acc) r)
   in
