@@ -1,25 +1,7 @@
-(executables
+(tests
  (names gh38 gh46)
  (modes js)
+ (enabled_if
+  (= %{profile} wasm))
  (js_of_ocaml
   (flags :standard --disable optcall)))
-
-(rule
- (target gh38.actual)
- (enabled_if
-  (= %{profile} wasm))
- (alias runtest)
- (action
-  (with-outputs-to
-   %{target}
-   (run node %{dep:gh38.bc.js}))))
-
-(rule
- (target gh46.actual)
- (enabled_if
-  (= %{profile} wasm))
- (alias runtest)
- (action
-  (with-outputs-to
-   %{target}
-   (run node %{dep:gh46.bc.js}))))

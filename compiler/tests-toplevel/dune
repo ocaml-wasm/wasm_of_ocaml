@@ -19,7 +19,7 @@
   (run %{bin:js_of_ocaml} --toplevel %{dep:test_toplevel.bc} -o %{targets})))
 
 (rule
- (target test_toplevel.referencejs)
+ (target test_toplevel.actual)
  (enabled_if
   (and
    (<> %{profile} wasm)
@@ -36,6 +36,6 @@
   (and
    (<> %{profile} wasm)
    (<> %{profile} wasm-effects)))
- (deps test_toplevel.reference test_toplevel.referencejs)
+ (deps test_toplevel.expected test_toplevel.actual)
  (action
-  (diff test_toplevel.reference test_toplevel.referencejs)))
+  (diff test_toplevel.expected test_toplevel.actual)))
