@@ -128,6 +128,7 @@ let optimize
   in
   command
     ("wasm-opt"
+     :: "--emit-exnref"
      :: (common_options ()
         @ optimization_options.(level - 1)
         @ [ Filename.quote input_file; "-o"; Filename.quote output_file ])
