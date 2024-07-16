@@ -478,6 +478,19 @@ let expression_or_instructions ctx st in_function =
             @ [ List (Atom "then" :: expression ift) ]
             @ [ List (Atom "else" :: expression iff) ])
         ]
+    | Try (ty, body, catches) ->
+        [ List
+            (Atom "try"
+            :: (block_type st ty
+               @ List (Atom "do" :: instructions body)
+                 :: List.map
+                      ~f:(fun (tag, i, ty) ->
+                        List
+                          (Atom "catch"
+                          :: index st.tag_names tag
+                          :: instruction (Wa_ast.Br (i, Some (Pop ty)))))
+                      catches))
+        ]
   and instruction i =
     match i with
     | Drop e -> [ List (Atom "drop" :: expression e) ]
@@ -510,20 +523,6 @@ let expression_or_instructions ctx st in_function =
                @ expression e
                @ list ~always:true "then" instructions (remove_nops l1)
                @ list "else" instructions (remove_nops l2)))
-        ]
-    | Try (ty, body, catches, catch_all) ->
-        [ List
-            (Atom "try"
-            :: (block_type st ty
-               @ List (Atom "do" :: instructions body)
-                 :: (List.map
-                       ~f:(fun (tag, l) ->
-                         List (Atom "catch" :: index st.tag_names tag :: instructions l))
-                       catches
-                    @
-                    match catch_all with
-                    | None -> []
-                    | Some l -> [ List (Atom "catch_all" :: instructions l) ])))
         ]
     | Br_table (e, l, i) ->
         [ List

@@ -128,7 +128,8 @@ val block_expr : Wa_ast.func_type -> unit t -> expression
 
 val if_ : Wa_ast.func_type -> expression -> unit t -> unit t -> unit t
 
-val try_ : Wa_ast.func_type -> unit t -> (Code.Var.t * unit t) list -> unit t
+val try_expr :
+  Wa_ast.func_type -> unit t -> (Code.Var.t * int * Wa_ast.value_type) list -> expression
 
 val add_var : ?typ:Wa_ast.value_type -> Wa_ast.var -> Wa_ast.var t
 
