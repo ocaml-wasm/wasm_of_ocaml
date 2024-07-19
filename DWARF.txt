@@ -1,0 +1,56 @@
+- directly output wasm binary code
+- emit basic information
+  ===> debug_abbrev / minimal debug_info
+- emit positions where we can stop
+  ===> debug_line
+- emit variable information (on a per function basis)
+  ===> debug_str
+- update linker
+
+=========
+
+ ;; custom section ".debug_abbrev", size 84
+==> DWARF abbreviations
+
+ ;; custom section ".debug_info", size 113
+
+ ;; custom section ".debug_str", size 60
+==> all the strings
+
+ ;; custom section ".debug_line", size 76
+==> ...
+
+===========================================
+
+Header:
+  .int32 length of unit
+  .int16  4  # DWARF version number
+  .int32 0   # offset into abbrev section
+  .int8 4    # address size
+
+
+        .int8   17                              # DW_TAG_compile_unit
+        .int8   1                               # DW_CHILDREN_yes
+        .int8   37                              # DW_AT_producer
+        .int8   14                              # DW_FORM_strp
+        .int8   19                              # DW_AT_language
+        .int8   5                               # DW_FORM_data2
+        .int8   3                               # DW_AT_name
+        .int8   14                              # DW_FORM_strp
+        .int8   16                              # DW_AT_stmt_list
+        .int8   23                              # DW_FORM_sec_offset
+        .int8   27                              # DW_AT_comp_dir
+        .int8   14                              # DW_FORM_strp
+        .int8   17                              # DW_AT_low_pc
+        .int8   1                               # DW_FORM_addr
+        .int8   18                              # DW_AT_high_pc
+        .int8   6                               # DW_FORM_data4
+        .int8   0                               # EOM(1)
+        .int8   0                               # EOM(2)
+
+compilation unit: only minimal information
+
+subprogram: name, start, end
+
+list of where we may stop (generate events when compiling, when the
+   location is not the same as the previous one)
