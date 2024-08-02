@@ -30,7 +30,7 @@ let update_sourcemap ~sourcemap_root ~sourcemap_don't_inline_content sourcemap_f
   if Option.is_some sourcemap_root || not sourcemap_don't_inline_content
   then (
     let open Source_map in
-    let source_map, mappings = Source_map_io.of_file_no_mappings sourcemap_file in
+    let source_map, mappings = Source_map.of_file_no_mappings sourcemap_file in
     assert (List.is_empty (Option.value source_map.sources_content ~default:[]));
     (* Add source file contents to source map *)
     let sources_content =
@@ -50,7 +50,7 @@ let update_sourcemap ~sourcemap_root ~sourcemap_don't_inline_content sourcemap_f
           (if Option.is_some sourcemap_root then sourcemap_root else source_map.sourceroot)
       }
     in
-    Source_map_io.to_file ?mappings source_map ~file:sourcemap_file)
+    Source_map.to_file ?mappings source_map ~file:sourcemap_file)
 
 let opt_with action x f =
   match x with
@@ -145,7 +145,11 @@ let generate_prelude ~out_file =
   @@ fun ch ->
   let code, uinfo = Parse_bytecode.predefined_exceptions ~target:`Wasm in
   let live_vars, in_cps, p, debug =
-    Driver.f ~target:Wasm (Parse_bytecode.Debug.create ~include_cmis:false false) code
+    Driver.f
+      ~target:Wasm
+      ~link:`Needed
+      (Parse_bytecode.Debug.create ~include_cmis:false false)
+      code
   in
   let context = Wa_generate.start () in
   let _ = Wa_generate.f ~context ~unit_name:(Some "prelude") ~live_vars ~in_cps p in
@@ -180,7 +184,9 @@ let build_js_runtime ~primitives ?runtime_arguments () =
     in
     match
       List.split_last
-      @@ Driver.link_and_pack [ Javascript.Return_statement (Some (EObj l)), N ]
+      @@ Driver.link_and_pack
+           ~link:`Needed
+           [ Javascript.Return_statement (Some (EObj l)), N ]
     with
     | Some x -> x
     | None -> assert false
@@ -279,7 +285,7 @@ let run
     let code = one.code in
     let standalone = Option.is_none unit_name in
     let live_vars, in_cps, p, debug =
-      Driver.f ~target:Wasm ~standalone ?profile one.debug code
+      Driver.f ~target:Wasm ~standalone ?profile ~link:`No one.debug code
     in
     let context = Wa_generate.start () in
     let toplevel_name, generated_js =

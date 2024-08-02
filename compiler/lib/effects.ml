@@ -191,7 +191,7 @@ let compute_needed_transformations ~cfg ~idom ~cps_needed ~blocks ~start =
               List.iter ~f:mark_needed englobing_exn_handlers;
               mark_continuation dst x
           | _ -> ())
-      | Pushtrap (_, x, (handler_pc, _), _) -> mark_continuation handler_pc x
+      | Pushtrap (_, x, (handler_pc, _)) -> mark_continuation handler_pc x
       | Poptrap _ | Raise _ -> (
           match englobing_exn_handlers with
           | handler_pc :: _ -> Hashtbl.add matching_exn_handler pc handler_pc
@@ -203,7 +203,7 @@ let compute_needed_transformations ~cfg ~idom ~cps_needed ~blocks ~start =
         (fun pc visited ->
           let englobing_exn_handlers =
             match block.branch with
-            | Pushtrap (_, _, (handler_pc, _), _), _ when pc <> handler_pc ->
+            | Pushtrap (_, _, (handler_pc, _)), _ when pc <> handler_pc ->
                 handler_pc :: englobing_exn_handlers
             | Poptrap _, _ -> List.tl englobing_exn_handlers
             | _ -> englobing_exn_handlers
@@ -247,7 +247,7 @@ let jump_closures blocks_to_transform idom : jump_closures =
     idom
     { closure_of_jump = Addr.Map.empty; closures_of_alloc_site = Addr.Map.empty }
 
-type cps_calls = Var.Set.t
+type trampolined_calls = Var.Set.t
 
 type in_cps = Var.Set.t
 
@@ -265,7 +265,7 @@ type st =
   ; block_order : (Addr.t, int) Hashtbl.t
   ; live_vars : Deadcode.variable_uses
   ; flow_info : Global_flow.info
-  ; cps_calls : cps_calls ref
+  ; trampolined_calls : trampolined_calls ref
   ; in_cps : in_cps ref
   }
 
@@ -286,7 +286,7 @@ let allocate_closure ~st ~params ~body ~branch loc =
 let tail_call ~st ?(instrs = []) ~exact ~in_cps ~check ~f args loc =
   assert (exact || check);
   let ret = Var.fresh () in
-  if check then st.cps_calls := Var.Set.add ret !(st.cps_calls);
+  if check then st.trampolined_calls := Var.Set.add ret !(st.trampolined_calls);
   if in_cps then st.in_cps := Var.Set.add ret !(st.in_cps);
   instrs @ [ Let (ret, Apply { f; args; exact }), loc ], (Return ret, loc)
 
@@ -431,14 +431,12 @@ let cps_last ~st ~alloc_jump_closures pc ((last, last_loc) : last * loc) ~k :
             , cps_jump_cont ~st ~src:pc cont1 last_loc
             , cps_jump_cont ~st ~src:pc cont2 last_loc )
         , last_loc ) )
-  | Switch (x, c1, c2) ->
+  | Switch (x, c1) ->
       (* To avoid code duplication during JavaScript generation, we need
          to create a single block per continuation *)
       let cps_jump_cont = Fun.memoize (fun x -> cps_jump_cont ~st ~src:pc x last_loc) in
-      ( alloc_jump_closures
-      , ( Switch (x, Array.map c1 ~f:cps_jump_cont, Array.map c2 ~f:cps_jump_cont)
-        , last_loc ) )
-  | Pushtrap (body_cont, exn, ((handler_pc, _) as handler_cont), _) -> (
+      alloc_jump_closures, (Switch (x, Array.map c1 ~f:cps_jump_cont), last_loc)
+  | Pushtrap (body_cont, exn, ((handler_pc, _) as handler_cont)) -> (
       assert (Hashtbl.mem st.is_continuation handler_pc);
       match Addr.Set.mem handler_pc st.blocks_to_transform with
       | false -> alloc_jump_closures, (last, last_loc)
@@ -617,7 +615,7 @@ let cps_block ~st ~k pc block =
 
 let cps_transform ~live_vars ~flow_info ~cps_needed p =
   let closure_info = Hashtbl.create 16 in
-  let cps_calls = ref Var.Set.empty in
+  let trampolined_calls = ref Var.Set.empty in
   let in_cps = ref Var.Set.empty in
   let p =
     Code.fold_closures_innermost_first
@@ -677,7 +675,7 @@ let cps_transform ~live_vars ~flow_info ~cps_needed p =
           ; block_order = cfg.block_order
           ; flow_info
           ; live_vars
-          ; cps_calls
+          ; trampolined_calls
           ; in_cps
           }
         in
@@ -755,7 +753,7 @@ let cps_transform ~live_vars ~flow_info ~cps_needed p =
         in
         { start = new_start; blocks; free_pc = new_start + 1 }
   in
-  p, !cps_calls, !in_cps
+  p, !trampolined_calls, !in_cps
 
 (****)
 
@@ -929,10 +927,8 @@ let remove_empty_blocks ~live_vars (p : Code.program) : Code.program =
                match branch with
                | Branch cont -> Branch (resolve cont)
                | Cond (x, cont1, cont2) -> Cond (x, resolve cont1, resolve cont2)
-               | Switch (x, a1, a2) ->
-                   Switch (x, Array.map ~f:resolve a1, Array.map ~f:resolve a2)
-               | Pushtrap (cont1, x, cont2, s) ->
-                   Pushtrap (resolve cont1, x, resolve cont2, s)
+               | Switch (x, a1) -> Switch (x, Array.map ~f:resolve a1)
+               | Pushtrap (cont1, x, cont2) -> Pushtrap (resolve cont1, x, resolve cont2)
                | Poptrap cont -> Poptrap (resolve cont)
                | Return _ | Raise _ | Stop -> branch
              in
@@ -951,6 +947,6 @@ let f (p, live_vars) =
   let cps_needed = Partial_cps_analysis.f p flow_info in
   let p, cps_needed = rewrite_toplevel ~cps_needed p in
   let p = split_blocks ~cps_needed p in
-  let p, cps_calls, in_cps = cps_transform ~live_vars ~flow_info ~cps_needed p in
+  let p, trampolined_calls, in_cps = cps_transform ~live_vars ~flow_info ~cps_needed p in
   if Debug.find "times" () then Format.eprintf "  effects: %a@." Timer.print t;
-  p, cps_calls, in_cps
+  p, trampolined_calls, in_cps
