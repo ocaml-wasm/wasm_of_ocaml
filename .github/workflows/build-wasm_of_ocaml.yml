@@ -49,7 +49,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: binaryen
-          key: ${{ runner.os }}-binaryen-version_118
+          key: ${{ runner.os }}-binaryen-eh
 
       - name: Checkout binaryen
         if: steps.cache-binaryen.outputs.cache-hit != 'true'
@@ -58,7 +58,7 @@ jobs:
           repository: WebAssembly/binaryen
           path: binaryen
           submodules: true
-          ref: version_118
+          ref: d200d06fef7f4edd331c1f928493beb332a2d910
 
       - name: Install ninja (Ubuntu)
         if: matrix.os == 'ubuntu-latest' && steps.cache-binaryen.outputs.cache-hit != 'true'
@@ -80,7 +80,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: binaryen
-          key: ${{ runner.os }}-binaryen-version_118
+          key: ${{ runner.os }}-binaryen-eh
 
       - name: Set binaryen's path
         run: |
