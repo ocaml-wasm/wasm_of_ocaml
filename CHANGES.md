@@ -16,6 +16,8 @@
   requested at compile time (--enable with-js-error) or at startup (OCAMLRUNPARAM=b=1)
 * Runtime: allow dynlink of precompiled js with separate compilation (#1676)
 * Lib: Modify Typed_array API for compatibility with WebAssembly
+* Compiler: add support for the Wasm backend in parts of the pipeline, in
+  prevision for the merge of wasm_of_ocaml
 
 
 ## Bug fixes
