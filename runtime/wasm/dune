@@ -51,6 +51,7 @@
      --enable-strings
      --enable-multivalue
      --enable-bulk-memory
+     --enable-typed-continuations
      %{read-lines:args}
      -o
      -)
@@ -64,6 +65,7 @@
      --enable-strings
      --enable-multivalue
      --enable-bulk-memory
+     --enable-typed-continuations
      -
      -O3
      -o
