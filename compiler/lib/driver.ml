@@ -732,7 +732,6 @@ let full_no_source_map ~formatter ~standalone ~wrap_with_fun ~profile ~link d p 
   ()
 
 let f
-    ~target
     ?(standalone = true)
     ?(wrap_with_fun = `Iife)
     ?(profile = O1)

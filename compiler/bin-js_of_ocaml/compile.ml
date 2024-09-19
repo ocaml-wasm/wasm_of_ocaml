@@ -196,7 +196,6 @@ let run
           in
           let code = Code.prepend one.code instr in
           Driver.f
-            ~target:(JavaScript fmt)
             ~standalone
             ?profile
             ~link
@@ -221,7 +220,6 @@ let run
           let code = Code.prepend one.code instr in
           let res =
             Driver.f
-              ~target:(JavaScript fmt)
               ~standalone
               ?profile
               ~link

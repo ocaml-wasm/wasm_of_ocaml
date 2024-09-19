@@ -31,8 +31,7 @@ type optimized_result =
 val optimize : profile:profile -> Code.program -> optimized_result
 
 val f :
-     target:'result target
-  -> ?standalone:bool
+     ?standalone:bool
   -> ?wrap_with_fun:[ `Iife | `Anonymous | `Named of string ]
   -> ?profile:profile
   -> link:[ `All | `All_from of string list | `Needed | `No ]
@@ -40,7 +39,7 @@ val f :
   -> formatter:Pretty_print.t
   -> Parse_bytecode.Debug.t
   -> Code.program
-  -> 'result
+  -> Source_map.t option
 
 val f' :
      ?standalone:bool
