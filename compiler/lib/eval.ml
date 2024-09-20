@@ -417,7 +417,6 @@ let eval_instr ~target info ((x, loc) as i) =
                | _ -> false)
         then
           eval_prim
-            ~target
             ( prim
             , List.map prim_args' ~f:(function
                   | Some c -> c

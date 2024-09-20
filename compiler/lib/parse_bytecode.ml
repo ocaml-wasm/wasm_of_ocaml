@@ -492,12 +492,12 @@ end = struct
         match ident_of_custom x with
         | Some name when same_ident name ident_32 ->
             let i : int32 = Obj.magic x in
-            (match target with
+            (match Config.target () with
              | `JavaScript -> Int i
              | `Wasm -> Int32 i)
         | Some name when same_ident name ident_native ->
             let i : nativeint = Obj.magic x in
-            (match target with
+            (match Config.target () with
              | `JavaScript -> Int (Int32.of_nativeint_warning_on_overflow i)
              | `Wasm -> NativeInt i)
         | Some name when same_ident name ident_64 -> Int64 (Obj.magic x : int64)

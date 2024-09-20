@@ -44,35 +44,35 @@ let deadcode p =
   let r, _ = deadcode' p in
   r
 
-let inline ~target p =
+let inline p =
   if Config.Flag.inline () && Config.Flag.deadcode ()
   then (
     let p, live_vars = deadcode' p in
     if debug () then Format.eprintf "Inlining...@.";
-    Inline.f ~target p live_vars)
+    Inline.f p live_vars)
   else p
 
 let specialize_1 (p, info) =
   if debug () then Format.eprintf "Specialize...@.";
   Specialize.f ~function_arity:(fun f -> Specialize.function_arity info f) p
 
-let specialize_js ~target (p, info) =
+let specialize_js (p, info) =
   if debug () then Format.eprintf "Specialize js...@.";
-  Specialize_js.f ~target info p
+  Specialize_js.f info p
 
 let specialize_js_once p =
   if debug () then Format.eprintf "Specialize js once...@.";
   Specialize_js.f_once p
 
-let specialize' ~target (p, info) =
+let specialize' (p, info) =
   let p = specialize_1 (p, info) in
-  let p = specialize_js ~target (p, info) in
+  let p = specialize_js (p, info) in
   p, info
 
-let specialize ~target p = fst (specialize' ~target p)
+let specialize p = fst (specialize' p)
 
-let eval ~target (p, info) =
-  if Config.Flag.staticeval () then Eval.f ~target info p else p
+let eval (p, info) =
+  if Config.Flag.staticeval () then Eval.f info p else p
 
 let flow p =
   if debug () then Format.eprintf "Data flow...@.";
@@ -144,53 +144,53 @@ let identity x = x
 
 (* o1 *)
 
-let o1 ~target : 'a -> 'a =
+let o1 : 'a -> 'a =
   print
   +> tailcall
   +> flow_simple (* flow simple to keep information for future tailcall opt *)
-  +> specialize' ~target
-  +> eval ~target
-  +> inline ~target (* inlining may reveal new tailcall opt *)
+  +> specialize'
+  +> eval
+  +> inline (* inlining may reveal new tailcall opt *)
   +> deadcode
   +> tailcall
   +> phi
   +> flow
-  +> specialize' ~target
-  +> eval ~target
-  +> inline ~target
+  +> specialize'
+  +> eval
+  +> inline
   +> deadcode
   +> print
   +> flow
-  +> specialize' ~target
-  +> eval ~target
-  +> inline ~target
+  +> specialize'
+  +> eval
+  +> inline
   +> deadcode
   +> phi
   +> flow
-  +> specialize ~target
+  +> specialize
   +> identity
 
 (* o2 *)
 
-let o2 ~target : 'a -> 'a = loop 10 "o1" (o1 ~target) 1 +> print
+let o2 : 'a -> 'a = loop 10 "o1" o1 1 +> print
 
 (* o3 *)
 
-let round1 ~target : 'a -> 'a =
+let round1 : 'a -> 'a =
   print
   +> tailcall
-  +> inline ~target (* inlining may reveal new tailcall opt *)
+  +> inline (* inlining may reveal new tailcall opt *)
   +> deadcode (* deadcode required before flow simple -> provided by constant *)
   +> flow_simple (* flow simple to keep information for future tailcall opt *)
-  +> specialize' ~target
-  +> eval ~target
+  +> specialize'
+  +> eval
   +> identity
 
-let round2 ~target = flow +> specialize' ~target +> eval ~target +> deadcode +> o1 ~target
+let round2 = flow +> specialize' +> eval +> deadcode +> o1
 
-let o3 ~target =
-  loop 10 "tailcall+inline" (round1 ~target) 1
-  +> loop 10 "flow" (round2 ~target) 1
+let o3 =
+  loop 10 "tailcall+inline" round1 1
+  +> loop 10 "flow" round2 1
   +> print
 
 let generate

@@ -241,9 +241,3 @@ function caml_is_continuation_tag(t) {
 function caml_custom_identifier(o) {
   return caml_string_of_jsstring(o.caml_custom);
 }
-
-//Provides: caml_custom_identifier
-//Requires: caml_string_of_jsstring
-function caml_custom_identifier (o) {
-  return caml_string_of_jsstring(o.custom_tag);
-}

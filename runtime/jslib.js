@@ -491,9 +491,6 @@ function caml_js_strict_equals(x, y) {
   return +(x === y);
 }
 
-//Provides: caml_js_strict_equals mutable (const, const)
-function caml_js_strict_equals (x, y) { return +(x === y); }
-
 //Provides: caml_js_eval_string (const)
 //Requires: caml_jsstring_of_string
 function caml_js_eval_string(s) {
