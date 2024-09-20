@@ -32,12 +32,12 @@ let rec constant_of_const c : Code.constant =
   | ((Const_base (Const_string (s, _, _))) [@if ocaml_version >= (4, 11, 0)]) -> String s
   | Const_base (Const_float s) -> Float (float_of_string s)
   | Const_base (Const_int32 i) ->
-      (match target with
+      (match Config.target () with
        | `JavaScript -> Int i
        | `Wasm -> Int32 i)
   | Const_base (Const_int64 i) -> Int64 i
   | Const_base (Const_nativeint i) ->
-      (match target with
+      (match Config.target () with
        | `JavaScript -> Int (Int32.of_nativeint_warning_on_overflow i)
        | `Wasm -> NativeInt i)
   | Const_immstring s -> String s
