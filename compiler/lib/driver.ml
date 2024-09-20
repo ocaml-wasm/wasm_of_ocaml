@@ -71,8 +71,7 @@ let specialize' (p, info) =
 
 let specialize p = fst (specialize' p)
 
-let eval (p, info) =
-  if Config.Flag.staticeval () then Eval.f info p else p
+let eval (p, info) = if Config.Flag.staticeval () then Eval.f info p else p
 
 let flow p =
   if debug () then Format.eprintf "Data flow...@.";
@@ -188,10 +187,7 @@ let round1 : 'a -> 'a =
 
 let round2 = flow +> specialize' +> eval +> deadcode +> o1
 
-let o3 =
-  loop 10 "tailcall+inline" round1 1
-  +> loop 10 "flow" round2 1
-  +> print
+let o3 = loop 10 "tailcall+inline" round1 1 +> loop 10 "flow" round2 1 +> print
 
 let generate
     d
