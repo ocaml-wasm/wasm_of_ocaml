@@ -374,6 +374,8 @@ module Int31 : sig
 
   include Arith_ops with type t := t
 
+  val wrap : int32 -> t
+
   val of_int_warning_on_overflow : int -> t
 
   val of_nativeint_warning_on_overflow : nativeint -> t
