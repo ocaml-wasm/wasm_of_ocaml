@@ -343,30 +343,31 @@ let the_def_of info x =
 (* If [constant_identical a b = true], then the two values cannot be
    distinguished, i.e., they are not different objects (and [caml_js_equals a b
    = true]) and if both are floats, they are bitwise equal. *)
-let constant_identical a b =
-  match a, b with
-  | Int i, Int j -> Int32.equal i j
-  | Float a, Float b -> Float.bitwise_equal a b
-  | NativeString a, NativeString b -> Native_string.equal a b
-  | String a, String b -> Config.Flag.use_js_string () && String.equal a b
-  | Int _, Float _ | Float _, Int _ -> false
+let constant_identical ~(target : [ `JavaScript | `Wasm ]) a b =
+  match a, b, target with
+  | Int i, Int j, _ -> Int32.equal i j
+  | Float a, Float b, `JavaScript -> Float.bitwise_equal a b
+  | Float _, Float _, `Wasm -> false
+  | NativeString a, NativeString b, `JavaScript -> Native_string.equal a b
+  | String a, String b, `JavaScript -> Config.Flag.use_js_string () && String.equal a b
+  | Int _, Float _, _ | Float _, Int _, _ -> false
   (* All other values may be distinct objects and thus different by [caml_js_equals]. *)
-  | String _, _
-  | _, String _
-  | NativeString _, _
-  | _, NativeString _
-  | Float_array _, _
-  | _, Float_array _
-  | Int64 _, _
-  | _, Int64 _
-  | Int32 _, _
-  | _, Int32 _
-  | NativeInt _, _
-  | _, NativeInt _
-  | Tuple _, _
-  | _, Tuple _ -> false
+  | String _, _, _
+  | _, String _, _
+  | NativeString _, _, _
+  | _, NativeString _, _
+  | Float_array _, _, _
+  | _, Float_array _, _
+  | Int64 _, _, _
+  | _, Int64 _, _
+  | Int32 _, _, _
+  | _, Int32 _, _
+  | NativeInt _, _, _
+  | _, NativeInt _, _
+  | Tuple _, _, _
+  | _, Tuple _, _ -> false
 
-let the_const_of info x =
+let the_const_of ~target info x =
   match x with
   | Pv x ->
       get_approx
@@ -381,7 +382,7 @@ let the_const_of info x =
         None
         (fun u v ->
           match u, v with
-          | Some i, Some j when constant_identical i j -> u
+          | Some i, Some j when constant_identical ~target i j -> u
           | _ -> None)
         x
   | Pc c -> Some c
