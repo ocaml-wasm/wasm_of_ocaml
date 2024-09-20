@@ -72,8 +72,10 @@ let rec enot_rec e =
     | J.ECallTemplate _
     | J.EAccess _
     | J.EDot _
+    | J.EDotPrivate _
     | J.ENew _
     | J.EVar _
+    | J.EPrivName _
     | J.EFun _
     | J.EArrow _
     | J.EStr _
@@ -160,10 +162,10 @@ let rec depth = function
   | For_statement (_, _, _, (s, _)) -> depth s + 1
   | ForIn_statement (_, _, (s, _)) -> depth s + 1
   | ForOf_statement (_, _, (s, _)) -> depth s + 1
+  | ForAwaitOf_statement (_, _, (s, _)) -> depth s + 1
   | Continue_statement _ -> 1
   | Break_statement _ -> 1
   | Return_statement _ -> 1
-  (* | With_statement of expression * statement *)
   | Labelled_statement (_, (s, _)) -> depth s
   | Switch_statement (_, c1, None, c2) ->
       max
@@ -178,6 +180,7 @@ let rec depth = function
   | Throw_statement _ -> 1
   | Try_statement (b, _, None) -> depth_block b + 1
   | Try_statement (b, _, Some b2) -> max (depth_block b) (depth_block b2) + 1
+  | With_statement (_, (st, _)) -> depth st + 1
   | Debugger_statement -> 1
   | Import _ -> 1
   | Export _ -> 1
@@ -218,7 +221,7 @@ let rec if_statement_2 e loc iftrue truestop iffalse falsestop =
               if Poly.(e1 = e) then J.EBin (J.Or, e, e2) else J.ECond (e, e1, e2)
             in
             [ J.Variable_statement (Var, [ DeclPattern (p1, (exp, loc)) ]), loc ]
-        | _ -> assert false
+        | _ -> raise Not_assignment
       with Not_assignment -> (
         try
           let e1 = expression_of_statement iftrue in

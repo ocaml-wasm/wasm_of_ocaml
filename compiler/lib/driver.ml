@@ -90,17 +90,28 @@ let ( +> ) f g x = g (f x)
 
 let map_fst f (x, y, z) = f x, y, z
 
-let effects p =
+let effects ~deadcode_sentinal p =
   if Config.Flag.effects ()
   then (
     if debug () then Format.eprintf "Effects...@.";
-    p |> Deadcode.f +> Effects.f +> map_fst Lambda_lifting.f)
+    let p, live_vars = Deadcode.f p in
+    let p = Effects.remove_empty_blocks ~live_vars p in
+    let p, live_vars = Deadcode.f p in
+    let info = Global_flow.f ~fast:false p in
+    let p, live_vars =
+      if Config.Flag.globaldeadcode ()
+      then
+        let p = Global_deadcode.f p ~deadcode_sentinal info in
+        Deadcode.f p
+      else p, live_vars
+    in
+    p |> Effects.f ~flow_info:info ~live_vars +> map_fst Lambda_lifting.f)
   else
     ( p
     , (Code.Var.Set.empty : Effects.trampolined_calls)
     , (Code.Var.Set.empty : Effects.in_cps) )
 
-let exact_calls profile p =
+let exact_calls profile ~deadcode_sentinal p =
   if not (Config.Flag.effects ())
   then
     let fast =
@@ -109,6 +120,11 @@ let exact_calls profile p =
       | O1 | O2 -> true
     in
     let info = Global_flow.f ~fast p in
+    let p =
+      if Config.Flag.globaldeadcode () && Config.Flag.deadcode ()
+      then Global_deadcode.f p ~deadcode_sentinal info
+      else p
+    in
     Specialize.f ~function_arity:(fun f -> Global_flow.function_arity info f) p
   else p
 
@@ -182,6 +198,7 @@ let generate
     ~exported_runtime
     ~wrap_with_fun
     ~warn_on_unhandled_effect
+    ~deadcode_sentinal
     ((p, live_vars), trampolined_calls, _) =
   if times () then Format.eprintf "Start Generation...@.";
   let should_export = should_export wrap_with_fun in
@@ -192,6 +209,7 @@ let generate
     ~trampolined_calls
     ~should_export
     ~warn_on_unhandled_effect
+    ~deadcode_sentinal
     d
 
 let debug_linker = Debug.find "linker"
@@ -352,36 +370,38 @@ let link' ~export_runtime ~standalone ~link (js : Javascript.statement_list) :
       if export_runtime
       then
         let open Javascript in
-        let all = Linker.all linkinfos in
-        let all =
-          List.map all ~f:(fun name ->
-              let name = Utf8_string.of_string_exn name in
-              Property (PNI name, EVar (ident name)))
-        in
-        (if standalone
-         then
-           ( Expression_statement
-               (EBin
-                  ( Eq
-                  , dot
-                      (EVar (ident Global_constant.global_object_))
-                      (Utf8_string.of_string_exn "jsoo_runtime")
-                  , EObj all ))
-           , N )
-         else
-           ( Expression_statement
-               (call
-                  (dot
-                     (EVar (ident (Utf8_string.of_string_exn "Object")))
-                     (Utf8_string.of_string_exn "assign"))
-                  [ dot
-                      (EVar (ident Global_constant.global_object_))
-                      (Utf8_string.of_string_exn "jsoo_runtime")
-                  ; EObj all
-                  ]
-                  N)
-           , N ))
-        :: js
+        match Linker.all linkinfos with
+        | [] -> js
+        | all ->
+            let all =
+              List.map all ~f:(fun name ->
+                  let name = Utf8_string.of_string_exn name in
+                  Property (PNI name, EVar (ident name)))
+            in
+            (if standalone
+             then
+               ( Expression_statement
+                   (EBin
+                      ( Eq
+                      , dot
+                          (EVar (ident Global_constant.global_object_))
+                          (Utf8_string.of_string_exn "jsoo_runtime")
+                      , EObj all ))
+               , N )
+             else
+               ( Expression_statement
+                   (call
+                      (dot
+                         (EVar (ident (Utf8_string.of_string_exn "Object")))
+                         (Utf8_string.of_string_exn "assign"))
+                      [ dot
+                          (EVar (ident Global_constant.global_object_))
+                          (Utf8_string.of_string_exn "jsoo_runtime")
+                      ; EObj all
+                      ]
+                      N)
+               , N ))
+            :: js
       else js
     in
     let missing = Linker.missing linkinfos in
@@ -399,7 +419,7 @@ let link' ~export_runtime ~standalone ~link (js : Javascript.statement_list) :
                              List.map
                                ~f:(fun name ->
                                  let name = Utf8_string.of_string_exn name in
-                                 Prop_ident (ident name, None))
+                                 Prop_ident (Prop_and_ident (ident name), None))
                                missing
                          ; rest = None
                          }
@@ -642,18 +662,7 @@ let configure formatter =
   Code.Var.set_pretty (pretty && not (Config.Flag.shortvar ()));
   Code.Var.set_stable (Config.Flag.stable_var ())
 
-type 'a target =
-  | JavaScript : Pretty_print.t -> Source_map.t option target
-  | Wasm
-      : (Deadcode.variable_uses * Effects.in_cps * Code.program * Parse_bytecode.Debug.t)
-        target
-
-let target_flag (type a) (t : a target) =
-  match t with
-  | JavaScript _ -> `JavaScript
-  | Wasm -> `Wasm
-
-let link_and_pack ?(standalone = true) ?(wrap_with_fun = `Iife) ~link p =
+let link_and_pack ?(standalone = true) ?(wrap_with_fun = `Iife) ?(link = `No) p =
   let export_runtime =
     match link with
     | `All | `All_from _ -> true
@@ -665,60 +674,60 @@ let link_and_pack ?(standalone = true) ?(wrap_with_fun = `Iife) ~link p =
   |> coloring
   |> check_js
 
-let full
-    (type result)
-    ~(target : result target)
-    ~standalone
-    ~wrap_with_fun
-    ~profile
-    ~link
-    ~source_map
-    d
-    p : result =
+type optimized_result =
+  { program : Code.program
+  ; variable_uses : Deadcode.variable_uses
+  ; trampolined_calls : Effects.trampolined_calls
+  ; in_cps : Effects.in_cps
+  ; deadcode_sentinal : Code.Var.t
+  }
+
+let optimize ~profile p =
+  let deadcode_sentinal =
+    (* If deadcode is disabled, this field is just fresh variable *)
+    Code.Var.fresh_n "undef"
+  in
   let opt =
     specialize_js_once
     +> (match profile with
        | O1 -> o1
        | O2 -> o2
        | O3 -> o3)
-         ~target:(target_flag target)
-    +> exact_calls profile
-    +> effects
+    +> exact_calls ~deadcode_sentinal profile
+    +> effects ~deadcode_sentinal
     +> map_fst
-         ((match target with
-          | JavaScript _ -> Generate_closure.f
-          | Wasm -> Fun.id)
-         +> deadcode')
+         (match Config.target () with
+         | `JavaScript -> if Config.Flag.effects () then Fun.id else Generate_closure.f
+         | `Wasm -> Fun.id)
+    +> map_fst deadcode'
   in
   if times () then Format.eprintf "Start Optimizing...@.";
   let t = Timer.make () in
-  let r = opt p in
+  let (program, variable_uses), trampolined_calls, in_cps = opt p in
   let () = if times () then Format.eprintf " optimizations : %a@." Timer.print t in
-  match target with
-  | JavaScript formatter ->
-      let exported_runtime = not standalone in
-      let emit formatter =
-        generate d ~exported_runtime ~wrap_with_fun ~warn_on_unhandled_effect:standalone
-        +> link_and_pack ~standalone ~wrap_with_fun ~link
-        +> output formatter ~source_map ()
-      in
-      let source_map = emit formatter r in
-      source_map
-  | Wasm ->
-      let (p, live_vars), _, in_cps = r in
-      live_vars, in_cps, p, d
+  { program; variable_uses; trampolined_calls; in_cps; deadcode_sentinal }
+
+let full ~standalone ~wrap_with_fun ~profile ~link ~source_map ~formatter d p =
+  let { program; variable_uses; trampolined_calls; in_cps; deadcode_sentinal } =
+    optimize ~profile p
+  in
+  let exported_runtime = not standalone in
+  let emit formatter =
+    generate
+      d
+      ~exported_runtime
+      ~wrap_with_fun
+      ~warn_on_unhandled_effect:standalone
+      ~deadcode_sentinal
+    +> link_and_pack ~standalone ~wrap_with_fun ~link
+    +> output formatter ~source_map ()
+  in
+  let source_map = emit formatter ((program, variable_uses), trampolined_calls, in_cps) in
+  source_map
 
 let full_no_source_map ~formatter ~standalone ~wrap_with_fun ~profile ~link d p =
   let (_ : Source_map.t option) =
-    full
-      ~target:(JavaScript formatter)
-      ~standalone
-      ~wrap_with_fun
-      ~profile
-      ~link
-      ~source_map:None
-      d
-      p
+    full ~standalone ~wrap_with_fun ~profile ~link ~source_map:None ~formatter d p
   in
   ()
 
@@ -729,9 +738,10 @@ let f
     ?(profile = O1)
     ~link
     ?source_map
+    ~formatter
     d
     p =
-  full ~target ~standalone ~wrap_with_fun ~profile ~link ~source_map d p
+  full ~standalone ~wrap_with_fun ~profile ~link ~source_map ~formatter d p
 
 let f' ?(standalone = true) ?(wrap_with_fun = `Iife) ?(profile = O1) ~link formatter d p =
   full_no_source_map ~formatter ~standalone ~wrap_with_fun ~profile ~link d p

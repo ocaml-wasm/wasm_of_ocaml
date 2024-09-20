@@ -93,8 +93,7 @@ val from_string :
 val predefined_exceptions : target:[ `JavaScript | `Wasm ] -> Code.program * Unit_info.t
 
 val link_info :
-     target:[ `JavaScript | `Wasm ]
-  -> symtable:Ocaml_compiler.Symtable.GlobalMap.t
+     symbols:Ocaml_compiler.Symtable.GlobalMap.t
   -> primitives:StringSet.t
   -> crcs:(string * Digest.t option) list
   -> Code.program

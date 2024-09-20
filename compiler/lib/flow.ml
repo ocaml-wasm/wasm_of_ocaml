@@ -34,16 +34,25 @@ type def =
   | Expr of Code.expr
   | Param
 
-type info =
-  { info_defs : def array
-  ; info_known_origins : Code.Var.Set.t Code.Var.Tbl.t
-  ; info_maybe_unknown : bool Code.Var.Tbl.t
-  ; info_possibly_mutable : Var.ISet.t
-  }
+module Info = struct
+  type t =
+    { info_defs : def array
+    ; info_known_origins : Code.Var.Set.t Code.Var.Tbl.t
+    ; info_maybe_unknown : bool Code.Var.Tbl.t
+    ; info_possibly_mutable : Var.ISet.t
+    }
 
-let update_def { info_defs; _ } x exp =
-  let idx = Code.Var.idx x in
-  info_defs.(idx) <- Expr exp
+  let def t x =
+    match t.info_defs.(Code.Var.idx x) with
+    | Phi _ | Param -> None
+    | Expr x -> Some x
+
+  let possibly_mutable t x = Code.Var.ISet.mem t.info_possibly_mutable x
+
+  let update_def { info_defs; _ } x exp =
+    let idx = Code.Var.idx x in
+    info_defs.(idx) <- Expr exp
+end
 
 let undefined = Phi Var.Set.empty
 
@@ -81,7 +90,8 @@ let rec arg_deps vars deps defs params args =
       add_dep deps x y;
       add_assign_def vars defs x y;
       arg_deps vars deps defs params args
-  | _ -> ()
+  | [], [] -> ()
+  | _ -> assert false
 
 let cont_deps blocks vars deps defs (pc, args) =
   let block = Addr.Map.find pc blocks in
@@ -182,10 +192,13 @@ let rec block_escape st x =
       if not (Code.Var.ISet.mem st.may_escape y)
       then (
         Code.Var.ISet.add st.may_escape y;
-        Code.Var.ISet.add st.possibly_mutable y;
         match st.defs.(Var.idx y) with
-        | Expr (Block (_, l, _, _)) -> Array.iter l ~f:(fun z -> block_escape st z)
-        | _ -> ()))
+        | Expr (Block (_, l, _, mut)) ->
+            (match mut with
+            | Immutable -> ()
+            | Maybe_mutable -> Code.Var.ISet.add st.possibly_mutable y);
+            Array.iter l ~f:(fun z -> block_escape st z)
+        | _ -> Code.Var.ISet.add st.possibly_mutable y))
     (Var.Tbl.get st.known_origins x)
 
 let expr_escape st _x e =
@@ -296,7 +309,12 @@ let solver2 ?skip_param vars deps defs known_origins possibly_mutable =
   in
   Solver2.f () g (propagate2 ?skip_param defs known_origins possibly_mutable)
 
-let get_approx { info_defs = _; info_known_origins; info_maybe_unknown; _ } f top join x =
+let get_approx
+    { Info.info_defs = _; info_known_origins; info_maybe_unknown; _ }
+    f
+    top
+    join
+    x =
   let s = Var.Tbl.get info_known_origins x in
   if Var.Tbl.get info_maybe_unknown x
   then top
@@ -325,31 +343,30 @@ let the_def_of info x =
 (* If [constant_identical a b = true], then the two values cannot be
    distinguished, i.e., they are not different objects (and [caml_js_equals a b
    = true]) and if both are floats, they are bitwise equal. *)
-let constant_identical ~(target : [`JavaScript | `Wasm]) a b =
-  match a, b, target with
-  | Int i, Int j, _ -> Int32.equal i j
-  | Float a, Float b, `JavaScript -> Float.bitwise_equal a b
-  | Float _, Float _, `Wasm -> false
-  | NativeString a, NativeString b, `JavaScript -> Native_string.equal a b
-  | String a, String b, `JavaScript -> Config.Flag.use_js_string () && String.equal a b
-  | Int _, Float _, _ | Float _, Int _, _ -> false
+let constant_identical a b =
+  match a, b with
+  | Int i, Int j -> Int32.equal i j
+  | Float a, Float b -> Float.bitwise_equal a b
+  | NativeString a, NativeString b -> Native_string.equal a b
+  | String a, String b -> Config.Flag.use_js_string () && String.equal a b
+  | Int _, Float _ | Float _, Int _ -> false
   (* All other values may be distinct objects and thus different by [caml_js_equals]. *)
-  | String _, _, _
-  | _, String _, _
-  | NativeString _, _, _
-  | _, NativeString _, _
-  | Float_array _, _, _
-  | _, Float_array _, _
-  | Int64 _, _, _
-  | _, Int64 _, _
-  | Int32 _, _, _
-  | _, Int32 _, _
-  | NativeInt _, _, _
-  | _, NativeInt _, _
-  | Tuple _, _, _
-  | _, Tuple _, _-> false
+  | String _, _
+  | _, String _
+  | NativeString _, _
+  | _, NativeString _
+  | Float_array _, _
+  | _, Float_array _
+  | Int64 _, _
+  | _, Int64 _
+  | Int32 _, _
+  | _, Int32 _
+  | NativeInt _, _
+  | _, NativeInt _
+  | Tuple _, _
+  | _, Tuple _ -> false
 
-let the_const_of ~target info x =
+let the_const_of info x =
   match x with
   | Pv x ->
       get_approx
@@ -364,7 +381,7 @@ let the_const_of ~target info x =
         None
         (fun u v ->
           match u, v with
-          | Some i, Some j when constant_identical ~target i j -> u
+          | Some i, Some j when constant_identical i j -> u
           | _ -> None)
         x
   | Pc c -> Some c
@@ -385,7 +402,7 @@ let the_native_string_of ~target info x =
   | _ -> None
 
 (*XXX Maybe we could iterate? *)
-let direct_approx info x =
+let direct_approx (info : Info.t) x =
   match info.info_defs.(Var.idx x) with
   | Expr (Field (y, n, _)) ->
       get_approx
@@ -405,7 +422,7 @@ let direct_approx info x =
         y
   | _ -> None
 
-let build_subst info vars =
+let build_subst (info : Info.t) vars =
   let nv = Var.count () in
   let subst = Array.init nv ~f:(fun i -> Var.of_idx i) in
   Var.ISet.iter
@@ -459,7 +476,7 @@ let f ?skip_param p =
       vars;
   let t5 = Timer.make () in
   let info =
-    { info_defs = defs
+    { Info.info_defs = defs
     ; info_known_origins = known_origins
     ; info_maybe_unknown = maybe_unknown
     ; info_possibly_mutable = possibly_mutable

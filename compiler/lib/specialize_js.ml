@@ -25,14 +25,14 @@ open Flow
 let specialize_instr ~target info i =
   match i, target with
   | Let (x, Prim (Extern "caml_format_int", [ y; z ])), `JavaScript -> (
-      match the_string_of ~target info y with
+      match the_string_of info y with
       | Some "%d" -> (
           match the_int ~target info z with
           | Some i -> Let (x, Constant (String (Int32.to_string i)))
           | None -> Let (x, Prim (Extern "%caml_format_int_special", [ z ])))
       | _ -> i)
   | Let (x, Prim (Extern "%caml_format_int_special", [ z ])), `JavaScript -> (
-      match the_int ~target info z with
+      match the_int info z with
       | Some i -> Let (x, Constant (String (Int32.to_string i)))
       | None -> i)
   (* inline the String constant argument so that generate.ml can attempt to parse it *)
@@ -48,7 +48,7 @@ let specialize_instr ~target info i =
       | _ -> i)
   | Let (x, Prim (Extern ("caml_register_named_value" as prim), [ y; z ])), `JavaScript
     -> (
-      match the_string_of ~target info y with
+      match the_string_of info y with
       | Some s when Primitive.need_named_value s ->
           Let (x, Prim (Extern prim, [ Pc (String s); z ]))
       | Some _ -> Let (x, Constant (Int 0l))
@@ -66,7 +66,7 @@ let specialize_instr ~target info i =
           Let (x, Prim (Extern "%caml_js_opt_fun_call", f :: Array.to_list a))
       | _ -> i)
   | Let (x, Prim (Extern "caml_js_meth_call", [ o; m; a ])), _ -> (
-      match the_string_of ~target info m with
+      match the_string_of info m with
       | Some m when Javascript.is_ident m -> (
           match the_def_of info a with
           | Some (Block (_, a, _, _)) ->
@@ -112,48 +112,86 @@ let specialize_instr ~target info i =
         Let (x, Prim (Extern "%caml_js_opt_object", List.flatten (Array.to_list a)))
       with Exit -> i)
   | Let (x, Prim (Extern "caml_js_get", [ o; (Pv _ as f) ])), _ -> (
-      match the_native_string_of ~target info f with
+      match the_native_string_of info f with
       | Some s -> Let (x, Prim (Extern "caml_js_get", [ o; Pc (NativeString s) ]))
       | _ -> i)
   | Let (x, Prim (Extern "caml_js_set", [ o; (Pv _ as f); v ])), _ -> (
-      match the_native_string_of ~target info f with
+      match the_native_string_of info f with
       | Some s -> Let (x, Prim (Extern "caml_js_set", [ o; Pc (NativeString s); v ]))
       | _ -> i)
   | Let (x, Prim (Extern "caml_js_delete", [ o; (Pv _ as f) ])), _ -> (
-      match the_native_string_of ~target info f with
+      match the_native_string_of info f with
       | Some s -> Let (x, Prim (Extern "caml_js_delete", [ o; Pc (NativeString s) ]))
       | _ -> i)
   | Let (x, Prim (Extern ("caml_jsstring_of_string" | "caml_js_from_string"), [ y ])), _
     -> (
-      match the_string_of ~target info y with
+      match the_string_of info y with
       | Some s when String.is_valid_utf_8 s ->
           Let (x, Constant (NativeString (Native_string.of_string s)))
       | Some _ | None -> i)
   | Let (x, Prim (Extern "caml_jsbytes_of_string", [ y ])), _ -> (
-      match the_string_of ~target info y with
+      match the_string_of info y with
       | Some s -> Let (x, Constant (NativeString (Native_string.of_bytestring s)))
       | None -> i)
   | Let (x, Prim (Extern "%int_mul", [ y; z ])), `JavaScript -> (
-      match the_int ~target info y, the_int ~target info z with
+      match the_int info y, the_int info z with
       | Some j, _ when Int32.(abs j < 0x200000l) ->
           Let (x, Prim (Extern "%direct_int_mul", [ y; z ]))
       | _, Some j when Int32.(abs j < 0x200000l) ->
           Let (x, Prim (Extern "%direct_int_mul", [ y; z ]))
       | _ -> i)
   | Let (x, Prim (Extern "%int_div", [ y; z ])), _ -> (
-      match the_int ~target info z with
+      match the_int info z with
       | Some j when Int32.(j <> 0l) -> Let (x, Prim (Extern "%direct_int_div", [ y; z ]))
       | _ -> i)
   | Let (x, Prim (Extern "%int_mod", [ y; z ])), _ -> (
-      match the_int ~target info z with
+      match the_int info z with
       | Some j when Int32.(j <> 0l) -> Let (x, Prim (Extern "%direct_int_mod", [ y; z ]))
       | _ -> i)
   | _, _ -> i
+
+let equal2 a b = Code.Var.equal a b
+
+let equal3 a b c = Code.Var.equal a b && Code.Var.equal b c
+
+let equal4 a b c d = Code.Var.equal a b && Code.Var.equal b c && Code.Var.equal c d
 
 let specialize_instrs ~target info l =
   let rec aux info checks l acc =
     match l with
     | [] -> List.rev acc
+    | [ ((Let (alen, Prim (Extern "caml_ml_string_length", [ Pv a ])), _) as len1)
+      ; ((Let (blen, Prim (Extern "caml_ml_string_length", [ Pv b ])), _) as len2)
+      ; ((Let (len, Prim (Extern "%int_add", [ Pv alen'; Pv blen' ])), _) as len3)
+      ; (Let (bytes, Prim (Extern "caml_create_bytes", [ Pv len' ])), _)
+      ; ( Let
+            ( u1
+            , Prim
+                ( Extern "caml_blit_string"
+                , [ Pv a'; Pc (Int 0l); Pv bytes'; Pc (Int 0l); Pv alen'' ] ) )
+        , _ )
+      ; ( Let
+            ( u2
+            , Prim
+                ( Extern "caml_blit_string"
+                , [ Pv b'; Pc (Int 0l); Pv bytes''; Pv alen'''; Pv blen'' ] ) )
+        , _ )
+      ; (Let (res, Prim (Extern "caml_string_of_bytes", [ Pv bytes''' ])), _)
+      ]
+      when equal2 a a'
+           && equal2 b b'
+           && equal2 len len'
+           && equal4 alen alen' alen'' alen'''
+           && equal3 blen blen' blen''
+           && equal4 bytes bytes' bytes'' bytes''' ->
+        [ len1
+        ; len2
+        ; len3
+        ; Let (u1, Constant (Int 0l)), No
+        ; Let (u2, Constant (Int 0l)), No
+        ; Let (res, Prim (Extern "caml_string_concat", [ Pv a; Pv b ])), No
+        ; Let (bytes, Prim (Extern "caml_bytes_of_string", [ Pv res ])), No
+        ]
     | (i, loc) :: r -> (
         (* We make bound checking explicit. Then, we can remove duplicated
            bound checks. Also, it appears to be more efficient to inline
@@ -262,7 +300,7 @@ let specialize_all_instrs ~target info p =
 
 (****)
 
-let f ~target info p = specialize_all_instrs ~target info p
+let f info p = specialize_all_instrs ~target:(Config.target ()) info p
 
 let f_once p =
   let rec loop acc l =

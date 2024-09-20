@@ -58,6 +58,8 @@ module Flag = struct
 
   let deadcode = o ~name:"deadcode" ~default:true
 
+  let globaldeadcode = o ~name:"globaldeadcode" ~default:true
+
   let shortvar = o ~name:"shortvar" ~default:true
 
   let compact = o ~name:"compact" ~default:true
@@ -162,7 +164,7 @@ module Param = struct
     p
       ~name:"tc"
       ~desc:"Set tailcall optimisation"
-      (enum [ "trampoline", TcTrampoline; (* default *) "none", TcNone ])
+      (enum [ "trampoline", TcTrampoline (* default *); "none", TcNone ])
 
   let lambda_lifting_threshold =
     (* When we reach this depth, we start looking for functions to be lifted *)
@@ -178,3 +180,14 @@ module Param = struct
       ~desc:"Set baseline for lifting deeply nested functions"
       (int 1)
 end
+
+(****)
+
+let target_ : [ `JavaScript | `Wasm ] option ref = ref (Some `JavaScript)
+
+let target () =
+  match !target_ with
+  | Some t -> t
+  | None -> failwith "target was not set"
+
+let set_target t = target_ := Some t

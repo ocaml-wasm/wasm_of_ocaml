@@ -218,6 +218,9 @@ val nfkc : normalization t
 (** Compatibility Decomposition, followed by Canonical Composition *)
 
 (** Specification of Javascript number objects. *)
+
+type number_t = float
+
 class type number = object
   method toString : js_string t meth
 
@@ -242,7 +245,7 @@ and js_string = object
 
   method charAt : int -> js_string t meth
 
-  method charCodeAt : int -> number t meth
+  method charCodeAt : int -> number_t meth
 
   (* This may return NaN... *)
   method concat : js_string t -> js_string t meth
@@ -262,7 +265,7 @@ and js_string = object
 
   method lastIndexOf_from : js_string t -> int -> int meth
 
-  method localeCompare : js_string t -> number t meth
+  method localeCompare : js_string t -> number_t meth
 
   method _match : regExp t -> match_result_handle t opt meth
 
@@ -324,8 +327,6 @@ and regExp = object
 
   method lastIndex : int prop
 end
-
-type number_t = number t
 
 (** Specification of the string constructor, considered as an object. *)
 class type string_constr = object
