@@ -18,7 +18,7 @@
 
 val link :
      runtime_files:string list
-  -> input_files:string list
+  -> input_files:(string * string option) list
   -> opt_output_sourcemap:string option
   -> output_file:string
   -> unit
@@ -32,9 +32,11 @@ val dead_code_elimination :
   -> Stdlib.StringSet.t
 
 val optimize :
-     profile:Driver.profile option
+     ?profile:Driver.profile option
+  -> ?extra_options:string list
   -> opt_input_sourcemap:string option
   -> input_file:string
   -> opt_output_sourcemap:string option
   -> output_file:string
+  -> unit
   -> unit

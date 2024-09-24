@@ -68,7 +68,7 @@ let link_and_optimize
     ~sourcemap_don't_inline_content
     ~opt_sourcemap
     runtime_wasm_files
-    wat_files
+    wat_file
     output_file =
   let opt_sourcemap_file =
     (* Check that Binaryen supports the necessary sourcemaps options (requires
@@ -89,11 +89,29 @@ let link_and_optimize
      then Some (Filename.temp_file "wasm-merged" ".wasm.map")
      else None)
   @@ fun opt_temp_sourcemap ->
+  (Fs.with_intermediate_file (Filename.temp_file "input" ".wasm")
+  @@ fun temp_input_file ->
+  opt_with
+    Fs.with_intermediate_file
+    (if enable_source_maps then Some (Filename.temp_file "input" ".wasm.map") else None)
+  @@ fun opt_temp_input_sourcemap ->
+  Wa_binaryen.optimize
+    ~extra_options:
+      [ "--simplify-locals-notee-nostructure"
+      ; "--vacuum"
+      ; "--reorder-locals"
+      ; "--coalesce-locals"
+      ]
+    ~opt_input_sourcemap:None
+    ~opt_output_sourcemap:opt_temp_input_sourcemap
+    ~input_file:wat_file
+    ~output_file:temp_input_file
+    ();
   Wa_binaryen.link
     ~runtime_files:(runtime_file :: runtime_wasm_files)
-    ~input_files:wat_files
+    ~input_files:[ temp_input_file, opt_temp_input_sourcemap ]
     ~opt_output_sourcemap:opt_temp_sourcemap
-    ~output_file:temp_file;
+    ~output_file:temp_file);
   Fs.with_intermediate_file (Filename.temp_file "wasm-dce" ".wasm")
   @@ fun temp_file' ->
   opt_with
@@ -113,7 +131,8 @@ let link_and_optimize
     ~opt_input_sourcemap:opt_temp_sourcemap'
     ~opt_output_sourcemap:opt_sourcemap
     ~input_file:temp_file'
-    ~output_file;
+    ~output_file
+    ();
   Option.iter
     ~f:(update_sourcemap ~sourcemap_root ~sourcemap_don't_inline_content)
     opt_sourcemap_file;
@@ -136,6 +155,7 @@ let link_runtime ~profile runtime_wasm_files output_file =
     ~opt_output_sourcemap:None
     ~input_file:temp_file
     ~output_file
+    ()
 
 let generate_prelude ~out_file =
   Filename.gen_file out_file
@@ -166,7 +186,8 @@ let build_prelude z =
     ~input_file:prelude_file
     ~output_file:tmp_prelude_file
     ~opt_input_sourcemap:None
-    ~opt_output_sourcemap:None;
+    ~opt_output_sourcemap:None
+    ();
   Zip.add_file z ~name:"prelude.wasm" ~file:tmp_prelude_file;
   predefined_exceptions
 
@@ -381,7 +402,8 @@ let run
            ~opt_input_sourcemap:None
            ~opt_output_sourcemap:opt_tmp_map_file
            ~input_file:wat_file
-           ~output_file:tmp_wasm_file;
+           ~output_file:tmp_wasm_file
+           ();
          { Wa_link.unit_name; unit_info; strings; fragments }
        in
        cont unit_data unit_name tmp_wasm_file opt_tmp_map_file
@@ -420,7 +442,7 @@ let run
              ~sourcemap_don't_inline_content
              ~opt_sourcemap
              runtime_wasm_files
-             [ wat_file ]
+             wat_file
              tmp_wasm_file
          in
          let wasm_name =

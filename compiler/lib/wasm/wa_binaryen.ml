@@ -55,7 +55,12 @@ let link ~runtime_files ~input_files ~opt_output_sourcemap ~output_file =
               runtime_files)
        @ List.flatten
            (List.map
-              ~f:(fun input_file -> [ Filename.quote input_file; "OCaml" ])
+              ~f:(fun (input_file, opt_input_source_map) ->
+                [ Filename.quote input_file; "OCaml" ]
+                @
+                match opt_input_source_map with
+                | None -> []
+                | Some sm -> [ "-ism"; sm ])
               input_files)
        @ [ "-o"; Filename.quote output_file ]
        @ opt_flag "--output-source-map" opt_output_sourcemap))
@@ -114,17 +119,30 @@ let optimization_options =
    ; [ "-O3"; "--skip-pass=inlining-optimizing"; "--traps-never-happen" ]
   |]
 
-let optimize ~profile ~opt_input_sourcemap ~input_file ~opt_output_sourcemap ~output_file
-    =
-  let level =
+let optimize
+    ?profile
+    ?(extra_options = [])
+    ~opt_input_sourcemap
+    ~input_file
+    ~opt_output_sourcemap
+    ~output_file
+    () =
+  let opt_options =
     match profile with
-    | None -> 1
-    | Some p -> fst (List.find ~f:(fun (_, p') -> Poly.equal p p') Driver.profiles)
+    | None -> []
+    | Some profile ->
+        let level =
+          match profile with
+          | None -> 1
+          | Some p -> fst (List.find ~f:(fun (_, p') -> Poly.equal p p') Driver.profiles)
+        in
+        optimization_options.(level - 1)
   in
   command
     ("wasm-opt"
      :: (common_options ()
-        @ optimization_options.(level - 1)
+        @ opt_options
+        @ extra_options
         @ [ Filename.quote input_file; "-o"; Filename.quote output_file ])
     @ opt_flag "--input-source-map" opt_input_sourcemap
     @ opt_flag "--output-source-map" opt_output_sourcemap)
