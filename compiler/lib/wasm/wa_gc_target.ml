@@ -530,7 +530,8 @@ module Value = struct
     | Pop _
     | Call_ref _
     | Br_on_cast _
-    | Br_on_cast_fail _ -> false
+    | Br_on_cast_fail _
+    | Try _ -> false
     | IfExpr (_, e1, e2, e3) -> effect_free e1 && effect_free e2 && effect_free e3
     | ArrayNewFixed (_, l) | StructNew (_, l) -> List.for_all ~f:effect_free l
 
@@ -1705,16 +1706,25 @@ let handle_exceptions ~result_typ ~fall_through ~context body x exn_handler =
   block
     { params = []; result = result_typ }
     (let* () =
-       try_
-         { params = []; result = [] }
-         (body ~result_typ:[] ~fall_through:(`Block (-1)) ~context:(`Skip :: context))
-         [ ocaml_tag, store ~always:true x (return (W.Pop Value.value))
-         ; ( js_tag
-           , let exn = Code.Var.fresh () in
-             let* () = store ~always:true ~typ:externref exn (return (W.Pop externref)) in
-             let* exn = load exn in
-             store ~always:true x (return (W.Call (f, [ exn ]))) )
-         ]
+       store
+         x
+         (block_expr
+            { params = []; result = [ Value.value ] }
+            (let* exn =
+               block_expr
+                 { params = []; result = [ externref ] }
+                 (let* e =
+                    try_expr
+                      { params = []; result = [ externref ] }
+                      (body
+                         ~result_typ:[ externref ]
+                         ~fall_through:(`Block (-1))
+                         ~context:(`Skip :: `Skip :: `Skip :: context))
+                      [ ocaml_tag, 1, Value.value; js_tag, 0, externref ]
+                  in
+                  instr (W.Push e))
+             in
+             instr (W.CallInstr (f, [ exn ]))))
      in
      exn_handler ~result_typ ~fall_through ~context)
 

@@ -343,7 +343,17 @@ module Output () = struct
     | RefEq _
     | RefNull _
     | Br_on_cast _
-    | Br_on_cast_fail _ -> assert false (* Not supported *)
+    | Br_on_cast_fail _-> assert false (* Not supported *)
+    | Try (ty, body, catches) ->
+        Feature.require exception_handling;
+        line (string "try" ^^ block_type ty)
+        ^^ indent (concat_map (instruction m) body)
+        ^^ concat_map
+             (fun (tag, i, ty) ->
+               line (string "catch " ^^ index tag)
+               ^^ indent (instruction m (Wa_ast.Br (i, Some (Pop ty)))))
+             catches
+        ^^ line (string "end_try")
 
   and instruction m i =
     match i with
@@ -394,19 +404,6 @@ module Output () = struct
     | CallInstr (x, l) -> concat_map (expression m) l ^^ line (string "call " ^^ index x)
     | Nop -> empty
     | Push e -> expression m e
-    | Try (ty, body, catches, catch_all) ->
-        Feature.require exception_handling;
-        line (string "try" ^^ block_type ty)
-        ^^ indent (concat_map (instruction m) body)
-        ^^ concat_map
-             (fun (tag, l) ->
-               line (string "catch " ^^ index tag)
-               ^^ indent (concat_map (instruction m) l))
-             catches
-        ^^ (match catch_all with
-           | None -> empty
-           | Some l -> line (string "catch_all") ^^ indent (concat_map (instruction m) l))
-        ^^ line (string "end_try")
     | Throw (i, e) ->
         Feature.require exception_handling;
         expression m e ^^ line (string "throw " ^^ index i)

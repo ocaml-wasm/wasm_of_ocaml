@@ -650,13 +650,17 @@ let internal_primitives = Hashtbl.create 0
 
 let handle_exceptions ~result_typ ~fall_through ~context body x exn_handler =
   let* ocaml_tag = register_import ~name:"ocaml_exception" (Tag Value.value) in
-  try_
+  block
     { params = []; result = result_typ }
-    (body ~result_typ ~fall_through:(`Block (-1)) ~context)
-    [ ( ocaml_tag
-      , let* () = store ~always:true x (return (W.Pop Value.value)) in
-        exn_handler ~result_typ ~fall_through ~context )
-    ]
+    (let* () =
+       store
+         x
+         (try_expr
+            { params = []; result = [ Value.value ] }
+            (body ~result_typ ~fall_through:(`Block (-1)) ~context:(`Skip :: context))
+            [ ocaml_tag, 0, Value.value ])
+     in
+     exn_handler ~result_typ ~fall_through ~context)
 
 let post_process_function_body ~param_names:_ ~locals:_ instrs = instrs
 
