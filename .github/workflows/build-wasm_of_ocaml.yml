@@ -13,15 +13,19 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os:
-          - ubuntu-latest
-        ocaml-compiler:
-          - 4.14.x
-          - 5.00.x
-          - 5.01.x
-          - 5.02.x
+#        os:
+#          - ubuntu-latest
+#        ocaml-compiler:
+#          - 4.14.x
+#          - 5.00.x
+#          - 5.01.x
+#          - 5.02.x
         include:
           - os: macos-latest
+            ocaml-compiler: 5.02.x
+          - os: windows-latest
+            ocaml-compiler: 4.14.x
+          - os: windows-latest
             ocaml-compiler: 5.02.x
 
     runs-on: ${{ matrix.os }}
@@ -62,6 +66,10 @@ jobs:
         if: matrix.os == 'macos-latest' && steps.cache-binaryen.outputs.cache-hit != 'true'
         run: brew install ninja
 
+      - name: Install ninja (Windows)
+        if: matrix.os == 'windows-latest' && steps.cache-binaryen.outputs.cache-hit != 'true'
+        run: choco install ninja
+
       - name: Build binaryen
         if: steps.cache-binaryen.outputs.cache-hit != 'true'
         working-directory: ./binaryen
@@ -81,6 +89,7 @@ jobs:
           echo "$GITHUB_WORKSPACE/binaryen/bin" >> $GITHUB_PATH
 
       - name: Restore cached OCaml
+        if: matrix.os != 'windows-latest'
         id: cache-ocaml
         uses: actions/cache/restore@v4
         with:
@@ -116,7 +125,7 @@ jobs:
           echo /Users/runner/hostedtoolcache/opam/*/arm64 >> $GITHUB_PATH
 
       - name: Cache OCaml
-        if: steps.cache-ocaml.outputs.cache-hit != 'true'
+        if: matrix.os != 'windows-latest' && steps.cache-ocaml.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
           path: |
@@ -152,8 +161,16 @@ jobs:
 
       - name: Pin wasm_of_ocaml
         working-directory: ./wasm_of_ocaml
+        if: matrix.os != 'windows-latest'
         run: |
-           for i in *.opam; do opam pin add -n `basename $i .opam`.`< VERSION` .; done
+           opam pin add -n . --with-version $(< VERSION)
+        shell: bash
+
+      - name: Pin wasm_of_ocaml
+        working-directory: ./wasm_of_ocaml
+        if: matrix.os == 'windows-latest'
+        run: |
+           opam pin add -n . --with-version $(Get-Content VERSION)
 
       - name: Install opam file parser
         run: opam install opam-format ocamlfind dune graphics
