@@ -299,6 +299,14 @@ let float32 _ f =
   | FP_normal | FP_subnormal | FP_zero | FP_nan -> Printf.sprintf "%h" f
   | FP_infinite -> if Float.(f > 0.) then "inf" else "-inf"
 
+let location ctx loc =
+  let loc = Parse_bytecode.Debug.find_loc ctx.debug loc in
+  match loc with
+  | None | Some { src = None | Some "" } -> Comment "@"
+  | Some { src = Some src; col; line; _ } ->
+      let loc = Format.sprintf "%s:%d:%d" src line col in
+      Comment ("@ " ^ loc)
+
 let expression_or_instructions ctx st in_function =
   let rec expression e =
     match e with
@@ -522,14 +530,7 @@ let expression_or_instructions ctx st in_function =
             :: index st.type_names typ
             :: List.concat (List.map ~f:expression (l @ [ e ])))
         ]
-    | Location (loc, i) -> (
-        let loc = Generate.source_location ctx.debug loc in
-        match loc with
-        | Javascript.N | U | Pi Parse_info.{ src = None; _ } ->
-            Comment "@" :: instruction i
-        | Pi Parse_info.{ src = Some src; col; line; _ } ->
-            let loc = Format.sprintf "%s:%d:%d" src line col in
-            Comment ("@ " ^ loc) :: instruction i)
+    | Location (loc, i) -> location ctx loc :: instruction i
   and instructions l = List.concat (List.map ~f:instruction l) in
   expression, instructions
 
