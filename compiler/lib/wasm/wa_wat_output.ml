@@ -300,9 +300,9 @@ let float32 _ f =
   | FP_infinite -> if Float.(f > 0.) then "inf" else "-inf"
 
 let location ctx loc =
-  let loc = Parse_bytecode.Debug.find_loc ctx.debug loc in
+  let loc = Parse_bytecode.Debug.find_loc ctx.debug ~force:Not_alloc loc in
   match loc with
-  | None | Some { src = None | Some "" } -> Comment "@"
+  | None | Some { src = None | Some ""; _ } -> Comment "@"
   | Some { src = Some src; col; line; _ } ->
       let loc = Format.sprintf "%s:%d:%d" src line col in
       Comment ("@ " ^ loc)

@@ -26,6 +26,7 @@ module Debug : sig
   type force =
     | Before
     | After
+    | Not_alloc
     | No
 
   val create : include_cmis:bool -> bool -> t
