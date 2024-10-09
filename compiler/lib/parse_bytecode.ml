@@ -1309,13 +1309,12 @@ and compile infos pc state instrs =
          then
            let loc = Code.Before pc in
            match instrs, last with
-           | (i, No) :: rem, _ ->
+           | (i, _) :: rem, _ ->
                compiled_blocks :=
                  Addr.Map.add addr (state'', (i, loc) :: rem, last) !compiled_blocks
-           | [], (last, No) ->
+           | [], (last, _) ->
                compiled_blocks :=
-                 Addr.Map.add addr (state'', instrs, (last, loc)) !compiled_blocks
-           | (_, (Before _ | After _)) :: _, _ | [], (_, (Before _ | After _)) -> ());
+                 Addr.Map.add addr (state'', instrs, (last, loc)) !compiled_blocks);
         compile
           infos
           (pc + 3)
