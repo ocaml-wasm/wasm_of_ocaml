@@ -1303,8 +1303,19 @@ and compile infos pc state instrs =
         compile_block infos.blocks infos.debug code addr state';
         if debug_parser () then Format.printf "}@.";
         let args = State.stack_vars state' in
-        let state'', _, _ = Addr.Map.find addr !compiled_blocks in
-        Debug.propagate (State.stack_vars state'') args;
+        (let state'', instrs, last = Addr.Map.find addr !compiled_blocks in
+         Debug.propagate (State.stack_vars state'') args;
+         if Debug.mem infos.debug pc
+         then
+           let loc = Code.Before pc in
+           match instrs, last with
+           | (i, No) :: rem, _ ->
+               compiled_blocks :=
+                 Addr.Map.add addr (state'', (i, loc) :: rem, last) !compiled_blocks
+           | [], (last, No) ->
+               compiled_blocks :=
+                 Addr.Map.add addr (state'', instrs, (last, loc)) !compiled_blocks
+           | (_, (Before _ | After _)) :: _, _ | [], (_, (Before _ | After _)) -> ());
         compile
           infos
           (pc + 3)

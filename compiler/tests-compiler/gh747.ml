@@ -312,7 +312,7 @@ end
      87:         ("(Program not linked with -g, cannot print stack backtrace)\n")];
      88:    function format_backtrace_slot(pos, slot){
      89:     function info(is_raise){
-     90:       /*<<test.ml:46:4>>*/ return is_raise
+     90:       /*<<?>>*/ return is_raise
      91:              ? 0 === pos ? cst_Raised_at : cst_Re_raised_at
      92:              : 0 === pos ? cst_Raised_by_primitive_operat : cst_Called_from;
      93:      /*<<test.ml:49:75>>*/ }
@@ -335,7 +335,7 @@ end
     110:              /*<<test.ml:56:13>>*/ caml_call2(Stdlib_Printf[4], _b_, _o_)];
     111:     /*<<test.ml:61:52>>*/ }
     112:    function print_exception_backtrace(outchan, backtrace){
-    113:      /*<<test.ml:64:2>>*/ if(! backtrace)
+    113:      /*<<?>>*/ if(! backtrace)
     114:       /*<<test.ml:66:6>>*/ return  /*<<test.ml:66:6>>*/ caml_call2
     115:              (Stdlib_Printf[1], outchan, _d_);
     116:     var a = backtrace[1], _f_ = a.length - 2 | 0, _e_ = 0;
@@ -357,7 +357,7 @@ end
     132:     return 0;
     133:     /*<<test.ml:73:10>>*/ }
     134:    function compare(left, right, e1, e2){
-    135:      /*<<test.ml:77:35>>*/ if(0 === e1[0]){
+    135:      /*<<?>>*/ if(0 === e1[0]){
     136:      var v1 = e1[1];
     137:      if(0 !== e2[0])  /*<<test.ml:80:23>>*/ return -1;
     138:      var v2 = e2[1];
