@@ -1,11 +1,3 @@
-#use "topfind"
-
-#require "opam-format"
-
-#require "unix"
-
-#require "str"
-
 module StringSet = Set.Make (String)
 
 (****)
