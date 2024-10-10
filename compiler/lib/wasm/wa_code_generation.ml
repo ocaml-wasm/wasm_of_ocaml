@@ -285,17 +285,19 @@ let blk l st =
   let (), st = l { st with instrs = [] } in
   List.rev st.instrs, { st with instrs }
 
-let with_location loc instrs st =
-  let (), st = instrs st in
-  ( ()
-  , { st with
-      instrs =
-        (match st.instrs with
-        | [] -> []
-        | Location _ :: _ when Poly.equal loc No -> st.instrs
-        | Location (_, i) :: rem -> Location (loc, i) :: rem
-        | i :: rem -> Location (loc, i) :: rem)
-    } )
+let with_location loc instrs =
+  if Poly.equal loc No
+  then instrs
+  else
+    fun st ->
+    let (), st = instrs st in
+    ( ()
+    , { st with
+        instrs =
+          (match st.instrs with
+          | [] -> []
+          | Location (_, i) :: rem | i :: rem -> Location (loc, i) :: rem)
+      } )
 
 let cast ?(nullable = false) typ e =
   let* e = e in
@@ -451,6 +453,7 @@ let rec is_smi e =
   | Br_on_cast_fail _ -> false
   | BinOp ((F32 _ | F64 _), _, _) | RefTest _ | RefEq _ -> true
   | IfExpr (_, _, ift, iff) -> is_smi ift && is_smi iff
+  | LocationExpr _ -> assert false
 
 let get_i31_value x st =
   match st.instrs with

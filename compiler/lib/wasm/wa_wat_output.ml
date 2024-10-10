@@ -19,6 +19,164 @@
 open! Stdlib
 open Wa_ast
 
+let has_loc e =
+  match e with
+  | LocationExpr _ -> true
+  | _ -> false
+
+let rec propagate_loc loc e =
+  match e with
+  | Const _ | Pop _ | RefFunc _ | LocalGet _ | GlobalGet _ | RefNull _ ->
+      LocationExpr (loc, e)
+  | UnOp (op, e1) ->
+      let e1' = propagate_loc loc e1 in
+      if has_loc e1' then LocationExpr (loc, e) else UnOp (op, e1')
+  | BinOp (op, e1, e2) ->
+      let e1' = propagate_loc loc e1 in
+      if has_loc e1'
+      then
+        let e2' = propagate_loc loc e2 in
+        if has_loc e2' then LocationExpr (loc, e) else BinOp (op, e1', e2')
+      else BinOp (op, e1', e2)
+  | I32WrapI64 e1 ->
+      let e1' = propagate_loc loc e1 in
+      if has_loc e1' then LocationExpr (loc, e) else I32WrapI64 e1'
+  | I64ExtendI32 (s, e1) ->
+      let e1' = propagate_loc loc e1 in
+      if has_loc e1' then LocationExpr (loc, e) else I64ExtendI32 (s, e1')
+  | F32DemoteF64 e1 ->
+      let e1' = propagate_loc loc e1 in
+      if has_loc e1' then LocationExpr (loc, e) else F32DemoteF64 e1'
+  | F64PromoteF32 e1 ->
+      let e1' = propagate_loc loc e1 in
+      if has_loc e1' then LocationExpr (loc, e) else F64PromoteF32 e1'
+  | LocalTee (x, e1) ->
+      let e1' = propagate_loc loc e1 in
+      if has_loc e1' then LocationExpr (loc, e) else LocalTee (x, e1')
+  | BlockExpr _ -> e
+  | Call (x, l) ->
+      let _, l' = propagate_loc_lst loc l in
+      Call (x, l')
+  | Seq _ -> assert false
+  | Call_ref (x, e1, l) ->
+      let b, l' = propagate_loc_lst loc l in
+      Call_ref (x, (if b then propagate_loc loc e1 else e1), l')
+  | RefI31 e1 ->
+      let e1' = propagate_loc loc e1 in
+      if has_loc e1' then LocationExpr (loc, e) else RefI31 e1'
+  | I31Get (s, e1) ->
+      let e1' = propagate_loc loc e1 in
+      if has_loc e1' then LocationExpr (loc, e) else I31Get (s, e1')
+  | ArrayNew (t, e1, e2) ->
+      let e1' = propagate_loc loc e1 in
+      if has_loc e1'
+      then
+        let e2' = propagate_loc loc e2 in
+        if has_loc e2' then LocationExpr (loc, e) else ArrayNew (t, e1', e2')
+      else ArrayNew (t, e1', e2)
+  | ArrayNewFixed (t, l) ->
+      let b, l' = propagate_loc_lst loc l in
+      if b then LocationExpr (loc, e) else ArrayNewFixed (t, l')
+  | ArrayNewData (t, x, e1, e2) ->
+      let e1' = propagate_loc loc e1 in
+      if has_loc e1'
+      then
+        let e2' = propagate_loc loc e2 in
+        if has_loc e2' then LocationExpr (loc, e) else ArrayNewData (t, x, e1', e2')
+      else ArrayNewData (t, x, e1', e2)
+  | ArrayGet (s, t, e1, e2) ->
+      let e1' = propagate_loc loc e1 in
+      if has_loc e1'
+      then
+        let e2' = propagate_loc loc e2 in
+        if has_loc e2' then LocationExpr (loc, e) else ArrayGet (s, t, e1', e2')
+      else ArrayGet (s, t, e1', e2)
+  | ArrayLen e1 ->
+      let e1' = propagate_loc loc e1 in
+      if has_loc e1' then LocationExpr (loc, e) else ArrayLen e1'
+  | StructNew (t, l) ->
+      let b, l' = propagate_loc_lst loc l in
+      if b then LocationExpr (loc, e) else StructNew (t, l')
+  | StructGet (s, t, i, e1) ->
+      let e1' = propagate_loc loc e1 in
+      if has_loc e1' then LocationExpr (loc, e) else StructGet (s, t, i, e1')
+  | RefCast (t, e1) ->
+      let e1' = propagate_loc loc e1 in
+      if has_loc e1' then LocationExpr (loc, e) else RefCast (t, e1')
+  | RefTest (t, e1) ->
+      let e1' = propagate_loc loc e1 in
+      if has_loc e1' then LocationExpr (loc, e) else RefTest (t, e1')
+  | RefEq (e1, e2) ->
+      let e1' = propagate_loc loc e1 in
+      if has_loc e1'
+      then
+        let e2' = propagate_loc loc e2 in
+        if has_loc e2' then LocationExpr (loc, e) else RefEq (e1', e2')
+      else RefEq (e1', e2)
+  | Br_on_cast (label, t1, t2, e1) ->
+      let e1' = propagate_loc loc e1 in
+      if has_loc e1' then LocationExpr (loc, e) else Br_on_cast (label, t1, t2, e1')
+  | Br_on_cast_fail (label, t1, t2, e1) ->
+      let e1' = propagate_loc loc e1 in
+      if has_loc e1' then LocationExpr (loc, e) else Br_on_cast_fail (label, t1, t2, e1')
+  | IfExpr (t, e1, e2, e3) -> IfExpr (t, propagate_loc loc e1, e2, e3)
+  | LocationExpr _ -> assert false
+
+and propagate_loc_lst loc l =
+  let has_loc l =
+    match l with
+    | e :: _ -> has_loc e
+    | [] -> true
+  in
+  let l =
+    List.fold_left
+      ~f:(fun acc e1 -> if has_loc acc then propagate_loc loc e1 :: acc else e1 :: acc)
+      ~init:[]
+      l
+  in
+  has_loc l, List.rev l
+
+let propagate_loc loc i =
+  if Poly.equal loc Code.No
+  then i
+  else
+    match i with
+    | Drop e -> Drop (propagate_loc loc e)
+    | LocalSet (x, e) -> LocalSet (x, propagate_loc loc e)
+    | GlobalSet (x, e) -> GlobalSet (x, propagate_loc loc e)
+    | Loop _ | Block _ | Nop | Try _ | Rethrow _ -> i
+    | If (t, e, l1, l2) -> If (t, propagate_loc loc e, l1, l2)
+    | Br_table (e, l, label) -> Br_table (propagate_loc loc e, l, label)
+    | Br (l, e) -> Br (l, Option.map ~f:(propagate_loc loc) e)
+    | Br_if (l, e) -> Br_if (l, propagate_loc loc e)
+    | Return e -> Return (Option.map ~f:(propagate_loc loc) e)
+    | CallInstr (x, l) -> CallInstr (x, snd (propagate_loc_lst loc l))
+    | Push e -> Push (propagate_loc loc e)
+    | Throw (t, e) -> Throw (t, propagate_loc loc e)
+    | ArraySet (t, e1, e2, e3) ->
+        let e1' = propagate_loc loc e1 in
+        if has_loc e1'
+        then
+          let e2' = propagate_loc loc e2 in
+          if has_loc e2'
+          then
+            let e3' = propagate_loc loc e3 in
+            ArraySet (t, e1', e2', e3')
+          else ArraySet (t, e1', e2', e3)
+        else ArraySet (t, e1', e2, e3)
+    | StructSet (t, i, e1, e2) ->
+        let e1' = propagate_loc loc e1 in
+        if has_loc e1'
+        then
+          let e2' = propagate_loc loc e2 in
+          StructSet (t, i, e1', e2')
+        else StructSet (t, i, e1', e2)
+    | Return_call (x, l) -> Return_call (x, snd (propagate_loc_lst loc l))
+    | Return_call_ref (x, e, l) ->
+        let b, l' = propagate_loc_lst loc l in
+        Return_call_ref (x, (if b then propagate_loc loc e else e), l')
+    | Location _ -> assert false
+
 let assign_names ?(reversed = true) f names =
   let used = ref StringSet.empty in
   let counts = Hashtbl.create 101 in
@@ -439,7 +597,8 @@ let expression_or_instructions ctx st in_function =
             @ [ List (Atom "then" :: expression ift) ]
             @ [ List (Atom "else" :: expression iff) ])
         ]
-  and instruction i =
+    | LocationExpr (loc, e) -> location ctx loc :: expression e
+  and instruction prev_loc i =
     match i with
     | Drop e -> [ List (Atom "drop" :: expression e) ]
     | LocalSet (i, Seq (l, e)) -> instructions (l @ [ LocalSet (i, e) ])
@@ -530,8 +689,21 @@ let expression_or_instructions ctx st in_function =
             :: index st.type_names typ
             :: List.concat (List.map ~f:expression (l @ [ e ])))
         ]
-    | Location (loc, i) -> location ctx loc :: instruction i
-  and instructions l = List.concat (List.map ~f:instruction l) in
+    | Location (loc, i) ->
+        location ctx loc :: instruction Code.No (propagate_loc prev_loc i)
+  and instructions l =
+    List.concat
+      (List.rev
+         (fst
+            (List.fold_left
+               ~f:(fun (acc, prev_loc) i ->
+                 ( instruction prev_loc i :: acc
+                 , match i with
+                   | Location (loc, _) -> loc
+                   | _ -> prev_loc ))
+               ~init:([], Code.No)
+               l)))
+  in
   expression, instructions
 
 let expression ctx st = fst (expression_or_instructions ctx st false)

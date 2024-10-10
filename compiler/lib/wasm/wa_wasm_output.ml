@@ -628,6 +628,7 @@ end = struct
         output_byte ch 0x05;
         output_expression st ch e3;
         output_byte ch 0x0B
+    | LocationExpr _ -> assert false
 
   and output_instruction st ch i =
     match i with
@@ -881,6 +882,7 @@ end = struct
           ~f:(fun set i -> expr_function_references i set)
           ~init:(expr_function_references e' set)
           l
+    | LocationExpr _ -> assert false
 
   and instr_function_references i set =
     match i with

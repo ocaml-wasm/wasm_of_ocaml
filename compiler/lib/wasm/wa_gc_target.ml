@@ -529,6 +529,7 @@ module Value = struct
     | Br_on_cast_fail _ -> false
     | IfExpr (_, e1, e2, e3) -> effect_free e1 && effect_free e2 && effect_free e3
     | ArrayNewFixed (_, l) | StructNew (_, l) -> List.for_all ~f:effect_free l
+    | LocationExpr _ -> assert false
 
   let if_expr ty cond ift iff =
     let* cond = cond in

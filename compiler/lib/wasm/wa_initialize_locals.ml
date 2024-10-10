@@ -68,6 +68,7 @@ let rec scan_expression ctx e =
       scan_expression ctx cond;
       scan_expression (fork_context ctx) e1;
       scan_expression (fork_context ctx) e2
+  | LocationExpr _ -> assert false
 
 and scan_expressions ctx l = List.iter ~f:(fun e -> scan_expression ctx e) l
 
