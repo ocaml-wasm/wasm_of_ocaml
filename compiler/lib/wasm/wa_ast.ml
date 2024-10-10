@@ -215,6 +215,7 @@ type module_field =
       ; param_names : var list
       ; locals : (var * value_type) list
       ; body : instruction list
+      ; end_loc : Parse_info.t option
       }
   | Data of
       { name : var

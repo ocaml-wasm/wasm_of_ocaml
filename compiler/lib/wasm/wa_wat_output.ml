@@ -272,13 +272,27 @@ let rec format_sexp f s =
   match s with
   | Atom s -> Format.fprintf f "%s" s
   | List l ->
-      if List.exists l ~f:(function
-             | Comment _ -> true
-             | _ -> false)
+      let has_comment =
+        List.exists l ~f:(function
+            | Comment _ -> true
+            | _ -> false)
+      in
+      if has_comment
       then (* Ensure comments are on their own line *)
         Format.fprintf f "@[<v 2>("
       else Format.fprintf f "@[<2>(";
       Format.pp_print_list ~pp_sep:(fun f () -> Format.fprintf f "@ ") format_sexp f l;
+      if has_comment
+         && List.fold_left
+              ~f:(fun _ i ->
+                match i with
+                | Comment _ -> true
+                | _ -> false)
+              ~init:false
+              l
+      then
+        (* Make sure there is a newline when a comment is at the very end. *)
+        Format.fprintf f "@ ";
       Format.fprintf f ")@]"
   | Comment s -> Format.fprintf f ";;%s" s
 
@@ -689,9 +703,9 @@ let expression_or_instructions ctx st in_function =
              (match prev_loc with
              | Some prev_loc -> propagate_loc prev_loc i
              | None -> i)
-  and instructions l =
+  and instructions ?(tail = []) l =
     List.concat
-      (List.rev
+      (List.rev_append
          (fst
             (List.fold_left
                ~f:(fun (acc, prev_loc) i ->
@@ -700,7 +714,8 @@ let expression_or_instructions ctx st in_function =
                    | Location (loc, _) -> Some loc
                    | _ -> prev_loc ))
                ~init:([], None)
-               l)))
+               l))
+         [ tail ])
   in
   expression, instructions
 
@@ -708,7 +723,7 @@ let expression ctx st = fst (expression_or_instructions ctx st false)
 
 let instructions ctx st = snd (expression_or_instructions ctx st true)
 
-let funct ctx st name exported_name typ param_names locals body =
+let funct ctx st name exported_name typ param_names locals body end_loc =
   let st =
     { st with
       local_names =
@@ -724,7 +739,8 @@ let funct ctx st name exported_name typ param_names locals body =
     @ List.map
         ~f:(fun (i, t) -> List [ Atom "local"; index st.local_names i; value_type st t ])
         locals
-    @ instructions ctx st body)
+    @ instructions ctx st ?tail:(Option.map ~f:(fun loc -> [ location loc ]) end_loc) body
+    )
 
 let import st f =
   match f with
@@ -775,8 +791,8 @@ let type_field st { name; typ; supertype; final } =
 
 let field ctx st f =
   match f with
-  | Function { name; exported_name; typ; param_names; locals; body } ->
-      [ funct ctx st name exported_name typ param_names locals body ]
+  | Function { name; exported_name; typ; param_names; locals; body; end_loc } ->
+      [ funct ctx st name exported_name typ param_names locals body end_loc ]
   | Global { name; exported_name; typ; init } ->
       [ List
           (Atom "global"

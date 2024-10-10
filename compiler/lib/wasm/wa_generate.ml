@@ -761,20 +761,6 @@ module Generate (Target : Wa_target_sig.S) = struct
       params
       ((pc, _) as cont)
       acc =
-    let ctx =
-      let loc = Before pc in
-      match Parse_bytecode.Debug.find_loc ctx.debug loc with
-      | Some _ ->
-          let block = Addr.Map.find pc ctx.blocks in
-          let block =
-            match block.body with
-            | (i, _) :: rem -> { block with body = (i, loc) :: rem }
-            | [] -> { block with branch = fst block.branch, loc }
-          in
-          let blocks = Addr.Map.add pc block ctx.blocks in
-          { ctx with blocks }
-      | None -> ctx
-    in
     let g = Structure.build_graph ctx.blocks pc in
     let dom = Structure.dominator_tree g in
     let rec translate_tree result_typ fall_through pc context =
@@ -943,6 +929,14 @@ module Generate (Target : Wa_target_sig.S) = struct
                translate_branch result_typ fall_through (-1) cont context))
     in
     let body = post_process_function_body ~param_names ~locals body in
+    let body =
+      (* Make sure we have a debug location at the very start of the
+         function body *)
+      match find_debug_loc ctx ~force:Before (Before pc), body with
+      | Some loc, Location (_, i) :: rem | Some loc, i :: rem ->
+          W.Location (loc, i) :: rem
+      | None, _ | _, [] -> body
+    in
     W.Function
       { name =
           (match name_opt with
@@ -956,6 +950,7 @@ module Generate (Target : Wa_target_sig.S) = struct
       ; typ = func_type param_count
       ; locals
       ; body
+      ; end_loc = find_debug_loc ctx (After pc)
       }
     :: acc
 
@@ -978,7 +973,15 @@ module Generate (Target : Wa_target_sig.S) = struct
              to_link)
     in
     context.other_fields <-
-      W.Function { name; exported_name = None; typ; param_names = []; locals; body }
+      W.Function
+        { name
+        ; exported_name = None
+        ; typ
+        ; param_names = []
+        ; locals
+        ; body
+        ; end_loc = None
+        }
       :: context.other_fields;
     name
 
@@ -992,6 +995,7 @@ module Generate (Target : Wa_target_sig.S) = struct
       ; param_names
       ; locals
       ; body
+      ; end_loc = None
       }
 
   module Curry = Wa_curry.Make (Target)
