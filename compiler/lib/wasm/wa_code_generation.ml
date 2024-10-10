@@ -286,18 +286,18 @@ let blk l st =
   List.rev st.instrs, { st with instrs }
 
 let with_location loc instrs =
-  if Poly.equal loc No
-  then instrs
-  else
-    fun st ->
-    let (), st = instrs st in
-    ( ()
-    , { st with
-        instrs =
-          (match st.instrs with
-          | [] -> []
-          | Location (_, i) :: rem | i :: rem -> Location (loc, i) :: rem)
-      } )
+  match loc with
+  | None | Some { Parse_info.src = None | Some ""; _ } -> instrs
+  | Some loc ->
+      fun st ->
+        let (), st = instrs st in
+        ( ()
+        , { st with
+            instrs =
+              (match st.instrs with
+              | [] -> []
+              | Location (_, i) :: rem | i :: rem -> Location (loc, i) :: rem)
+          } )
 
 let cast ?(nullable = false) typ e =
   let* e = e in

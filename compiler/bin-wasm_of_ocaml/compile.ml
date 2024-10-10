@@ -158,7 +158,7 @@ let generate_prelude ~out_file =
       ~debug
       program
   in
-  Wa_generate.output ch ~context ~debug;
+  Wa_generate.output ch ~context;
   uinfo.provides
 
 let build_prelude z =
@@ -312,7 +312,7 @@ let run
       Wa_generate.f ~context ~unit_name ~live_vars:variable_uses ~in_cps ~debug program
     in
     if standalone then Wa_generate.add_start_function ~context toplevel_name;
-    Wa_generate.output ch ~context ~debug;
+    Wa_generate.output ch ~context;
     if times () then Format.eprintf "compilation: %a@." Timer.print t;
     generated_js
   in

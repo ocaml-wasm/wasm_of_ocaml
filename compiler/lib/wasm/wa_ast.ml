@@ -165,7 +165,7 @@ type expression =
   | Br_on_cast of int * ref_type * ref_type * expression
   | Br_on_cast_fail of int * ref_type * ref_type * expression
   | IfExpr of value_type * expression * expression * expression
-  | LocationExpr of Code.loc * expression
+  | LocationExpr of Parse_info.t * expression
 
 and instruction =
   | Drop of expression
@@ -192,7 +192,7 @@ and instruction =
   | StructSet of var * int * expression * expression
   | Return_call of var * expression list
   | Return_call_ref of var * expression * expression list
-  | Location of Code.loc * instruction
+  | Location of Parse_info.t * instruction
       (** Instruction with attached location information *)
 
 type import_desc =

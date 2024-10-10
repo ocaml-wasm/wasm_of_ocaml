@@ -137,45 +137,42 @@ and propagate_loc_lst loc l =
   has_loc l, List.rev l
 
 let propagate_loc loc i =
-  if Poly.equal loc Code.No
-  then i
-  else
-    match i with
-    | Drop e -> Drop (propagate_loc loc e)
-    | LocalSet (x, e) -> LocalSet (x, propagate_loc loc e)
-    | GlobalSet (x, e) -> GlobalSet (x, propagate_loc loc e)
-    | Loop _ | Block _ | Nop | Try _ | Rethrow _ -> i
-    | If (t, e, l1, l2) -> If (t, propagate_loc loc e, l1, l2)
-    | Br_table (e, l, label) -> Br_table (propagate_loc loc e, l, label)
-    | Br (l, e) -> Br (l, Option.map ~f:(propagate_loc loc) e)
-    | Br_if (l, e) -> Br_if (l, propagate_loc loc e)
-    | Return e -> Return (Option.map ~f:(propagate_loc loc) e)
-    | CallInstr (x, l) -> CallInstr (x, snd (propagate_loc_lst loc l))
-    | Push e -> Push (propagate_loc loc e)
-    | Throw (t, e) -> Throw (t, propagate_loc loc e)
-    | ArraySet (t, e1, e2, e3) ->
-        let e1' = propagate_loc loc e1 in
-        if has_loc e1'
+  match i with
+  | Drop e -> Drop (propagate_loc loc e)
+  | LocalSet (x, e) -> LocalSet (x, propagate_loc loc e)
+  | GlobalSet (x, e) -> GlobalSet (x, propagate_loc loc e)
+  | Loop _ | Block _ | Nop | Try _ | Rethrow _ -> i
+  | If (t, e, l1, l2) -> If (t, propagate_loc loc e, l1, l2)
+  | Br_table (e, l, label) -> Br_table (propagate_loc loc e, l, label)
+  | Br (l, e) -> Br (l, Option.map ~f:(propagate_loc loc) e)
+  | Br_if (l, e) -> Br_if (l, propagate_loc loc e)
+  | Return e -> Return (Option.map ~f:(propagate_loc loc) e)
+  | CallInstr (x, l) -> CallInstr (x, snd (propagate_loc_lst loc l))
+  | Push e -> Push (propagate_loc loc e)
+  | Throw (t, e) -> Throw (t, propagate_loc loc e)
+  | ArraySet (t, e1, e2, e3) ->
+      let e1' = propagate_loc loc e1 in
+      if has_loc e1'
+      then
+        let e2' = propagate_loc loc e2 in
+        if has_loc e2'
         then
-          let e2' = propagate_loc loc e2 in
-          if has_loc e2'
-          then
-            let e3' = propagate_loc loc e3 in
-            ArraySet (t, e1', e2', e3')
-          else ArraySet (t, e1', e2', e3)
-        else ArraySet (t, e1', e2, e3)
-    | StructSet (t, i, e1, e2) ->
-        let e1' = propagate_loc loc e1 in
-        if has_loc e1'
-        then
-          let e2' = propagate_loc loc e2 in
-          StructSet (t, i, e1', e2')
-        else StructSet (t, i, e1', e2)
-    | Return_call (x, l) -> Return_call (x, snd (propagate_loc_lst loc l))
-    | Return_call_ref (x, e, l) ->
-        let b, l' = propagate_loc_lst loc l in
-        Return_call_ref (x, (if b then propagate_loc loc e else e), l')
-    | Location _ -> assert false
+          let e3' = propagate_loc loc e3 in
+          ArraySet (t, e1', e2', e3')
+        else ArraySet (t, e1', e2', e3)
+      else ArraySet (t, e1', e2, e3)
+  | StructSet (t, i, e1, e2) ->
+      let e1' = propagate_loc loc e1 in
+      if has_loc e1'
+      then
+        let e2' = propagate_loc loc e2 in
+        StructSet (t, i, e1', e2')
+      else StructSet (t, i, e1', e2)
+  | Return_call (x, l) -> Return_call (x, snd (propagate_loc_lst loc l))
+  | Return_call_ref (x, e, l) ->
+      let b, l' = propagate_loc_lst loc l in
+      Return_call_ref (x, (if b then propagate_loc loc e else e), l')
+  | Location _ -> assert false
 
 let assign_names ?(reversed = true) f names =
   let used = ref StringSet.empty in
@@ -438,10 +435,7 @@ let select i32 i64 f32 f64 op =
   | F32 x -> f32 "32" x
   | F64 x -> f64 "64" x
 
-type ctx =
-  { mutable function_refs : Code.Var.Set.t
-  ; debug : Parse_bytecode.Debug.t
-  }
+type ctx = { mutable function_refs : Code.Var.Set.t }
 
 let reference_function ctx f = ctx.function_refs <- Code.Var.Set.add f ctx.function_refs
 
@@ -457,11 +451,10 @@ let float32 _ f =
   | FP_normal | FP_subnormal | FP_zero | FP_nan -> Printf.sprintf "%h" f
   | FP_infinite -> if Float.(f > 0.) then "inf" else "-inf"
 
-let location ctx loc =
-  let loc = Parse_bytecode.Debug.find_loc ctx.debug ~force:Not_alloc loc in
+let location (loc : Parse_info.t) =
   match loc with
-  | None | Some { src = None | Some ""; _ } -> Comment "@"
-  | Some { src = Some src; col; line; _ } ->
+  | { src = None; _ } -> assert false
+  | { src = Some src; col; line; _ } ->
       let loc = Format.sprintf "%s:%d:%d" src line col in
       Comment ("@ " ^ loc)
 
@@ -597,7 +590,7 @@ let expression_or_instructions ctx st in_function =
             @ [ List (Atom "then" :: expression ift) ]
             @ [ List (Atom "else" :: expression iff) ])
         ]
-    | LocationExpr (loc, e) -> location ctx loc :: expression e
+    | LocationExpr (loc, e) -> location loc :: expression e
   and instruction prev_loc i =
     match i with
     | Drop e -> [ List (Atom "drop" :: expression e) ]
@@ -690,7 +683,12 @@ let expression_or_instructions ctx st in_function =
             :: List.concat (List.map ~f:expression (l @ [ e ])))
         ]
     | Location (loc, i) ->
-        location ctx loc :: instruction Code.No (propagate_loc prev_loc i)
+        location loc
+        :: instruction
+             None
+             (match prev_loc with
+             | Some prev_loc -> propagate_loc prev_loc i
+             | None -> i)
   and instructions l =
     List.concat
       (List.rev
@@ -699,9 +697,9 @@ let expression_or_instructions ctx st in_function =
                ~f:(fun (acc, prev_loc) i ->
                  ( instruction prev_loc i :: acc
                  , match i with
-                   | Location (loc, _) -> loc
+                   | Location (loc, _) -> Some loc
                    | _ -> prev_loc ))
-               ~init:([], Code.No)
+               ~init:([], None)
                l)))
   in
   expression, instructions
@@ -803,9 +801,9 @@ let field ctx st f =
   | Type [ t ] -> [ type_field st t ]
   | Type l -> [ List (Atom "rec" :: List.map ~f:(type_field st) l) ]
 
-let f ~debug ch fields =
+let f ch fields =
   let st = build_name_tables fields in
-  let ctx = { function_refs = Code.Var.Set.empty; debug } in
+  let ctx = { function_refs = Code.Var.Set.empty } in
   let other_fields = List.concat (List.map ~f:(fun f -> field ctx st f) fields) in
   let funct_decl =
     let functions = Code.Var.Set.elements ctx.function_refs in
