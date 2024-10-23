@@ -183,6 +183,7 @@ jobs:
         run: |
           opam exec -- ocamlfind ocamlopt -package str,unix,opam-format -linkpkg -o ci_setup.exe wasm_of_ocaml/tools/ci_setup.ml
           ./ci_setup.exe
+        shell: bash
 
       - name: Update test dependencies
         run: opam install num cohttp-lwt-unix ppx_expect cstruct
