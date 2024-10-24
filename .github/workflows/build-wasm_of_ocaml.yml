@@ -181,7 +181,7 @@ jobs:
 
       - name: Checkout Jane Street packages
         run: |
-          opam exec -- ocamlfind ocamlopt -package str,unix,opam-format -linkpkg -o ci_setup.exe wasm_of_ocaml/tools/ci_setup.ml && ls && ./ci_setup.exe
+          opam exec -- ocamlfind ocamlopt -package str,unix,opam-format -linkpkg -o ci_setup.exe wasm_of_ocaml/tools/ci_setup.ml && ls && ./ci_setup
         shell: bash
 
       - name: Update test dependencies
