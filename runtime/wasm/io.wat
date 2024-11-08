@@ -245,10 +245,7 @@
 
    (func (export "caml_ml_out_channels_list")
       (param (ref eq)) (result (ref eq))
-      (ref.i31 (i32.const 0))) (;ZZZ;)
-(;
       (return_call $caml_list_of_js_array (call $wrap (call $channel_list))))
-;)
 
    (func (export "caml_ml_open_descriptor_in")
       (param $fd (ref eq)) (result (ref eq))
