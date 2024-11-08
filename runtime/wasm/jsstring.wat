@@ -44,7 +44,9 @@
 
    (global $builtins_available (mut i32) (i32.const 0))
 
+(;ZZZ
    (start $init)
+;)
 
    (func $init
       ;; Our dummy implementation of string conversion always returns

@@ -226,6 +226,7 @@
                               (array.new_data $string $do_at_exit
                                  (i32.const 0) (i32.const 21))))
                         (ref.i31 (i32.const 0)))))
+(;ZZZ
                (call $write (i32.const 2)
                   (call $unwrap
                      (call $caml_jsstring_of_string
@@ -235,6 +236,8 @@
                            (call $caml_string_concat
                               (call $caml_format_exception (local.get $exn))
                               (array.new_fixed $string 1
-                                 (i32.const 10)))))))) ;; `\n`
+                                 (i32.const 10)))))))
+;)
+) ;; `\n`
                (call $exit (i32.const 2)))))
 )

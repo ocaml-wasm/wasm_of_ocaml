@@ -624,6 +624,8 @@
    (data $toString "toString")
 
    (func (export "caml_wrap_exception") (param externref) (result (ref eq))
+(unreachable))
+(;
       (local $exn anyref)
       (local.set $exn (any.convert_extern (local.get 0)))
       ;; ZZZ special case for stack overflows?
@@ -644,7 +646,7 @@
                         (array.new_data $string $toString
                            (i32.const 0) (i32.const 8))))
                   (any.convert_extern (call $new_array (i32.const 0))))))))
-
+;)
    (func (export "caml_js_error_option_of_exception")
       (param (ref eq)) (result (ref eq))
       (local $exn (ref $block))

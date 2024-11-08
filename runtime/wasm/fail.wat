@@ -18,7 +18,7 @@
 (module
    (import "stdlib" "caml_global_data"
       (global $caml_global_data (mut (ref $block))))
-   (import "bindings" "jstag" (tag $javascript_exception (param externref)))
+   (tag $javascript_exception (param externref))
 
    (type $block (array (mut (ref eq))))
    (type $string (array (mut i8)))
