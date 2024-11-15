@@ -26,8 +26,8 @@ let subst_cont s (pc, arg) = pc, List.map arg ~f:(fun x -> s x)
 let expr s e =
   match e with
   | Constant _ -> e
-  | Apply { f; args; exact } ->
-      Apply { f = s f; args = List.map args ~f:(fun x -> s x); exact }
+  | Apply { f; args; kind } ->
+      Apply { f = s f; args = List.map args ~f:(fun x -> s x); kind }
   | Block (n, a, k, mut) -> Block (n, Array.map a ~f:(fun x -> s x), k, mut)
   | Field (x, n, typ) -> Field (s x, n, typ)
   | Closure (l, pc) -> Closure (l, subst_cont s pc)

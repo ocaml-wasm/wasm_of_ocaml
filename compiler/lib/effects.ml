@@ -304,12 +304,15 @@ let allocate_closure ~st ~params ~body ~branch =
   let name = Var.fresh () in
   [ Let (name, Closure (params, (pc, []))) ], name
 
-let tail_call ~st ?(instrs = []) ~exact ~in_cps ~check ~f args =
-  assert (exact || check);
+let tail_call ~st ?(instrs = []) ~kind ~in_cps ~check ~f args =
+  assert (
+    match kind with
+    | Generic -> check
+    | Exact | Known _ -> true);
   let ret = Var.fresh () in
   if check then st.trampolined_calls := Var.Set.add ret !(st.trampolined_calls);
   if in_cps then st.in_cps := Var.Set.add ret !(st.in_cps);
-  instrs @ [ Let (ret, Apply { f; args; exact }) ], Return ret
+  instrs @ [ Let (ret, Apply { f; args; kind }) ], Return ret
 
 let cps_branch ~st ~src (pc, args) =
   match Addr.Set.mem pc st.blocks_to_transform with
@@ -327,14 +330,8 @@ let cps_branch ~st ~src (pc, args) =
       (* We check the stack depth only for backward edges (so, at
          least once per loop iteration) *)
       let check = Hashtbl.find st.block_order src >= Hashtbl.find st.block_order pc in
-      tail_call
-        ~st
-        ~instrs
-        ~exact:true
-        ~in_cps:false
-        ~check
-        ~f:(closure_of_pc ~st pc)
-        args
+      let f = closure_of_pc ~st pc in
+      tail_call ~st ~instrs ~kind:(Known f) ~in_cps:false ~check ~f args
 
 let cps_jump_cont ~st ~src ((pc, _) as cont) =
   match Addr.Set.mem pc st.blocks_to_transform with
@@ -396,7 +393,7 @@ let cps_last ~st ~alloc_jump_closures pc (last : last) ~k : instr list * last =
       (* Is the number of successive 'returns' is unbounded is CPS, it
          means that we have an unbounded of calls in direct style
          (even with tail call optimization) *)
-      tail_call ~st ~exact:true ~in_cps:false ~check:false ~f:k [ x ]
+      tail_call ~st ~kind:Exact ~in_cps:false ~check:false ~f:k [ x ]
   | Raise (x, rmode) -> (
       assert (List.is_empty alloc_jump_closures);
       match Hashtbl.find_opt st.matching_exn_handler pc with
@@ -431,7 +428,7 @@ let cps_last ~st ~alloc_jump_closures pc (last : last) ~k : instr list * last =
           tail_call
             ~st
             ~instrs:(Let (exn_handler, Prim (Extern "caml_pop_trap", [])) :: instrs)
-            ~exact:true
+            ~kind:Exact
             ~in_cps:false
             ~check:false
             ~f:exn_handler
@@ -481,6 +478,14 @@ let cps_last ~st ~alloc_jump_closures pc (last : last) ~k : instr list * last =
             @ (Let (exn_handler, Prim (Extern "caml_pop_trap", [])) :: body)
           , branch ))
 
+let refine_kind k k' =
+  match k, k' with
+  | Known _, _ -> k
+  | _, Known _ -> k'
+  | Exact, _ -> k
+  | _, Exact -> k'
+  | Generic, Generic -> k
+
 let cps_instr ~st (instr : instr) : instr =
   match instr with
   | Let (x, Closure (params, (pc, _))) when Var.Set.mem x st.cps_needed ->
@@ -498,11 +503,15 @@ let cps_instr ~st (instr : instr) : instr =
                 (Extern "caml_alloc_dummy_function", [ size; Pc (Int (Targetint.succ a)) ])
             )
       | _ -> assert false)
-  | Let (x, Apply { f; args; _ }) when not (Var.Set.mem x st.cps_needed) ->
+  | Let (x, Apply { f; args; kind }) when not (Var.Set.mem x st.cps_needed) ->
       (* At the moment, we turn into CPS any function not called with
          the right number of parameter *)
-      assert (Global_flow.exact_call st.flow_info f (List.length args));
-      Let (x, Apply { f; args; exact = true })
+      let kind' = Global_flow.apply_kind st.flow_info f (List.length args) in
+      assert (
+        match kind' with
+        | Generic -> false
+        | Exact | Known _ -> true);
+      Let (x, Apply { f; args; kind = refine_kind kind kind' })
   | Let (_, (Apply _ | Prim (Extern ("%resume" | "%perform" | "%reperform"), _))) ->
       assert false
   | _ -> instr
@@ -552,13 +561,13 @@ let cps_block ~st ~k pc block =
           [ Let (x, e) ], Return x)
     in
     match e with
-    | Apply { f; args; exact } when Var.Set.mem x st.cps_needed ->
+    | Apply { f; args; kind } when Var.Set.mem x st.cps_needed ->
         Some
           (fun ~k ->
-            let exact =
-              exact || Global_flow.exact_call st.flow_info f (List.length args)
+            let kind =
+              refine_kind kind (Global_flow.apply_kind st.flow_info f (List.length args))
             in
-            tail_call ~st ~exact ~in_cps:true ~check:true ~f (args @ [ k ]))
+            tail_call ~st ~kind ~in_cps:true ~check:true ~f (args @ [ k ]))
     | Prim (Extern "%resume", [ Pv stack; Pv f; Pv arg ]) ->
         Some
           (fun ~k ->
@@ -566,7 +575,7 @@ let cps_block ~st ~k pc block =
             tail_call
               ~st
               ~instrs:[ Let (k', Prim (Extern "caml_resume_stack", [ Pv stack; Pv k ])) ]
-              ~exact:(Global_flow.exact_call st.flow_info f 1)
+              ~kind:(Global_flow.apply_kind st.flow_info f 1)
               ~in_cps:true
               ~check:true
               ~f

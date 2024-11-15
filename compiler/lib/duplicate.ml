@@ -24,8 +24,10 @@ let subst_cont m s (pc, arg) = Addr.Map.find pc m, List.map arg ~f:(fun x -> s x
 let expr s e =
   match e with
   | Constant _ -> e
-  | Apply { f; args; exact } ->
-      Apply { f = s f; args = List.map args ~f:(fun x -> s x); exact }
+  | Apply { f; args; kind = Known g } ->
+      Apply { f = s f; args = List.map args ~f:(fun x -> s x); kind = Known (s g) }
+  | Apply { f; args; kind = (Generic | Exact) as kind } ->
+      Apply { f = s f; args = List.map args ~f:(fun x -> s x); kind }
   | Block (n, a, k, mut) -> Block (n, Array.map a ~f:(fun x -> s x), k, mut)
   | Field (x, n, field_type) -> Field (s x, n, field_type)
   | Closure _ -> failwith "Inlining/Duplicating closure is currenly not supported"

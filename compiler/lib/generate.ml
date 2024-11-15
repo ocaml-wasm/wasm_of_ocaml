@@ -149,8 +149,13 @@ module Share = struct
           List.fold_left block.body ~init:share ~f:(fun share i ->
               match i with
               | Let (_, Constant c) -> get_constant c share
-              | Let (x, Apply { args; exact; _ }) ->
+              | Let (x, Apply { args; kind; _ }) ->
                   let trampolined = Var.Set.mem x trampolined_calls in
+                  let exact =
+                    match kind with
+                    | Generic -> false
+                    | Exact | Known _ -> true
+                  in
                   if (not exact) || trampolined
                   then add_apply { arity = List.length args; exact; trampolined } share
                   else share
@@ -1181,7 +1186,12 @@ let remove_unused_tail_args ctx exact trampolined args =
 let rec translate_expr ctx loc x e level : (_ * J.statement_list) Expr_builder.t =
   let open Expr_builder in
   match e with
-  | Apply { f; args; exact } ->
+  | Apply { f; args; kind } ->
+      let exact =
+        match kind with
+        | Generic -> false
+        | Exact | Known _ -> true
+      in
       let trampolined = Var.Set.mem x ctx.Ctx.trampolined_calls in
       let args = remove_unused_tail_args ctx exact trampolined args in
       let* () = info ~need_loc:true mutator_p in
