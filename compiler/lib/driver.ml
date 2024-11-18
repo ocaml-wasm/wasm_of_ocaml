@@ -112,7 +112,12 @@ let effects ~deadcode_sentinal p =
         Deadcode.f p
       else p, live_vars
     in
-    p |> Effects.f ~flow_info:info ~live_vars +> map_fst Lambda_lifting.f)
+    p
+    |> Effects.f ~flow_info:info ~live_vars
+    |> map_fst
+         (match Config.target () with
+         | `JavaScript -> Lambda_lifting.f
+         | `Wasm -> Fun.id))
   else
     ( p
     , (Code.Var.Set.empty : Effects.trampolined_calls)
