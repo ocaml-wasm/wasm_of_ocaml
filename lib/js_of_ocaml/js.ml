@@ -246,8 +246,6 @@ module Js = struct
 
   type string_array
 
-  type number_t = float
-
   class type number = object
     method toString : js_string t meth
 
@@ -271,7 +269,7 @@ module Js = struct
 
     method charAt : int -> js_string t meth
 
-    method charCodeAt : int -> number_t meth
+    method charCodeAt : int -> number t meth
 
     (* This may return NaN... *)
     method concat : js_string t -> js_string t meth
@@ -291,7 +289,7 @@ module Js = struct
 
     method lastIndexOf_from : js_string t -> int -> int meth
 
-    method localeCompare : js_string t -> number_t meth
+    method localeCompare : js_string t -> number t meth
 
     method _match : regExp t -> match_result_handle t opt meth
 
@@ -353,6 +351,8 @@ module Js = struct
   end
 
   and normalization = js_string
+
+  type number_t = number t
 
   (* string is used by ppx_js, it needs to come before any use of the
      new syntax in this file *)
@@ -827,9 +827,12 @@ let export_js (field : js_string t) x =
   Unsafe.set
     (Unsafe.pure_js_expr "jsoo_exports")
     field
-    (if String.equal (Js.to_string (typeof (Obj.magic x))) "function"
-        (* function with arity/length equal to zero are already wrapped *)
-        && Unsafe.get (Obj.magic x) (Js.string "length") > 0
+    (if match Sys.backend_type with
+        | Other "wasm_of_ocaml" -> Obj.tag (Obj.repr x) = Obj.closure_tag
+        | _ ->
+            String.equal (Js.to_string (typeof (Obj.magic x))) "function"
+            (* function with arity/length equal to zero are already wrapped *)
+            && Unsafe.get (Obj.magic x) (Js.string "length") > 0
      then Obj.magic (wrap_callback (Obj.magic x))
      else x)
 
