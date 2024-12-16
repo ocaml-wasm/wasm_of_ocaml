@@ -130,7 +130,27 @@
     return (((h + (h << 2)) | 0) + (0xe6546b64 | 0)) | 0;
   }
   function hash_string(h, s) {
-    for (var i = 0; i < s.length; i++) h = hash_int(h, s.charCodeAt(i));
+    const len = s.length;
+    for (var i = 0; i + 4 <= len; i += 4) {
+      var w =
+        s.charCodeAt(i) |
+        (s.charCodeAt(i + 1) << 8) |
+        (s.charCodeAt(i + 2) << 16) |
+        (s.charCodeAt(i + 3) << 24);
+      h = hash_int(h, w);
+    }
+    w = 0;
+    switch (len & 3) {
+      case 3:
+        // biome-ignore lint/suspicious/noFallthroughSwitchClause:
+        w = s.charCodeAt(i + 2) << 16;
+      case 2:
+        // biome-ignore lint/suspicious/noFallthroughSwitchClause:
+        w |= s.charCodeAt(i + 1) << 8;
+      case 1:
+        w |= s.charCodeAt(i);
+        h = hash_int(h, w);
+    }
     return h ^ s.length;
   }
 

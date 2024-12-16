@@ -38,6 +38,8 @@
    (import "string" "caml_string_concat"
       (func $caml_string_concat
          (param (ref eq)) (param (ref eq)) (result (ref eq))))
+   (import "string" "caml_string_of_bytes"
+      (func $caml_string_of_bytes (param (ref eq)) (result (ref eq))))
    (import "printexc" "caml_format_exception"
       (func $caml_format_exception (param (ref eq)) (result (ref eq))))
    (import "sys" "ocaml_exit" (tag $ocaml_exit (param i32)))
@@ -46,7 +48,8 @@
    (import "bindings" "throw" (func $throw (param externref)))
 
    (type $block (array (mut (ref eq))))
-   (type $string (array (mut i8)))
+   (type $string (struct (field anyref)))
+   (type $bytes (array (mut i8)))
 
    (type $assoc
       (struct
@@ -79,7 +82,9 @@
             (br $loop))))
 
    (func $caml_named_value (export "caml_named_value")
-      (param $s (ref $string)) (result (ref null eq))
+      (param $v (ref $bytes)) (result (ref null eq))
+      (local $s (ref eq))
+      (local.set $s (call $caml_string_of_bytes (local.get $v)))
       (block $not_found
          (return
             (struct.get $assoc 1
@@ -212,9 +217,9 @@
                      (call $caml_callback_2
                         (br_on_null $not_registered
                            (call $caml_named_value
-                               (array.new_data $string
-                                  $handle_uncaught_exception
-                                  (i32.const 0) (i32.const 34))))
+                              (array.new_data $bytes
+                                 $handle_uncaught_exception
+                                 (i32.const 0) (i32.const 34))))
                         (local.get $exn)
                         (ref.i31 (i32.const 0))))
                   (br $exit))
@@ -223,18 +228,20 @@
                      (call $caml_callback_1
                         (br_on_null $null
                            (call $caml_named_value
-                              (array.new_data $string $do_at_exit
+                              (array.new_data $bytes $do_at_exit
                                  (i32.const 0) (i32.const 21))))
                         (ref.i31 (i32.const 0)))))
                (call $write (i32.const 2)
                   (call $unwrap
                      (call $caml_jsstring_of_string
                         (call $caml_string_concat
-                           (array.new_data $string $fatal_error
-                              (i32.const 0) (i32.const 23))
+                           (call $caml_string_of_bytes
+                              (array.new_data $bytes $fatal_error
+                                 (i32.const 0) (i32.const 23)))
                            (call $caml_string_concat
                               (call $caml_format_exception (local.get $exn))
-                              (array.new_fixed $string 1
-                                 (i32.const 10)))))))) ;; `\n`
-               (call $exit (i32.const 2)))))
+                              (call $caml_string_of_bytes
+                                 (array.new_fixed $bytes 1
+                                    (i32.const 10))))))))) ;; `\n`
+            (call $exit (i32.const 2)))))
 )

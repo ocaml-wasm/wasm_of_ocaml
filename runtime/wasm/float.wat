@@ -32,6 +32,10 @@
       (func $jsstring_of_string (param (ref $string)) (result anyref)))
    (import "jsstring" "string_of_jsstring"
       (func $string_of_jsstring (param anyref) (result (ref $string))))
+   (import "string" "caml_bytes_of_string"
+      (func $caml_bytes_of_string (param (ref eq)) (result (ref eq))))
+   (import "string" "caml_string_of_bytes"
+      (func $caml_string_of_bytes (param (ref eq)) (result (ref eq))))
 
    (type $float (struct (field f64)))
    (type $string (array (mut i8)))
@@ -193,7 +197,7 @@
                (then
                   (array.set $string (local.get $s) (i32.const 0)
                      (local.get $style))))))
-      (local.get $s))
+      (return_call $caml_string_of_bytes (local.get $s)))
 
    (data $format_error "format_float: bad format")
 
@@ -269,7 +273,8 @@
       (local.set $f (struct.get $float 0 (ref.cast (ref $float) (local.get 1))))
       (local.set $b (i64.reinterpret_f64 (local.get $f)))
       (local.set $format
-         (call $parse_format (ref.cast (ref $string) (local.get 0))))
+         (call $parse_format
+            (ref.cast (ref $string) (call $caml_bytes_of_string (local.get 0)))))
       (local.set $sign_style (tuple.extract 4 0 (local.get $format)))
       (local.set $precision (tuple.extract 4 1 (local.get $format)))
       (local.set $conversion (tuple.extract 4 2 (local.get $format)))
@@ -338,7 +343,7 @@
                         (i32.sub (local.get $c) (i32.const 32)))))
                (local.set $i (i32.add (local.get $i) (i32.const 1)))
                (br_if $uppercase (i32.lt_u (local.get $i) (local.get $len))))))
-      (local.get $s))
+      (return_call $caml_string_of_bytes (local.get $s)))
 
    (data $float_of_string "float_of_string")
 
@@ -494,7 +499,8 @@
       (local $s' (ref $string))
       (local $negative i32) (local $c i32)
       (local $f f64)
-      (local.set $s (ref.cast (ref $string) (local.get 0)))
+      (local.set $s ;; ZZZ work directly on string?
+         (ref.cast (ref $string) (call $caml_bytes_of_string (local.get 0))))
       (local.set $len (array.len (local.get $s)))
       (loop $count
          (if (i32.lt_u (local.get $i) (local.get $len))

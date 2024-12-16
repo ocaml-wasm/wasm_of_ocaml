@@ -36,6 +36,8 @@
          (param $f funcref) (param $env eqref) (result anyref)))
    (import "bindings" "resume_fiber"
       (func $resume_fiber (param externref) (param (ref eq))))
+   (import "string" "caml_string_of_bytes"
+      (func $caml_string_of_bytes (param (ref eq)) (result (ref eq))))
 
    (type $block (array (mut (ref eq))))
    (type $string (array (mut i8)))
@@ -134,7 +136,7 @@
             (local.get $eff)))
       (call $caml_raise_constant
          (array.new_fixed $block 3 (ref.i31 (i32.const 248))
-            (local.get $effect_unhandled)
+            (call $caml_string_of_bytes (local.get $effect_unhandled))
             (call $caml_fresh_oo_id (ref.i31 (i32.const 0)))))
       (ref.i31 (i32.const 0)))
 

@@ -21,6 +21,10 @@
          (param (ref eq)) (param (ref $string)) (param i32) (param i32)
          (result i32)))
    (import "fail" "caml_raise_end_of_file" (func $caml_raise_end_of_file))
+   (import "string" "caml_bytes_of_string"
+      (func $caml_bytes_of_string (param (ref eq)) (result (ref eq))))
+   (import "string" "caml_string_of_bytes"
+      (func $caml_string_of_bytes (param (ref eq)) (result (ref eq))))
 
    (type $string (array (mut i8)))
    (type $int_array (array (mut i32)))
@@ -32,7 +36,7 @@
          (field (ref $int_array)) ;; buffer
          (field (ref $string))))  ;; intermediate buffer
 
-   (func (export "caml_md5_string") (export "caml_md5_bytes")
+   (func $caml_md5_bytes (export "caml_md5_bytes")
       (param (ref eq)) (param (ref eq)) (param (ref eq)) (result (ref eq))
       (local $ctx (ref $context))
       (local.set $ctx (call $MD5Init))
@@ -40,6 +44,12 @@
          (i31.get_u (ref.cast (ref i31) (local.get 1)))
          (i31.get_u (ref.cast (ref i31) (local.get 2))))
       (return_call $MD5Final (local.get $ctx)))
+
+   (func (export "caml_md5_string")
+      (param (ref eq)) (param (ref eq)) (param (ref eq)) (result (ref eq))
+      (return_call $caml_md5_bytes
+         (call $caml_bytes_of_string (local.get 0))
+         (local.get 1) (local.get 2)))
 
    (func (export "caml_md5_chan")
       (param $ch (ref eq)) (param $vlen (ref eq)) (result (ref eq))
@@ -484,7 +494,7 @@
                (local.get $input) (local.get $input_pos)
                (local.get $input_len)))))
 
-   (func $MD5Final (param $ctx (ref $context)) (result (ref $string))
+   (func $MD5Final (param $ctx (ref $context)) (result (ref eq))
       (local $in_buf i32) (local $i i32) (local $len i64)
       (local $w (ref $int_array))
       (local $buffer (ref $string)) (local $res (ref $string))
@@ -547,5 +557,5 @@
                (i32.shl (local.get $i) (i32.const 3))))
          (local.set $i (i32.add (local.get $i) (i32.const 1)))
          (br_if $loop (i32.lt_u (local.get $i) (i32.const 16))))
-      (local.get $res))
+      (return_call $caml_string_of_bytes (local.get $res)))
 )

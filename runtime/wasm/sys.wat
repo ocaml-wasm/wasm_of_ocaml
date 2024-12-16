@@ -27,6 +27,8 @@
       (func $caml_jsstring_of_string (param (ref eq)) (result (ref eq))))
    (import "jslib" "caml_string_of_jsstring"
       (func $caml_string_of_jsstring (param (ref eq)) (result (ref eq))))
+   (import "jslib" "caml_bytes_of_jsstring"
+      (func $caml_bytes_of_jsstring (param (ref eq)) (result (ref eq))))
    (import "jslib" "caml_js_to_string_array"
       (func $caml_js_to_string_array (param $a (ref extern)) (result (ref eq))))
    (import "jslib" "caml_js_meth_call"
@@ -47,6 +49,8 @@
       (tag $javascript_exception (param externref)))
    (import "jsstring" "jsstring_test"
       (func $jsstring_test (param anyref) (result i32)))
+   (import "string" "caml_string_of_bytes"
+      (func $caml_string_of_bytes (param (ref eq)) (result (ref eq))))
 
    (type $block (array (mut (ref eq))))
    (type $string (array (mut i8)))
@@ -155,7 +159,8 @@
       ;; ZZZ
       ;; (call $log_js (string.const "caml_sys_get_config"))
       (array.new_fixed $block 4 (ref.i31 (i32.const 0))
-         (array.new_data $string $Unix (i32.const 0) (i32.const 4))
+         (call $caml_string_of_bytes
+            (array.new_data $string $Unix (i32.const 0) (i32.const 4)))
          (ref.i31 (i32.const 32))
          (ref.i31 (i32.const 0))))
 
@@ -190,7 +195,7 @@
    (func $caml_handle_sys_error (export "caml_handle_sys_error")
       (param $exn externref)
       (call $caml_raise_sys_error
-         (call $caml_string_of_jsstring
+         (call $caml_bytes_of_jsstring
             (call $caml_js_meth_call
                (call $wrap (any.convert_extern (local.get $exn)))
                (array.new_data $string $toString (i32.const 0) (i32.const 8))

@@ -19,6 +19,10 @@
    (import "fail" "caml_failwith" (func $caml_failwith (param (ref eq))))
    (import "fail" "caml_invalid_argument"
       (func $caml_invalid_argument (param (ref eq))))
+   (import "string" "caml_bytes_of_string"
+      (func $caml_bytes_of_string (param (ref eq)) (result (ref eq))))
+   (import "string" "caml_string_of_bytes"
+      (func $caml_string_of_bytes (param (ref eq)) (result (ref eq))))
 
    (type $string (array (mut i8)))
 
@@ -101,7 +105,8 @@
       (local $signedness i32) (local $sign i32) (local $base i32)
       (local $res i32) (local $threshold i32)
       (local $t (tuple i32 i32 i32 i32))
-      (local.set $s (ref.cast (ref $string) (local.get $v)))
+      (local.set $s
+         (ref.cast (ref $string) (call $caml_bytes_of_string (local.get $v))))
       (local.set $len (array.len (local.get $s)))
       (if (i32.eqz (local.get $len))
         (then (call $caml_failwith (local.get $errmsg))))
@@ -220,7 +225,7 @@
          (then
             (array.set $string (local.get $s) (i32.const 0)
                (i32.const 45)))) ;; '-'
-      (local.get $s))
+      (return_call $caml_string_of_bytes (local.get $s)))
 
    (data $format_error "format_int: bad format")
 
@@ -303,7 +308,9 @@
       (local $i i32)
       (local $n i32)
       (local $chars (ref $chars))
-      (local.set $s (ref.cast (ref $string) (local.get 0)))
+      ;; ZZZ Avoid conversion?
+      (local.set $s
+         (ref.cast (ref $string) (call $caml_bytes_of_string (local.get 0))))
       (if (i32.eq (array.len (local.get $s)) (i32.const 2))
          (then
             (if (i32.eq (array.get_u $string (local.get $s) (i32.const 1))
@@ -383,5 +390,5 @@
                         (array.set $string (local.get $s) (i32.const 1)
                            (select (i32.const 88) (i32.const 120) ;; 'X' 'x'
                               (local.get $uppercase)))))))))
-      (local.get $s))
+      (return_call $caml_string_of_bytes (local.get $s)))
 )

@@ -87,6 +87,8 @@
       (func $caml_is_last_arg (param (ref eq)) (result i32)))
    (import "jsstring" "jsstring_of_string"
       (func $jsstring_of_string (param (ref $string)) (result anyref)))
+   (import "jsstring" "jsbytes_of_bytes"
+      (func $jsbytes_of_bytes (param (ref $string)) (result anyref)))
    (import "jsstring" "string_of_jsstring"
       (func $string_of_jsstring (param anyref) (result (ref $string))))
    (import "int32" "caml_copy_int32"
@@ -97,6 +99,10 @@
       (func $caml_copy_nativeint (param i32) (result (ref eq))))
    (import "int32" "Nativeint_val"
       (func $Nativeint_val (param (ref eq)) (result i32)))
+   (import "js" "caml_utf16_of_utf8"
+      (func $utf16_of_utf8 (param anyref) (result anyref)))
+   (import "js" "caml_utf8_of_utf16"
+      (func $utf8_of_utf16 (param anyref) (result anyref)))
 
    (type $block (array (mut (ref eq))))
    (type $float (struct (field f64)))
@@ -186,7 +192,7 @@
       (result (ref eq))
       (if (ref.test (ref $string) (local.get $f))
          (then
-            (local.set $f (call $caml_jsbytes_of_string (local.get $f)))))
+            (local.set $f (call $caml_jsbytes_of_bytes (local.get $f)))))
       (return_call $wrap
          (call $meth_call (call $unwrap (local.get $o))
             (call $unwrap (local.get $f))
@@ -196,7 +202,7 @@
       (param (ref eq)) (param (ref eq)) (result (ref eq))
       (if (ref.test (ref $string) (local.get 1))
          (then
-            (local.set 1 (call $caml_jsbytes_of_string (local.get 1)))))
+            (local.set 1 (call $caml_jsbytes_of_bytes (local.get 1)))))
       (return_call $wrap
          (call $get
             (ref.as_non_null (extern.convert_any (call $unwrap (local.get 0))))
@@ -206,7 +212,7 @@
       (param (ref eq)) (param (ref eq)) (param (ref eq)) (result (ref eq))
       (if (ref.test (ref $string) (local.get 1))
          (then
-            (local.set 1 (call $caml_jsbytes_of_string (local.get 1)))))
+            (local.set 1 (call $caml_jsbytes_of_bytes (local.get 1)))))
       (call $set (call $unwrap (local.get 0)) (call $unwrap (local.get 1))
          (call $unwrap (local.get 2)))
       (ref.i31 (i32.const 0)))
@@ -215,7 +221,7 @@
       (param (ref eq)) (param (ref eq)) (result (ref eq))
       (if (ref.test (ref $string) (local.get 1))
          (then
-            (local.set 1 (call $caml_jsbytes_of_string (local.get 1)))))
+            (local.set 1 (call $caml_jsbytes_of_bytes (local.get 1)))))
       (call $delete (call $unwrap (local.get 0)) (call $unwrap (local.get 1)))
       (ref.i31 (i32.const 0)))
 
@@ -455,113 +461,37 @@
    (export "caml_js_from_string" (func $caml_jsstring_of_string))
    (func $caml_jsstring_of_string (export "caml_jsstring_of_string")
       (param (ref eq)) (result (ref eq))
-      (local $s (ref $string))
-      (local.set $s (ref.cast (ref $string) (local.get 0)))
-      (return (struct.new $js (call $jsstring_of_string (local.get $s)))))
+      ;; ZZZ convert non-ASCII strings
+;; (local.get 0)
+      (call $wrap (call $utf16_of_utf8 (call $unwrap (local.get 0))))
+)
 
    (func $caml_jsbytes_of_string (export "caml_jsbytes_of_string")
       (param (ref eq)) (result (ref eq))
+      (local.get 0))
+
+   (func $caml_jsbytes_of_bytes
+      (param (ref eq)) (result (ref eq))
       (local $s (ref $string))
-      (local $s' (ref $string))
-      (local $l i32) (local $i i32) (local $n i32) (local $c i32)
       (local.set $s (ref.cast (ref $string) (local.get 0)))
-      (local.set $l (array.len (local.get $s)))
-      (local.set $i (i32.const 0))
-      (local.set $n (i32.const 0))
-      (loop $count
-         (if (i32.lt_u (local.get $i) (local.get $l))
-            (then
-               (if (i32.ge_u (array.get_u $string (local.get $s) (local.get $i))
-                      (i32.const 128))
-                  (then (local.set $n (i32.add (local.get $n) (i32.const 1)))))
-               (local.set $i (i32.add (local.get $i) (i32.const 1)))
-               (br $count))))
-      (if (i32.eqz (local.get $n))
-         (then
-            (return
-               (struct.new $js
-                  (call $jsstring_of_string (local.get $s))))))
-      (local.set $s'
-         (array.new $string (i32.const 0)
-            (i32.add (local.get $i) (local.get $n))))
-      (local.set $i (i32.const 0))
-      (local.set $n (i32.const 0))
-      (loop $fill
-         (if (i32.lt_u (local.get $i) (local.get $l))
-            (then
-               (local.set $c (array.get_u $string (local.get $s) (local.get $i)))
-               (if (i32.lt_u (local.get $c) (i32.const 128))
-                  (then
-                     (array.set $string
-                        (local.get $s') (local.get $n) (local.get $c))
-                     (local.set $n (i32.add (local.get $n) (i32.const 1))))
-                  (else
-                     (array.set $string (local.get $s')
-                        (local.get $n)
-                        (i32.or (i32.shr_u (local.get $c) (i32.const 6))
-                           (i32.const 0xC0)))
-                     (array.set $string (local.get $s')
-                        (i32.add (local.get $n) (i32.const 1))
-                        (i32.or (i32.const 0x80)
-                           (i32.and (local.get $c) (i32.const 0x3F))))
-                     (local.set $n (i32.add (local.get $n) (i32.const 2)))))
-               (local.set $i (i32.add (local.get $i) (i32.const 1)))
-               (br $fill))))
-      (return (struct.new $js (call $jsstring_of_string (local.get $s')))))
+      (return (struct.new $js (call $jsbytes_of_bytes (local.get $s)))))
 
    (export "caml_js_to_string" (func $caml_string_of_jsstring))
    (func $caml_string_of_jsstring (export "caml_string_of_jsstring")
+      (param $s (ref eq)) (result (ref eq))
+      ;; ZZZ non-ascii characters
+      ;;(local.get 0))
+      (call $wrap (call $utf8_of_utf16 (call $unwrap (local.get 0))))
+)
+
+   (func (export "caml_bytes_of_jsstring")
       (param $s (ref eq)) (result (ref eq))
       (return_call $string_of_jsstring
          (struct.get $js 0 (ref.cast (ref $js) (local.get $s)))))
 
    (func (export "caml_string_of_jsbytes")
       (param $s (ref eq)) (result (ref eq))
-      (local $l i32) (local $i i32) (local $n i32) (local $c i32)
-      (local $s' (ref $string)) (local $s'' (ref $string))
-      (local.set $s'
-         (call $string_of_jsstring
-            (struct.get $js 0 (ref.cast (ref $js) (local.get $s)))))
-      (local.set $l (array.len (local.get $s')))
-      (local.set $i (i32.const 0))
-      (local.set $n (i32.const 0))
-      (loop $count
-         (if (i32.lt_u (local.get $i) (local.get $l))
-            (then
-               (if (i32.ge_u (array.get_u $string (local.get $s') (local.get $i))
-                      (i32.const 0xC0))
-                  (then (local.set $n (i32.add (local.get $n) (i32.const 1)))))
-               (local.set $i (i32.add (local.get $i) (i32.const 1)))
-               (br $count))))
-      (if (i32.eqz (local.get $n)) (then (return (local.get $s'))))
-      (local.set $s''
-         (array.new $string (i32.const 0)
-            (i32.sub (local.get $i) (local.get $n))))
-      (local.set $i (i32.const 0))
-      (local.set $n (i32.const 0))
-      (loop $fill
-         (if (i32.lt_u (local.get $i) (local.get $l))
-            (then
-               (local.set $c
-                  (array.get_u $string (local.get $s') (local.get $i)))
-               (if (i32.lt_u (local.get $c) (i32.const 0xC0))
-                  (then
-                     (array.set $string
-                        (local.get $s'') (local.get $n) (local.get $c))
-                     (local.set $i (i32.add (local.get $i) (i32.const 1))))
-                  (else
-                     (array.set $string (local.get $s'')
-                        (local.get $n)
-                        (i32.sub
-                           (i32.add
-                              (i32.shl (local.get $c) (i32.const 6))
-                              (array.get_u $string (local.get $s')
-                                 (i32.add (local.get $i) (i32.const 1))))
-                           (i32.const 0x3080)))
-                     (local.set $i (i32.add (local.get $i) (i32.const 2)))))
-               (local.set $n (i32.add (local.get $n) (i32.const 1)))
-               (br $fill))))
-      (local.get $s''))
+      (local.get 0))
 
    (func (export "caml_list_to_js_array")
       (param (ref eq)) (result (ref eq))
@@ -677,4 +607,8 @@
    (func (export "log_str") (param $s (ref $string))
       (call $log_js
          (call $unwrap (call $caml_jsstring_of_string (local.get $s)))))
+
+   (func (export "caml_jsoo_flags_use_js_string")
+      (param (ref eq)) (result (ref eq))
+      (ref.i31 (i32.const 1))) ;; ZZZ
 )

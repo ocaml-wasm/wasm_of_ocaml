@@ -19,6 +19,8 @@
    (import "stdlib" "caml_global_data"
       (global $caml_global_data (mut (ref $block))))
    (import "bindings" "jstag" (tag $javascript_exception (param externref)))
+   (import "string" "caml_string_of_bytes"
+      (func $caml_string_of_bytes (param (ref eq)) (result (ref eq))))
 
    (type $block (array (mut (ref eq))))
    (type $string (array (mut i8)))
@@ -48,7 +50,7 @@
        (return_call $caml_raise_with_arg
            (array.get $block (global.get $caml_global_data)
               (global.get $SYS_ERROR_EXN))
-           (local.get $msg)))
+           (call $caml_string_of_bytes (local.get $msg))))
 
    (global $FAILURE_EXN i32 (i32.const 2))
 
@@ -60,7 +62,7 @@
        (return_call $caml_raise_with_arg
            (array.get $block (global.get $caml_global_data)
               (global.get $FAILURE_EXN))
-           (local.get 0)))
+           (call $caml_string_of_bytes (local.get $arg))))
 
    (global $INVALID_EXN i32 (i32.const 3))
 
@@ -69,7 +71,7 @@
        (return_call $caml_raise_with_arg
            (array.get $block (global.get $caml_global_data)
               (global.get $INVALID_EXN))
-           (local.get 0)))
+           (call $caml_string_of_bytes (local.get 0))))
 
    (data $index_out_of_bounds "index out of bounds")
 

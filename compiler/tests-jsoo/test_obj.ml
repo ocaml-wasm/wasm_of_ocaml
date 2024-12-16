@@ -46,12 +46,7 @@ let%expect_test "is_int" =
 (* https://github.com/ocsigen/js_of_ocaml/pull/725 *)
 
 let%expect_test "dup" =
-  let magic = "abcd" in
-  let js_string_enabled =
-    match Sys.backend_type with
-    | Other "js_of_ocaml" -> Array.unsafe_get (Obj.magic magic) 0 == "b"
-    | _ -> false
-  in
+  let js_string_enabled = Jsoo_runtime.Sys.Config.use_js_string () in
   let s = "Hello" in
   let s' : string = Obj.obj (Obj.dup (Obj.repr s)) in
   print_bool (s = s');

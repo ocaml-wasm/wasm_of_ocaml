@@ -32,6 +32,10 @@
       (global $lowercase_hex_table (ref $chars)))
    (import "ints" "uppercase_hex_table"
       (global $uppercase_hex_table (ref $chars)))
+   (import "string" "caml_bytes_of_string"
+      (func $caml_bytes_of_string (param (ref eq)) (result (ref eq))))
+   (import "string" "caml_string_of_bytes"
+      (func $caml_string_of_bytes (param (ref eq)) (result (ref eq))))
 
    (type $string (array (mut i8)))
    (type $compare
@@ -194,7 +198,9 @@
       (local $s (ref $string))
       (local $i i32) (local $signedness i32) (local $sign i32) (local $base i32)
       (local $t (tuple i32 i32 i32 i32))
-      (local.set $s (ref.cast (ref $string) (local.get $v)))
+      ;;ZZZ ???
+      (local.set $s
+         (ref.cast (ref $string) (call $caml_bytes_of_string (local.get $v))))
       (local.set $t (call $parse_sign_and_base (local.get $s)))
       (local.set $i (tuple.extract 4 0 (local.get $t)))
       (local.set $signedness (tuple.extract 4 1 (local.get $t)))
@@ -236,7 +242,7 @@
          (then
             (array.set $string (local.get $s) (i32.const 0)
                (i32.const 45)))) ;; '-'
-      (local.get $s))
+      (return_call $caml_string_of_bytes (local.get $s)))
 
    (type $chars (array i8))
 
@@ -251,7 +257,8 @@
       (local $i i32)
       (local $n i64)
       (local $chars (ref $chars))
-      (local.set $s (ref.cast (ref $string) (local.get 0)))
+      (local.set $s
+         (ref.cast (ref $string) (call $caml_bytes_of_string (local.get 0))))
       (local.set $d (struct.get $int64 1 (ref.cast (ref $int64) (local.get 1))))
       (if (i32.eq (array.len (local.get $s)) (i32.const 2))
          (then
@@ -326,6 +333,6 @@
                         (array.set $string (local.get $s) (i32.const 1)
                            (select (i32.const 88) (i32.const 120) ;; 'X' 'x'
                               (local.get $uppercase)))))))))
-      (local.get $s))
+      (return_call $caml_string_of_bytes (local.get $s)))
 
 )
