@@ -150,9 +150,9 @@ jobs:
         if: matrix.os == 'windows-latest'
         run: opam install conf-mingw-w64-gcc-i686 conf-mingw-w64-g++-i686
 
-#      - name: Pin faked binaryen-bin package
-#        # It's faster to use a cached version
-#        run: opam install --fake binaryen-bin
+      - name: Pin faked binaryen-bin package
+        # It's faster to use a cached version
+        run: opam install --fake binaryen-bin
 
       - name: Checkout Jane Street opam repository
         uses: actions/checkout@v4
