@@ -77,6 +77,10 @@ jobs:
           cmake -G Ninja .
           ninja
 
+      - name: binaryen ls
+        shell: bash
+        run: ls binaryen/bin
+
       - name: Cache binaryen
         if: steps.cache-binaryen.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
