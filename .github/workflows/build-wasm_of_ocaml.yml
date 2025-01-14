@@ -154,6 +154,9 @@ jobs:
         # It's faster to use a cached version
         run: opam install --fake binaryen-bin
 
+      - name: test wasm-merge
+        run: opam exec -- wasm_merge.exe --version
+
       - name: Checkout Jane Street opam repository
         uses: actions/checkout@v4
         with:
