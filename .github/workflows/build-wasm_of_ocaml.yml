@@ -170,7 +170,7 @@ jobs:
 
       - name: Setup GCC (Windows)
         if: matrix.os == 'windows-latest'
-        run: opam install conf-mingw-w64-gcc-i686
+        run: opam install conf-mingw-w64-gcc-i686 conf-mingw-w64-g++-i686
 
       - name: Install opam file parser
         run: opam install opam-format ocamlfind dune graphics
