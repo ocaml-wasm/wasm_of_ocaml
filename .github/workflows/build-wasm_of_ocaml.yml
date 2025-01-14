@@ -85,6 +85,7 @@ jobs:
           key: ${{ runner.os }}-binaryen-version_118
 
       - name: Set binaryen's path
+        shell: bash
         run: |
           echo "$GITHUB_WORKSPACE/binaryen/bin" >> $GITHUB_PATH
 
