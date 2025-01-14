@@ -79,7 +79,9 @@ jobs:
 
       - name: binaryen ls
         shell: bash
-        run: ls binaryen/bin
+        run: |
+          ls binaryen/bin
+          ls binaryen/lib
 
       - name: Cache binaryen
         if: steps.cache-binaryen.outputs.cache-hit != 'true'
