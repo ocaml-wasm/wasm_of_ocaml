@@ -189,7 +189,7 @@ jobs:
 
       - name: Install wasm_of_ocaml
         working-directory: ./wasm_of_ocaml
-        run: opam install `basename -s .opam *.opam`
+        run: opam install .
 
       - name: Run tests
         working-directory: ./wasm_of_ocaml
