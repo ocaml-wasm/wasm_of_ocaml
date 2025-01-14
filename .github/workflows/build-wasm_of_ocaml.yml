@@ -140,6 +140,10 @@ jobs:
         with:
           path: wasm_of_ocaml
 
+      - name: Setup GCC (Windows)
+        if: matrix.os == 'windows-latest'
+        run: opam install conf-mingw-w64-gcc-i686 conf-mingw-w64-g++-i686
+
       - name: Pin faked binaryen-bin package
         # It's faster to use a cached version
         run: opam install --fake binaryen-bin
@@ -167,10 +171,6 @@ jobs:
         if: matrix.os == 'windows-latest'
         run: |
            opam pin add -n . --with-version $(Get-Content VERSION)
-
-      - name: Setup GCC (Windows)
-        if: matrix.os == 'windows-latest'
-        run: opam install conf-mingw-w64-gcc-i686 conf-mingw-w64-g++-i686
 
       - name: Install opam file parser
         run: opam install opam-format ocamlfind dune graphics
