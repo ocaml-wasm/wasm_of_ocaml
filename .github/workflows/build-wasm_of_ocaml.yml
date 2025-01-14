@@ -94,6 +94,9 @@ jobs:
         run: |
           echo "$GITHUB_WORKSPACE/binaryen/bin" >> $GITHUB_PATH
 
+      - name: test wasm-merge
+        run: wasm-merge.exe --version
+
       - name: Restore cached OCaml
         if: matrix.os != 'windows-latest'
         id: cache-ocaml
@@ -153,9 +156,6 @@ jobs:
       - name: Pin faked binaryen-bin package
         # It's faster to use a cached version
         run: opam install --fake binaryen-bin
-
-      - name: test wasm-merge
-        run: opam exec -- wasm_merge.exe --version
 
       - name: Checkout Jane Street opam repository
         uses: actions/checkout@v4
