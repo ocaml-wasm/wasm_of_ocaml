@@ -23,4 +23,10 @@ jobs:
         with:
           ocaml-compiler: ${{ matrix.ocaml-compiler }}
 
+      - run: opam install binaryen-bin
+
+      - run: opam exec -- which wasm-opt.exe
+
+      - run: opam exec -- ldd D:\a\wasm_of_ocaml\wasm_of_ocaml\_opam\bin\wasm-opt.exe
+
       - run: opam install wasm_of_ocaml-compiler
