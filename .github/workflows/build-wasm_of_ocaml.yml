@@ -80,10 +80,10 @@ jobs:
         with:
           ocaml-compiler: ${{ matrix.ocaml-compiler }}
 
-      - name: Set-up Binaryen
-        uses: Aandreba/setup-binaryen@v1.0.0
-        with:
-          token: ${{ github.token }}
+#      - name: Set-up Binaryen
+#        uses: Aandreba/setup-binaryen@v1.0.0
+#        with:
+#          token: ${{ github.token }}
 
 #      - name: Pin faked binaryen-bin package
 #        # It's faster to use a cached version
