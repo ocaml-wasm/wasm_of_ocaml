@@ -48,11 +48,11 @@ jobs:
 #            skip-effects: true
 #            skip-test: false
 #            skip-doc: true
-#          - os: windows-latest
-#            ocaml-compiler: "4.14"
-#            skip-effects: true
-#            skip-test: false
-#            skip-doc: true
+          - os: windows-latest
+            ocaml-compiler: "4.14"
+            skip-effects: true
+            skip-test: false
+            skip-doc: true
 #          - os: ubuntu-latest
 #            ocaml-compiler: "5.3"
 #            skip-effects: false
@@ -74,11 +74,11 @@ jobs:
 #            skip-effects: true
 #            skip-test: false
 #            skip-doc: true
-#          - os: windows-latest
-#            ocaml-compiler: "5.3"
-#            skip-effects: false
-#            skip-test: false
-#            skip-doc: true
+          - os: windows-latest
+            ocaml-compiler: "5.3"
+            skip-effects: false
+            skip-test: false
+            skip-doc: true
 
     runs-on: ${{ matrix.os }}
 
@@ -127,14 +127,14 @@ jobs:
       - run: opam install conf-pkg-config conf-mingw-w64-g++-i686 conf-mingw-w64-g++-x86_64
         if: runner.os == 'Windows'
 
-      - name: Set-up Binaryen
-        uses: Aandreba/setup-binaryen@v1.0.0
-        with:
-          token: ${{ github.token }}
-
-      - name: Install faked binaryen-bin package
-        # It's faster to use a cached version
-        run: opam install --fake binaryen-bin
+#      - name: Set-up Binaryen
+#        uses: Aandreba/setup-binaryen@v1.0.0
+#        with:
+#          token: ${{ github.token }}
+#
+#      - name: Install faked binaryen-bin package
+#        # It's faster to use a cached version
+#        run: opam install --fake binaryen-bin
 
       - run: opam install . --best-effort
         if: ${{ matrix.skip-test }}
