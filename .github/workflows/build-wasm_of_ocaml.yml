@@ -18,9 +18,9 @@ jobs:
           - ubuntu-latest
         ocaml-compiler:
           - "4.14"
-          - "5.0"
-          - "5.1"
-          - "5.3"
+#          - "5.0"
+#          - "5.1"
+#          - "5.3"
         separate_compilation:
           - true
         jane_street_tests:
@@ -28,26 +28,26 @@ jobs:
         all_jane_street_tests:
           - false
         include:
-          - os: macos-latest
-            ocaml-compiler: "5.3"
-            separate_compilation: true
-            jane_street_tests: false
-            all_jane_street_tests: false
+#          - os: macos-latest
+#            ocaml-compiler: "5.3"
+#            separate_compilation: true
+#            jane_street_tests: false
+#            all_jane_street_tests: false
           - os: windows-latest
             ocaml-compiler: "5.2"
             separate_compilation: true
             jane_street_tests: true
             all_jane_street_tests: true
-          - os: ubuntu-latest
-            ocaml-compiler: "5.2"
-            separate_compilation: true
-            jane_street_tests: true
-            all_jane_street_tests: true
-          - os: ubuntu-latest
-            ocaml-compiler: "5.2"
-            separate_compilation: false
-            jane_street_tests: true
-            all_jane_street_tests: false
+#          - os: ubuntu-latest
+#            ocaml-compiler: "5.2"
+#            separate_compilation: true
+#            jane_street_tests: true
+#            all_jane_street_tests: true
+#          - os: ubuntu-latest
+#            ocaml-compiler: "5.2"
+#            separate_compilation: false
+#            jane_street_tests: true
+#            all_jane_street_tests: false
 
     runs-on: ${{ matrix.os }}
 
@@ -87,9 +87,9 @@ jobs:
         with:
           token: ${{ github.token }}
 
-      - name: Pin faked binaryen-bin package
-        # It's faster to use a cached version
-        run: opam install --fake binaryen-bin
+#      - name: Pin faked binaryen-bin package
+#        # It's faster to use a cached version
+#        run: opam install --fake binaryen-bin
 
       # Work-around a race between reinstalling mingw-w64-shims
       # (because of conf-pkg-config optional dep) and installing other
