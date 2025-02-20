@@ -1,0 +1,26 @@
+name: build
+
+on:
+  pull_request:
+  push:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - windows-latest
+        ocaml-compiler:
+          - "4.14"
+          - "5.03"
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Set-up OCaml ${{ matrix.ocaml-compiler }}
+        uses: ocaml/setup-ocaml@v3
+        with:
+          ocaml-compiler: ${{ matrix.ocaml-compiler }}
+
+      - run: opam install wasm_of_ocaml-compiler
