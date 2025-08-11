@@ -51,7 +51,7 @@ jobs:
           ocaml-compiler: ${{ matrix.ocaml-compiler }}
 
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           path: wasm_of_ocaml
 
@@ -66,7 +66,7 @@ jobs:
         run: opam install --fake binaryen-bin
 
       - name: Checkout Jane Street opam repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: janestreet/opam-repository
           ref: feaf8f831051fd5f316963b28efd728cf0b0eca1
