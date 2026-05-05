@@ -3,6 +3,9 @@
 ## Features/Changes
 * Lib: fix the type of some DOM properties and methods (#1747)
 * Test: use dune test stanzas (#1631)
+* Wasm: dispatch `wasmoocaml:loaded` and `wasmoocaml:error` `CustomEvent`s on
+  `globalThis` so that surrounding JavaScript can wait for the asynchronous
+  Wasm instantiation to complete (#11)
 
 # 5.9.1 (02-12-2024) - Lille
 
